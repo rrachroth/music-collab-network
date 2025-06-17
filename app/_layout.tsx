@@ -8,13 +8,14 @@ import { setupErrorLogging } from '../utils/errorLogger';
 
 const STORAGE_KEY = 'emulated_device';
 
-export default function RootLayout() {
+// Inner component that can use the SafeArea context
+function LayoutContent() {
   const actualInsets = useSafeAreaInsets();
   const { emulate } = useGlobalSearchParams<{ emulate?: string }>();
   const [storedEmulate, setStoredEmulate] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('🚀 RootLayout mounted');
+    console.log('🚀 LayoutContent mounted');
     
     // Set up global error logging
     setupErrorLogging();
@@ -58,21 +59,30 @@ export default function RootLayout() {
   }
 
   return (
+    <View style={[commonStyles.wrapper, {
+        paddingTop: insetsToUse.top,
+        paddingBottom: insetsToUse.bottom,
+        paddingLeft: insetsToUse.left,
+        paddingRight: insetsToUse.right,
+     }]}>
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'default',
+        }}
+      />
+    </View>
+  );
+}
+
+// Root layout component that provides the SafeArea context
+export default function RootLayout() {
+  console.log('🚀 RootLayout initializing');
+  
+  return (
     <SafeAreaProvider>
-      <View style={[commonStyles.wrapper, {
-          paddingTop: insetsToUse.top,
-          paddingBottom: insetsToUse.bottom,
-          paddingLeft: insetsToUse.left,
-          paddingRight: insetsToUse.right,
-       }]}>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'default',
-          }}
-        />
-      </View>
+      <LayoutContent />
     </SafeAreaProvider>
   );
 }
