@@ -1,37 +1,117 @@
-import { Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useState } from 'react';
+import { Text, View, ScrollView, TextInput, Alert, Dimensions } from 'react-native';
+import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { commonStyles } from '../styles/commonStyles';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withSpring,
+  withDelay 
+} from 'react-native-reanimated';
+import { commonStyles, colors, spacing, borderRadius } from '../styles/commonStyles';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
 
+const { width } = Dimensions.get('window');
+
 const ROLES = [
-  { id: 'producer', name: 'Producer', icon: 'disc' as const },
-  { id: 'vocalist', name: 'Vocalist', icon: 'mic' as const },
-  { id: 'musician', name: 'Musician', icon: 'musical-notes' as const },
-  { id: 'engineer', name: 'Mix Engineer', icon: 'settings' as const },
-  { id: 'ar', name: 'A&R', icon: 'business' as const },
+  { id: 'producer', name: 'Producer', icon: 'musical-notes' },
+  { id: 'vocalist', name: 'Vocalist', icon: 'mic' },
+  { id: 'songwriter', name: 'Songwriter', icon: 'create' },
+  { id: 'instrumentalist', name: 'Instrumentalist', icon: 'guitar' },
+  { id: 'mixer', name: 'Mix Engineer', icon: 'settings' },
+  { id: 'ar', name: 'A&R', icon: 'business' },
 ];
 
 const GENRES = [
-  'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Electronic', 'Jazz', 
-  'Country', 'Alternative', 'Indie', 'Classical', 'Reggae', 'Latin'
+  'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Electronic', 'Jazz',
+  'Classical', 'Country', 'Reggae', 'Latin', 'Alternative', 'Indie'
 ];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
-  const [selectedRole, setSelectedRole] = useState<string>('');
+  const [selectedRole, setSelectedRole] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [name, setName] = useState('');
+  const [bio, setBio] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const fadeIn = useSharedValue(0);
+  const slideUp = useSharedValue(30);
 
-  const handleRoleSelect = (roleId: string) => {
-    console.log('🎭 Role selected:', roleId);
-    setSelectedRole(roleId);
+  useEffect(() => {
+    console.log('🎯 Onboarding Screen - Step', step);
+    
+    // Reset animations for each step
+    fadeIn.value = 0;
+    slideUp.value = 30;
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [step]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
+
+  const handleNext = () => {
+    if (step === 1 && !selectedRole) {
+      Alert.alert('Select Your Role', 'Please choose your primary role in music');
+      return;
+    }
+    if (step === 2 && selectedGenres.length === 0) {
+      Alert.alert('Select Genres', 'Please choose at least one genre you work with');
+      return;
+    }
+    if (step === 3 && !name.trim()) {
+      Alert.alert('Enter Your Name', 'Please enter your name or artist name');
+      return;
+    }
+    
+    if (step < 4) {
+      setStep(step + 1);
+    } else {
+      handleComplete();
+    }
   };
 
-  const handleGenreToggle = (genre: string) => {
-    console.log('🎵 Genre toggled:', genre);
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    } else {
+      router.back();
+    }
+  };
+
+  const handleComplete = async () => {
+    setLoading(true);
+    console.log('🎵 Completing onboarding:', { selectedRole, selectedGenres, name, bio });
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    Alert.alert(
+      'Welcome to MusicLinked! 🎉',
+      'Your profile has been created successfully. Let\'s start discovering amazing artists!',
+      [
+        {
+          text: 'Start Exploring',
+          onPress: () => router.replace('/discover')
+        }
+      ]
+    );
+    
+    setLoading(false);
+  };
+
+  const toggleGenre = (genre: string) => {
     setSelectedGenres(prev => 
       prev.includes(genre) 
         ? prev.filter(g => g !== genre)
@@ -39,183 +119,392 @@ export default function OnboardingScreen() {
     );
   };
 
-  const handleNext = () => {
-    if (step === 1 && !selectedRole) {
-      Alert.alert('Select Role', 'Please select your primary role in music');
-      return;
-    }
-    if (step === 2 && selectedGenres.length === 0) {
-      Alert.alert('Select Genres', 'Please select at least one genre');
-      return;
-    }
-    
-    if (step < 3) {
-      setStep(step + 1);
-    } else {
-      handleComplete();
-    }
-  };
-
-  const handleComplete = () => {
-    console.log('✅ Onboarding completed', { selectedRole, selectedGenres });
-    Alert.alert(
-      'Welcome to MusicLinked!', 
-      'Your profile has been created. Start discovering collaborators!',
-      [{ text: 'Continue', onPress: () => router.replace('/discover') }]
-    );
-  };
-
   const renderStep = () => {
     switch (step) {
       case 1:
         return (
-          <View style={{ flex: 1 }}>
-            <Text style={[commonStyles.title, { marginBottom: 30 }]}>
-              What&apos;s your primary role in music?
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+              What's your role in music?
             </Text>
-            <View style={{ width: '100%' }}>
-              {ROLES.map(role => (
-                <TouchableOpacity
+            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+              Select your primary role to help us connect you with the right collaborators
+            </Text>
+            
+            <View style={styles.optionsGrid}>
+              {ROLES.map((role) => (
+                <RoleCard
                   key={role.id}
-                  style={[
-                    commonStyles.card,
-                    { 
-                      borderColor: selectedRole === role.id ? '#64B5F6' : '#90CAF9',
-                      borderWidth: selectedRole === role.id ? 2 : 1,
-                      backgroundColor: selectedRole === role.id ? '#193cb8' : '#162133'
-                    }
-                  ]}
-                  onPress={() => handleRoleSelect(role.id)}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name={role.icon} size={30} style={{ marginRight: 15 }} />
-                    <Text style={[commonStyles.text, { fontSize: 18 }]}>
-                      {role.name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  role={role}
+                  selected={selectedRole === role.id}
+                  onPress={() => setSelectedRole(role.id)}
+                />
               ))}
             </View>
-          </View>
+          </Animated.View>
         );
-
+      
       case 2:
         return (
-          <View style={{ flex: 1 }}>
-            <Text style={[commonStyles.title, { marginBottom: 30 }]}>
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
               What genres do you work with?
             </Text>
-            <Text style={[commonStyles.text, { marginBottom: 20, opacity: 0.8 }]}>
-              Select all that apply
+            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+              Choose all genres that match your style (you can change this later)
             </Text>
-            <View style={{ 
-              flexDirection: 'row', 
-              flexWrap: 'wrap', 
-              justifyContent: 'space-between',
-              width: '100%'
-            }}>
-              {GENRES.map(genre => (
-                <TouchableOpacity
+            
+            <View style={styles.genreGrid}>
+              {GENRES.map((genre) => (
+                <GenreChip
                   key={genre}
-                  style={[
-                    {
-                      backgroundColor: selectedGenres.includes(genre) ? '#64B5F6' : '#162133',
-                      borderColor: selectedGenres.includes(genre) ? '#64B5F6' : '#90CAF9',
-                      borderWidth: 1,
-                      borderRadius: 20,
-                      paddingHorizontal: 15,
-                      paddingVertical: 10,
-                      marginBottom: 10,
-                      width: '48%',
-                      alignItems: 'center'
-                    }
-                  ]}
-                  onPress={() => handleGenreToggle(genre)}
-                >
-                  <Text style={[
-                    commonStyles.text,
-                    { 
-                      color: selectedGenres.includes(genre) ? '#000' : '#e3e3e3',
-                      fontSize: 14
-                    }
-                  ]}>
-                    {genre}
-                  </Text>
-                </TouchableOpacity>
+                  genre={genre}
+                  selected={selectedGenres.includes(genre)}
+                  onPress={() => toggleGenre(genre)}
+                />
               ))}
             </View>
-          </View>
+          </Animated.View>
         );
-
+      
       case 3:
         return (
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Icon name="checkmark-circle" size={100} style={{ marginBottom: 30 }} />
-            <Text style={[commonStyles.title, { marginBottom: 20 }]}>
-              Perfect! You&apos;re all set.
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+              Tell us about yourself
             </Text>
-            <Text style={[commonStyles.text, { textAlign: 'center', marginBottom: 30 }]}>
-              Your profile as a {ROLES.find(r => r.id === selectedRole)?.name} working in{' '}
-              {selectedGenres.join(', ')} has been created.
+            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+              This information will be displayed on your profile
             </Text>
-            <Text style={[commonStyles.text, { textAlign: 'center', opacity: 0.8 }]}>
-              Next, you&apos;ll be able to upload your audio/video highlights and start discovering collaborators!
-            </Text>
-          </View>
+            
+            <View style={styles.inputContainer}>
+              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
+                Name or Artist Name *
+              </Text>
+              <TextInput
+                style={[commonStyles.input, styles.input]}
+                placeholder="Enter your name..."
+                placeholderTextColor={colors.textMuted}
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+              />
+              
+              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
+                Bio (Optional)
+              </Text>
+              <TextInput
+                style={[commonStyles.input, styles.textArea]}
+                placeholder="Tell us about your musical journey..."
+                placeholderTextColor={colors.textMuted}
+                value={bio}
+                onChangeText={setBio}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+          </Animated.View>
         );
-
+      
+      case 4:
+        return (
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <View style={styles.summaryContainer}>
+              <LinearGradient
+                colors={colors.gradientPrimary}
+                style={styles.summaryIcon}
+              >
+                <Icon name="checkmark-circle" size={60} color={colors.text} />
+              </LinearGradient>
+              
+              <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+                You're all set!
+              </Text>
+              
+              <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+                Here's what we've set up for your profile:
+              </Text>
+              
+              <View style={styles.summaryCard}>
+                <SummaryItem icon="person" label="Role" value={ROLES.find(r => r.id === selectedRole)?.name || ''} />
+                <SummaryItem icon="musical-notes" label="Genres" value={selectedGenres.join(', ')} />
+                <SummaryItem icon="mic" label="Name" value={name} />
+                {bio && <SummaryItem icon="document-text" label="Bio" value={bio} />}
+              </View>
+            </View>
+          </Animated.View>
+        );
+      
       default:
         return null;
     }
   };
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top + 20 }]}>
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 30 }}>
-        {step > 1 && (
-          <TouchableOpacity onPress={() => setStep(step - 1)}>
-            <Icon name="arrow-back" size={24} />
-          </TouchableOpacity>
-        )}
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={[commonStyles.text, { fontSize: 16 }]}>
-            Step {step} of 3
-          </Text>
-        </View>
-        <View style={{ width: 24 }} />
+      <View style={styles.header}>
+        <Button
+          text="Back"
+          onPress={handleBack}
+          variant="ghost"
+          size="sm"
+          style={styles.backButton}
+        />
+        
+        <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
+          Setup Profile
+        </Text>
+        
+        <Text style={[commonStyles.caption, { minWidth: 40, textAlign: 'right' }]}>
+          {step}/4
+        </Text>
       </View>
 
       {/* Progress Bar */}
-      <View style={{ 
-        width: '100%', 
-        height: 4, 
-        backgroundColor: '#162133', 
-        marginBottom: 40,
-        marginHorizontal: 20
-      }}>
-        <View style={{ 
-          width: `${(step / 3) * 100}%`, 
-          height: '100%', 
-          backgroundColor: '#64B5F6',
-          borderRadius: 2
-        }} />
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBar}>
+          <Animated.View style={[styles.progressFill, { width: `${(step / 4) * 100}%` }]} />
+        </View>
       </View>
 
       <ScrollView 
-        contentContainerStyle={[commonStyles.content, { paddingHorizontal: 20 }]}
+        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
         showsVerticalScrollIndicator={false}
       >
         {renderStep()}
       </ScrollView>
 
-      {/* Bottom Button */}
-      <View style={[commonStyles.buttonContainer, { paddingBottom: insets.bottom + 20 }]}>
+      {/* Footer */}
+      <View style={styles.footer}>
         <Button
-          text={step === 3 ? 'Complete Setup' : 'Next'}
+          text={step === 4 ? 'Complete Profile' : 'Continue'}
           onPress={handleNext}
+          variant="gradient"
+          size="lg"
+          loading={loading}
+          disabled={loading}
         />
       </View>
     </View>
   );
 }
+
+interface RoleCardProps {
+  role: { id: string; name: string; icon: string };
+  selected: boolean;
+  onPress: () => void;
+}
+
+function RoleCard({ role, selected, onPress }: RoleCardProps) {
+  return (
+    <Animated.View style={[
+      styles.roleCard,
+      selected && styles.roleCardSelected
+    ]}>
+      <Button
+        text=""
+        onPress={onPress}
+        variant="ghost"
+        style={[styles.roleButton, selected && styles.roleButtonSelected]}
+      >
+        <View style={styles.roleContent}>
+          <Icon 
+            name={role.icon as any} 
+            size={32} 
+            color={selected ? colors.text : colors.textMuted} 
+          />
+          <Text style={[
+            styles.roleText,
+            selected && styles.roleTextSelected
+          ]}>
+            {role.name}
+          </Text>
+        </View>
+      </Button>
+    </Animated.View>
+  );
+}
+
+interface GenreChipProps {
+  genre: string;
+  selected: boolean;
+  onPress: () => void;
+}
+
+function GenreChip({ genre, selected, onPress }: GenreChipProps) {
+  return (
+    <Button
+      text={genre}
+      onPress={onPress}
+      variant={selected ? "primary" : "outline"}
+      size="sm"
+      style={[styles.genreChip, selected && styles.genreChipSelected]}
+      textStyle={[styles.genreText, selected && styles.genreTextSelected]}
+    />
+  );
+}
+
+interface SummaryItemProps {
+  icon: string;
+  label: string;
+  value: string;
+}
+
+function SummaryItem({ icon, label, value }: SummaryItemProps) {
+  return (
+    <View style={styles.summaryItem}>
+      <Icon name={icon as any} size={20} color={colors.primary} />
+      <View style={styles.summaryItemText}>
+        <Text style={styles.summaryLabel}>{label}</Text>
+        <Text style={styles.summaryValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = {
+  header: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    minWidth: 60,
+    justifyContent: 'flex-start' as const,
+  },
+  progressContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 2,
+    overflow: 'hidden' as const,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  optionsGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: spacing.md,
+    justifyContent: 'space-between' as const,
+  },
+  roleCard: {
+    width: '48%',
+    marginBottom: spacing.md,
+  },
+  roleCardSelected: {
+    transform: [{ scale: 1.02 }],
+  },
+  roleButton: {
+    backgroundColor: colors.backgroundCard,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    minHeight: 100,
+  },
+  roleButtonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundAlt,
+  },
+  roleContent: {
+    alignItems: 'center' as const,
+    gap: spacing.sm,
+  },
+  roleText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
+    textAlign: 'center' as const,
+  },
+  roleTextSelected: {
+    color: colors.text,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  genreGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: spacing.sm,
+  },
+  genreChip: {
+    minWidth: 80,
+    marginBottom: spacing.sm,
+  },
+  genreChipSelected: {
+    backgroundColor: colors.primary,
+  },
+  genreText: {
+    fontSize: 14,
+  },
+  genreTextSelected: {
+    color: colors.text,
+  },
+  inputContainer: {
+    width: '100%',
+  },
+  input: {
+    marginBottom: spacing.lg,
+  },
+  textArea: {
+    height: 100,
+    paddingTop: spacing.md,
+  },
+  summaryContainer: {
+    alignItems: 'center' as const,
+    paddingVertical: spacing.xl,
+  },
+  summaryIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: spacing.xl,
+  },
+  summaryCard: {
+    width: '100%',
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  summaryItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  summaryItemText: {
+    marginLeft: spacing.md,
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
+    marginBottom: spacing.xs,
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+  },
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+};
