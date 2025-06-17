@@ -1,94 +1,143 @@
-import { Text, View, Image, Platform } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { commonStyles } from '../styles/commonStyles';
 import Button from '../components/Button';
-import { commonStyles, buttonStyles } from '../styles/commonStyles';
+import Icon from '../components/Icon';
 
-// Declare the window properties we're using
-declare global {
-  interface Window {
-    handleInstallClick?: () => void;
-    canInstall?: boolean;
-  }
-}
-
-export default function MainScreen() {
-  const [canInstall, setCanInstall] = useState(false);
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    console.log('🏠 MainScreen mounted');
-    
-    // Only run install detection on web platform
-    if (Platform.OS !== 'web') {
-      console.log('📱 Not on web platform, skipping install detection');
-      return;
-    }
-
-    // Initial check
-    setCanInstall(false);
-
-    // Set up polling interval with safety checks
-    const intervalId = setInterval(() => {
-      try {
-        if (typeof window !== 'undefined' && window.canInstall) {
-          console.log('✅ App can be installed');
-          setCanInstall(true);
-          clearInterval(intervalId);
-        }
-      } catch (error) {
-        console.error('❌ Error checking install capability:', error);
-        clearInterval(intervalId);
-      }
-    }, 500);
-
-    // Cleanup after 10 seconds to prevent infinite polling
-    const timeoutId = setTimeout(() => {
-      console.log('⏰ Install detection timeout reached');
-      clearInterval(intervalId);
-    }, 10000);
-
-    // Cleanup
-    return () => {
-      clearInterval(intervalId);
-      clearTimeout(timeoutId);
+    console.log('🏠 MusicLinked Home Screen Loaded');
+    // Simulate user check
+    const mockUser = {
+      id: '1',
+      name: 'Demo User',
+      role: 'Producer',
+      isOnboarded: false
     };
+    setUser(mockUser);
   }, []);
 
-  const handleInstallClick = () => {
-    try {
-      if (typeof window !== 'undefined' && window.handleInstallClick) {
-        console.log('📲 Installing app...');
-        window.handleInstallClick();
-        setCanInstall(false); // Update state after installation
-      } else {
-        console.warn('⚠️ Install handler not available');
-      }
-    } catch (error) {
-      console.error('❌ Error during install:', error);
-    }
+  const handleGetStarted = () => {
+    console.log('🎵 Starting onboarding flow');
+    router.push('/onboarding');
+  };
+
+  const handleExplore = () => {
+    console.log('🔍 Exploring features');
+    router.push('/discover');
+  };
+
+  const handleProfile = () => {
+    console.log('👤 Opening profile');
+    router.push('/profile');
   };
 
   return (
-    <View style={commonStyles.container}>
-      <View style={commonStyles.content}>
-        <Image
-          source={require('../assets/images/final_quest_240x240.png')}
-          style={{ width: 180, height: 180 }}
-          resizeMode="contain"
-          onError={(error) => console.error('❌ Image load error:', error)}
-          onLoad={() => console.log('✅ Image loaded successfully')}
-        />
-        <Text style={commonStyles.title}>This is a placeholder app.</Text>
-        <Text style={commonStyles.text}>Your app will be displayed here when it&apos;s ready.</Text>
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+      <ScrollView 
+        contentContainerStyle={commonStyles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={{ alignItems: 'center', marginBottom: 40 }}>
+          <Icon name="musical-notes" size={80} />
+          <Text style={[commonStyles.title, { fontSize: 32, marginTop: 20 }]}>
+            MusicLinked
+          </Text>
+          <Text style={[commonStyles.text, { fontSize: 18, opacity: 0.8 }]}>
+            The Professional Network for Musicians
+          </Text>
+        </View>
+
+        {/* Features Overview */}
+        <View style={{ width: '100%', paddingHorizontal: 20, marginBottom: 40 }}>
+          <FeatureCard
+            icon="people"
+            title="Connect & Collaborate"
+            description="Find musicians, producers, and industry professionals"
+            onPress={handleExplore}
+          />
+          <FeatureCard
+            icon="mic"
+            title="Showcase Your Talent"
+            description="Upload audio/video highlights and build your profile"
+            onPress={handleProfile}
+          />
+          <FeatureCard
+            icon="flash"
+            title="Smart Matching"
+            description="AI-powered recommendations based on your musical style"
+            onPress={handleExplore}
+          />
+          <FeatureCard
+            icon="cash"
+            title="Revenue Splitting"
+            description="Automated payment distribution for collaborations"
+            onPress={() => Alert.alert('Feature Coming Soon', 'Revenue splitting will be available in the beta version!')}
+          />
+        </View>
+
+        {/* CTA Buttons */}
         <View style={commonStyles.buttonContainer}>
-          {canInstall && (
+          {!user?.isOnboarded ? (
             <Button
-              text="Install App"
-              onPress={handleInstallClick}
-              style={buttonStyles.instructionsButton}
+              text="Get Started"
+              onPress={handleGetStarted}
+            />
+          ) : (
+            <Button
+              text="Discover Artists"
+              onPress={handleExplore}
             />
           )}
+          
+          <TouchableOpacity 
+            style={{ marginTop: 15 }}
+            onPress={handleProfile}
+          >
+            <Text style={[commonStyles.text, { textDecorationLine: 'underline' }]}>
+              View My Profile
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer */}
+        <View style={{ marginTop: 40, alignItems: 'center' }}>
+          <Text style={[commonStyles.text, { fontSize: 14, opacity: 0.6 }]}>
+            Version 1.0.0 - Alpha
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+interface FeatureCardProps {
+  icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
+  title: string;
+  description: string;
+  onPress: () => void;
+}
+
+function FeatureCard({ icon, title, description, onPress }: FeatureCardProps) {
+  return (
+    <TouchableOpacity style={commonStyles.card} onPress={onPress}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Icon name={icon} size={40} style={{ marginRight: 15 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={[commonStyles.title, { fontSize: 18, marginBottom: 5 }]}>
+            {title}
+          </Text>
+          <Text style={[commonStyles.text, { fontSize: 14, opacity: 0.8 }]}>
+            {description}
+          </Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }

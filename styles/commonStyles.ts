@@ -1,14 +1,17 @@
-import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 export const colors = {
-  primary: '#162456',    // Material Blue
-  secondary: '#193cb8',  // Darker Blue
-  accent: '#64B5F6',     // Light Blue
-  background: '#101824',  // Keeping dark background
-  backgroundAlt: '#162133',  // Keeping dark background
-  text: '#e3e3e3',       // Keeping light text
-  grey: '#90CAF9',       // Light Blue Grey
-  card: '#193cb8',       // Keeping dark card background
+  primary: '#162456',
+  secondary: '#193cb8',
+  accent: '#64B5F6',
+  background: '#101824',
+  backgroundAlt: '#162133',
+  text: '#e3e3e3',
+  grey: '#90CAF9',
+  card: '#193cb8',
+  success: '#2ed573',
+  error: '#ff4757',
+  warning: '#ffa502',
 };
 
 export const buttonStyles = StyleSheet.create({
@@ -22,35 +25,34 @@ export const buttonStyles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
+  secondary: {
+    backgroundColor: colors.backgroundAlt,
+    borderColor: colors.accent,
+    borderWidth: 1,
+  },
 });
 
 export const commonStyles = StyleSheet.create({
   wrapper: {
     backgroundColor: colors.background,
-    width: '100%',
-    height: '100%',
+    flex: 1,
   },
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    maxWidth: 800,
-    width: '100%',
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
     color: colors.text,
-    marginBottom: 10
+    marginBottom: 10,
   },
   text: {
     fontSize: 16,
@@ -74,16 +76,42 @@ export const commonStyles = StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
     borderColor: colors.grey,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 12,
+    padding: 16,
     marginVertical: 8,
     width: '100%',
-    boxShadow: '0px 2px 3px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   icon: {
     width: 60,
     height: 60,
-    tintColor: "white",
+    tintColor: colors.text,
+  },
+  input: {
+    backgroundColor: colors.backgroundAlt,
+    borderColor: colors.grey,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    color: colors.text,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  centerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
