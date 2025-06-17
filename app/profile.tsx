@@ -15,7 +15,7 @@ const MOCK_USER = {
   highlights: [],
   collaborations: 0,
   rating: 0,
-  bio: 'Welcome to MusicLinked! Complete your profile to start connecting with other musicians.',
+  bio: 'Welcome to Muse! Complete your profile to start connecting with other musicians.',
   verified: false,
   joinDate: 'June 2024'
 };

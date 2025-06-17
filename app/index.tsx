@@ -37,7 +37,7 @@ export default function HomeScreen() {
 
   const initializeApp = async () => {
     try {
-      console.log('🏠 Initializing MusicLinked App');
+      console.log('🏠 Initializing Muse App');
       setLoading(true);
       
       // Initialize sample data if needed
@@ -142,7 +142,7 @@ export default function HomeScreen() {
           <Icon name="musical-notes" size={60} color={colors.text} />
         </LinearGradient>
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Loading MusicLinked...
+          Loading Muse...
         </Text>
       </View>
     );
@@ -157,7 +157,7 @@ export default function HomeScreen() {
           style={styles.headerGradient}
         >
           <Text style={[commonStyles.heading, { color: colors.text, textAlign: 'center' }]}>
-            MusicLinked
+            Muse
           </Text>
         </LinearGradient>
       </Animated.View>
@@ -181,7 +181,7 @@ export default function HomeScreen() {
             </View>
             
             <Text style={[commonStyles.title, { fontSize: 36, marginBottom: spacing.sm }]}>
-              MusicLinked
+              Muse
             </Text>
             
             <Text style={[commonStyles.text, { fontSize: 18, opacity: 0.9, marginBottom: spacing.xl }]}>
@@ -260,7 +260,7 @@ export default function HomeScreen() {
               </Text>
               
               <Text style={[commonStyles.text, { marginBottom: spacing.lg, opacity: 0.8, textAlign: 'center' }]}>
-                Join thousands of musicians already collaborating on MusicLinked
+                Join thousands of musicians already collaborating on Muse
               </Text>
 
               <View style={styles.buttonGroup}>

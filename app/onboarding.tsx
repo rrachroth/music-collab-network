@@ -154,7 +154,7 @@ export default function OnboardingScreen() {
       console.log('✅ User onboarding completed successfully');
       
       Alert.alert(
-        'Welcome to MusicLinked! 🎉',
+        'Welcome to Muse! 🎉',
         `Your profile has been created successfully, ${name}! Let's start discovering amazing artists and collaborating on music.`,
         [
           {
