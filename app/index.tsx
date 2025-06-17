@@ -11,17 +11,18 @@ import Animated, {
   withDelay,
   interpolate,
   useAnimatedScrollHandler,
-  runOnJS
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
+import { getCurrentUser, initializeSampleData, User } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const scrollY = useSharedValue(0);
   const headerOpacity = useSharedValue(0);
   
@@ -31,27 +32,39 @@ export default function HomeScreen() {
   const scale = useSharedValue(0.8);
 
   useEffect(() => {
-    console.log('🏠 MusicLinked Home Screen Loaded');
-    
-    // Simulate user check
-    const mockUser = {
-      id: '1',
-      name: 'Demo User',
-      role: 'Producer',
-      isOnboarded: false
-    };
-    setUser(mockUser);
-
-    // Start entrance animations
-    fadeIn.value = withTiming(1, { duration: 800 });
-    slideUp.value = withSpring(0, { damping: 15 });
-    scale.value = withSpring(1, { damping: 15 });
+    initializeApp();
   }, []);
+
+  const initializeApp = async () => {
+    try {
+      console.log('🏠 Initializing MusicLinked App');
+      setLoading(true);
+      
+      // Initialize sample data if needed
+      await initializeSampleData();
+      
+      // Load current user
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      
+      console.log('👤 Current user:', currentUser?.name || 'No user');
+      
+      // Start entrance animations
+      fadeIn.value = withTiming(1, { duration: 800 });
+      slideUp.value = withSpring(0, { damping: 15 });
+      scale.value = withSpring(1, { damping: 15 });
+      
+    } catch (error) {
+      console.error('❌ Error initializing app:', error);
+      Alert.alert('Error', 'Failed to initialize app. Please restart.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
     
-    // Update header opacity based on scroll
     const newOpacity = interpolate(
       scrollY.value,
       [0, 100],
@@ -84,6 +97,17 @@ export default function HomeScreen() {
 
   const handleExplore = () => {
     console.log('🔍 Exploring features');
+    if (!user?.isOnboarded) {
+      Alert.alert(
+        'Complete Your Profile',
+        'Please complete your profile setup before discovering other musicians.',
+        [
+          { text: 'Setup Profile', onPress: () => router.push('/onboarding') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
     router.push('/discover');
   };
 
@@ -91,6 +115,38 @@ export default function HomeScreen() {
     console.log('👤 Opening profile');
     router.push('/profile');
   };
+
+  const handleProjects = () => {
+    console.log('📋 Opening projects');
+    if (!user?.isOnboarded) {
+      Alert.alert(
+        'Complete Your Profile',
+        'Please complete your profile setup before browsing projects.',
+        [
+          { text: 'Setup Profile', onPress: () => router.push('/onboarding') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+    router.push('/projects');
+  };
+
+  if (loading) {
+    return (
+      <View style={[commonStyles.container, commonStyles.content]}>
+        <LinearGradient
+          colors={colors.gradientPrimary}
+          style={styles.logoGradient}
+        >
+          <Icon name="musical-notes" size={60} color={colors.text} />
+        </LinearGradient>
+        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+          Loading MusicLinked...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
@@ -132,6 +188,17 @@ export default function HomeScreen() {
               The Professional Network for Musicians
             </Text>
 
+            {user && (
+              <View style={styles.userWelcome}>
+                <Text style={[commonStyles.text, { textAlign: 'center', marginBottom: spacing.sm }]}>
+                  Welcome back, {user.name}! 👋
+                </Text>
+                <Text style={[commonStyles.caption, { textAlign: 'center', opacity: 0.8 }]}>
+                  {user.role} • {user.genres.slice(0, 2).join(', ')}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.statsContainer}>
               <StatCard number="10K+" label="Artists" />
               <StatCard number="5K+" label="Collabs" />
@@ -164,20 +231,20 @@ export default function HomeScreen() {
             />
             
             <FeatureCard
-              icon="flash"
-              title="Smart Matching"
-              description="AI-powered recommendations based on your musical style and preferences"
+              icon="briefcase"
+              title="Open Projects"
+              description="Browse and apply to collaborative music projects"
               gradient={colors.gradientPrimary}
-              onPress={handleExplore}
+              onPress={handleProjects}
               delay={400}
             />
             
             <FeatureCard
-              icon="cash"
-              title="Revenue Splitting"
-              description="Automated payment distribution for seamless collaborations"
+              icon="flash"
+              title="Smart Matching"
+              description="AI-powered recommendations based on your musical style"
               gradient={colors.gradientSecondary}
-              onPress={() => Alert.alert('Coming Soon! 🚀', 'Revenue splitting will be available in the beta version. Stay tuned!')}
+              onPress={handleExplore}
               delay={600}
             />
           </View>
@@ -192,7 +259,7 @@ export default function HomeScreen() {
                 Ready to Make Music?
               </Text>
               
-              <Text style={[commonStyles.text, { marginBottom: spacing.lg, opacity: 0.8 }]}>
+              <Text style={[commonStyles.text, { marginBottom: spacing.lg, opacity: 0.8, textAlign: 'center' }]}>
                 Join thousands of musicians already collaborating on MusicLinked
               </Text>
 
@@ -338,6 +405,14 @@ const styles = {
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     ...shadows.lg,
+  },
+  userWelcome: {
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   statsContainer: {
     flexDirection: 'row' as const,

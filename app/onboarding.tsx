@@ -13,6 +13,7 @@ import Animated, {
 import { commonStyles, colors, spacing, borderRadius } from '../styles/commonStyles';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
+import { saveCurrentUser, getCurrentUser, generateId, getCurrentTimestamp, User } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +38,7 @@ export default function OnboardingScreen() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
+  const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
   
   const fadeIn = useSharedValue(0);
@@ -44,6 +46,7 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     console.log('🎯 Onboarding Screen - Step', step);
+    loadExistingUser();
     
     // Reset animations for each step
     fadeIn.value = 0;
@@ -54,6 +57,22 @@ export default function OnboardingScreen() {
     slideUp.value = withSpring(0, { damping: 15 });
   }, [step]);
 
+  const loadExistingUser = async () => {
+    try {
+      const existingUser = await getCurrentUser();
+      if (existingUser && !existingUser.isOnboarded) {
+        // Pre-fill with existing data
+        setName(existingUser.name || '');
+        setBio(existingUser.bio || '');
+        setLocation(existingUser.location || '');
+        setSelectedRole(existingUser.role || '');
+        setSelectedGenres(existingUser.genres || []);
+      }
+    } catch (error) {
+      console.error('❌ Error loading existing user:', error);
+    }
+  };
+
   const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: fadeIn.value,
@@ -61,19 +80,36 @@ export default function OnboardingScreen() {
     };
   });
 
+  const validateStep = (): boolean => {
+    switch (step) {
+      case 1:
+        if (!selectedRole) {
+          Alert.alert('Select Your Role', 'Please choose your primary role in music');
+          return false;
+        }
+        break;
+      case 2:
+        if (selectedGenres.length === 0) {
+          Alert.alert('Select Genres', 'Please choose at least one genre you work with');
+          return false;
+        }
+        break;
+      case 3:
+        if (!name.trim()) {
+          Alert.alert('Enter Your Name', 'Please enter your name or artist name');
+          return false;
+        }
+        if (!location.trim()) {
+          Alert.alert('Enter Your Location', 'Please enter your location (city, state/country)');
+          return false;
+        }
+        break;
+    }
+    return true;
+  };
+
   const handleNext = () => {
-    if (step === 1 && !selectedRole) {
-      Alert.alert('Select Your Role', 'Please choose your primary role in music');
-      return;
-    }
-    if (step === 2 && selectedGenres.length === 0) {
-      Alert.alert('Select Genres', 'Please choose at least one genre you work with');
-      return;
-    }
-    if (step === 3 && !name.trim()) {
-      Alert.alert('Enter Your Name', 'Please enter your name or artist name');
-      return;
-    }
+    if (!validateStep()) return;
     
     if (step < 4) {
       setStep(step + 1);
@@ -91,24 +127,49 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
-    setLoading(true);
-    console.log('🎵 Completing onboarding:', { selectedRole, selectedGenres, name, bio });
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    Alert.alert(
-      'Welcome to MusicLinked! 🎉',
-      'Your profile has been created successfully. Let\'s start discovering amazing artists!',
-      [
-        {
-          text: 'Start Exploring',
-          onPress: () => router.replace('/discover')
-        }
-      ]
-    );
-    
-    setLoading(false);
+    try {
+      setLoading(true);
+      console.log('🎵 Completing onboarding:', { selectedRole, selectedGenres, name, bio, location });
+      
+      const existingUser = await getCurrentUser();
+      
+      const newUser: User = {
+        id: existingUser?.id || generateId(),
+        name: name.trim(),
+        role: selectedRole,
+        genres: selectedGenres,
+        location: location.trim(),
+        bio: bio.trim() || `${selectedRole} specializing in ${selectedGenres.slice(0, 2).join(' and ')} music.`,
+        highlights: existingUser?.highlights || [],
+        collaborations: existingUser?.collaborations || [],
+        rating: existingUser?.rating || 0,
+        verified: existingUser?.verified || false,
+        joinDate: existingUser?.joinDate || getCurrentTimestamp(),
+        isOnboarded: true,
+        lastActive: getCurrentTimestamp(),
+      };
+
+      await saveCurrentUser(newUser);
+      
+      console.log('✅ User onboarding completed successfully');
+      
+      Alert.alert(
+        'Welcome to MusicLinked! 🎉',
+        `Your profile has been created successfully, ${name}! Let's start discovering amazing artists and collaborating on music.`,
+        [
+          {
+            text: 'Start Exploring',
+            onPress: () => router.replace('/discover')
+          }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('❌ Error completing onboarding:', error);
+      Alert.alert('Error', 'Failed to complete profile setup. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleGenre = (genre: string) => {
@@ -188,6 +249,20 @@ export default function OnboardingScreen() {
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
+                maxLength={50}
+              />
+              
+              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
+                Location *
+              </Text>
+              <TextInput
+                style={[commonStyles.input, styles.input]}
+                placeholder="City, State/Country"
+                placeholderTextColor={colors.textMuted}
+                value={location}
+                onChangeText={setLocation}
+                autoCapitalize="words"
+                maxLength={100}
               />
               
               <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
@@ -202,6 +277,7 @@ export default function OnboardingScreen() {
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
+                maxLength={300}
               />
             </View>
           </Animated.View>
@@ -227,11 +303,16 @@ export default function OnboardingScreen() {
               </Text>
               
               <View style={styles.summaryCard}>
-                <SummaryItem icon="person" label="Role" value={ROLES.find(r => r.id === selectedRole)?.name || ''} />
+                <SummaryItem icon="person" label="Name" value={name} />
+                <SummaryItem icon="briefcase" label="Role" value={ROLES.find(r => r.id === selectedRole)?.name || ''} />
+                <SummaryItem icon="location" label="Location" value={location} />
                 <SummaryItem icon="musical-notes" label="Genres" value={selectedGenres.join(', ')} />
-                <SummaryItem icon="mic" label="Name" value={name} />
                 {bio && <SummaryItem icon="document-text" label="Bio" value={bio} />}
               </View>
+              
+              <Text style={[commonStyles.caption, { marginTop: spacing.lg, textAlign: 'center', opacity: 0.8 }]}>
+                You can always update your profile later in settings
+              </Text>
             </View>
           </Animated.View>
         );
@@ -481,7 +562,7 @@ const styles = {
   },
   summaryItem: {
     flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    alignItems: 'flex-start' as const,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -500,6 +581,7 @@ const styles = {
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
+    flexWrap: 'wrap' as const,
   },
   footer: {
     paddingHorizontal: spacing.lg,
