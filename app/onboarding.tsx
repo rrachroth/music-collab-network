@@ -40,6 +40,7 @@ export default function OnboardingScreen() {
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -127,8 +128,11 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
+    if (isCompleting) return; // Prevent double submission
+    
     try {
       setLoading(true);
+      setIsCompleting(true);
       console.log('🎵 Completing onboarding:', { selectedRole, selectedGenres, name, bio, location });
       
       const existingUser = await getCurrentUser();
@@ -153,13 +157,19 @@ export default function OnboardingScreen() {
       
       console.log('✅ User onboarding completed successfully');
       
+      // Show success message and navigate
       Alert.alert(
         'Welcome to Muse! 🎉',
         `Your profile has been created successfully, ${name}! Let's start discovering amazing artists and collaborating on music.`,
         [
           {
             text: 'Start Exploring',
-            onPress: () => router.replace('/discover')
+            onPress: () => {
+              // Use a timeout to ensure the alert is dismissed before navigation
+              setTimeout(() => {
+                router.replace('/(tabs)');
+              }, 100);
+            }
           }
         ]
       );
@@ -169,6 +179,7 @@ export default function OnboardingScreen() {
       Alert.alert('Error', 'Failed to complete profile setup. Please try again.');
     } finally {
       setLoading(false);
+      setIsCompleting(false);
     }
   };
 
@@ -324,6 +335,11 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
+      
       {/* Header */}
       <View style={styles.header}>
         <Button
@@ -365,7 +381,7 @@ export default function OnboardingScreen() {
           variant="gradient"
           size="lg"
           loading={loading}
-          disabled={loading}
+          disabled={loading || isCompleting}
         />
       </View>
     </View>
