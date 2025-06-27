@@ -28,12 +28,21 @@ interface MatchWithUser extends Match {
   unreadCount: number;
 }
 
+interface MatchCardProps {
+  match: MatchWithUser;
+  onPress: () => void;
+  onViewProfile: () => void;
+  formatTimeAgo: (timestamp: string) => string;
+  delay: number;
+}
+
 export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [matches, setMatches] = useState<MatchWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
@@ -42,13 +51,15 @@ export default function MatchesScreen() {
       console.log('💕 Loading matches...');
       setLoading(true);
       
-      const currentUser = await getCurrentUser();
-      if (!currentUser) {
+      const user = await getCurrentUser();
+      if (!user) {
         Alert.alert('Error', 'Please complete your profile first.', [
           { text: 'Setup Profile', onPress: () => router.replace('/onboarding') }
         ]);
         return;
       }
+      
+      setCurrentUser(user);
       
       const [allMatches, allUsers, allMessages] = await Promise.all([
         getMatches(),
@@ -58,13 +69,13 @@ export default function MatchesScreen() {
       
       // Filter matches for current user
       const userMatches = allMatches.filter(match => 
-        match.userId === currentUser.id || match.matchedUserId === currentUser.id
+        match.userId === user.id || match.matchedUserId === user.id
       );
       
       // Enrich matches with user data and message info
       const enrichedMatches: MatchWithUser[] = userMatches.map(match => {
-        const otherUserId = match.userId === currentUser.id ? match.matchedUserId : match.userId;
-        const otherUser = allUsers.find(user => user.id === otherUserId);
+        const otherUserId = match.userId === user.id ? match.matchedUserId : match.userId;
+        const otherUser = allUsers.find(u => u.id === otherUserId);
         
         if (!otherUser) {
           return null;
@@ -77,7 +88,7 @@ export default function MatchesScreen() {
         )[0];
         
         const unreadCount = matchMessages.filter(msg => 
-          !msg.isRead && msg.receiverId === currentUser.id
+          msg.receiverId === user.id && !msg.isRead
         ).length;
         
         return {
@@ -119,36 +130,30 @@ export default function MatchesScreen() {
   };
 
   const handleStartChat = (match: MatchWithUser) => {
-    console.log('💬 Starting chat with', match.user.name);
+    console.log(`💬 Starting chat with ${match.user.name}`);
     router.push(`/chat/${match.id}`);
   };
 
   const handleViewProfile = (userId: string) => {
-    console.log('👤 Viewing profile:', userId);
-    // TODO: Navigate to user profile view
+    console.log(`👤 Viewing profile: ${userId}`);
+    // TODO: Navigate to profile view
   };
 
   const handleBackToDiscover = () => {
     console.log('🔍 Back to discover');
-    router.push('/discover');
+    router.push('/(tabs)/discover');
   };
 
   const formatTimeAgo = (timestamp: string): string => {
     const now = new Date();
-    const date = new Date(timestamp);
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInHours = diffInMs / (1000 * 60 * 60);
-    const diffInDays = diffInHours / 24;
+    const time = new Date(timestamp);
+    const diffInSeconds = Math.floor((now.getTime() - time.getTime()) / 1000);
     
-    if (diffInHours < 1) {
-      return 'Just now';
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
-    } else if (diffInDays < 7) {
-      return `${Math.floor(diffInDays)}d ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return time.toLocaleDateString();
   };
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -162,16 +167,40 @@ export default function MatchesScreen() {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
-          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+          colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
-        <Icon name="heart" size={80} />
+        <Icon name="heart" size={80} color={colors.primary} />
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Loading Matches...
+          Loading Matches
         </Text>
         <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
-          Finding your connections
+          Getting your connections ready
         </Text>
+      </View>
+    );
+  }
+
+  if (matches.length === 0) {
+    return (
+      <View style={[commonStyles.container, commonStyles.centerContent]}>
+        <LinearGradient
+          colors={colors.gradientBackground}
+          style={StyleSheet.absoluteFill}
+        />
+        <Icon name="heart-outline" size={80} color={colors.textMuted} />
+        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+          No Matches Yet
+        </Text>
+        <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>
+          Start swiping to find musicians you&apos;d love to collaborate with!
+        </Text>
+        <Button
+          text="Discover Musicians"
+          onPress={handleBackToDiscover}
+          variant="gradient"
+          size="lg"
+        />
       </View>
     );
   }
@@ -179,7 +208,7 @@ export default function MatchesScreen() {
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
-        colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+        colors={colors.gradientBackground}
         style={StyleSheet.absoluteFill}
       />
       
@@ -198,110 +227,72 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </View>
 
-      {matches.length === 0 ? (
-        <Animated.View style={[commonStyles.centerContent, { flex: 1 }, animatedStyle]}>
-          <LinearGradient
-            colors={colors.gradientSecondary}
-            style={styles.emptyIcon}
-          >
-            <Icon name="heart-outline" size={60} />
-          </LinearGradient>
-          
-          <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-            No Matches Yet
-          </Text>
-          
-          <Text style={[commonStyles.text, { marginBottom: spacing.xl, textAlign: 'center' }]}>
-            Start swiping to find musicians who share your passion for music!
-          </Text>
-          
-          <Button
-            text="Discover Musicians"
-            onPress={handleBackToDiscover}
-            variant="gradient"
-            size="lg"
+      <Animated.ScrollView 
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        style={animatedStyle}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
-        </Animated.View>
-      ) : (
-        <Animated.ScrollView 
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          style={animatedStyle}
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-        >
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.statCard}
-            >
-              <Icon name="heart" size={32} />
-              <Text style={styles.statNumber}>{matches.length}</Text>
-              <Text style={styles.statLabel}>Total Matches</Text>
-            </LinearGradient>
-            
-            <LinearGradient
-              colors={colors.gradientSecondary}
-              style={styles.statCard}
-            >
-              <Icon name="chatbubble" size={32} />
-              <Text style={styles.statNumber}>
-                {matches.filter(m => m.unreadCount > 0).length}
-              </Text>
-              <Text style={styles.statLabel}>Unread Chats</Text>
-            </LinearGradient>
-          </View>
+        }
+      >
+        {/* Stats */}
+        <View style={styles.statsContainer}>
+          <LinearGradient
+            colors={colors.gradientPrimary}
+            style={styles.statsGradient}
+          >
+            <View style={styles.statsContent}>
+              <Icon name="heart" size={32} color={colors.text} />
+              <View style={styles.statsText}>
+                <Text style={styles.statsNumber}>{matches.length}</Text>
+                <Text style={styles.statsLabel}>Total Matches</Text>
+              </View>
+              <View style={styles.statsText}>
+                <Text style={styles.statsNumber}>
+                  {matches.filter(m => m.unreadCount > 0).length}
+                </Text>
+                <Text style={styles.statsLabel}>Unread Chats</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
 
-          {/* Matches List */}
-          <View style={styles.matchesList}>
-            {matches.map((match, index) => (
-              <MatchCard
-                key={match.id}
-                match={match}
-                onPress={() => handleStartChat(match)}
-                onViewProfile={() => handleViewProfile(match.user.id)}
-                formatTimeAgo={formatTimeAgo}
-                delay={index * 100}
-              />
-            ))}
-          </View>
+        {/* Matches List */}
+        <View style={styles.matchesList}>
+          {matches.map((match, index) => (
+            <MatchCard
+              key={match.id}
+              match={match}
+              onPress={() => handleStartChat(match)}
+              onViewProfile={() => handleViewProfile(match.user.id)}
+              formatTimeAgo={formatTimeAgo}
+              delay={index * 100}
+            />
+          ))}
+        </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <Button
-              text="Discover More Musicians"
-              onPress={handleBackToDiscover}
-              variant="gradient"
-              size="lg"
-              style={{ marginBottom: spacing.md }}
-            />
-            
-            <Button
-              text="View All Conversations"
-              onPress={() => router.push('/conversations')}
-              variant="outline"
-              size="md"
-            />
-          </View>
-        </Animated.ScrollView>
-      )}
+        {/* CTA */}
+        <View style={styles.ctaContainer}>
+          <Text style={styles.ctaTitle}>Want More Matches?</Text>
+          <Text style={styles.ctaDescription}>
+            Keep discovering new musicians to expand your network
+          </Text>
+          <Button
+            text="Discover More"
+            onPress={handleBackToDiscover}
+            variant="outline"
+            size="lg"
+            style={{ marginTop: spacing.lg }}
+          />
+        </View>
+      </Animated.ScrollView>
     </View>
   );
-}
-
-interface MatchCardProps {
-  match: MatchWithUser;
-  onPress: () => void;
-  onViewProfile: () => void;
-  formatTimeAgo: (timestamp: string) => string;
-  delay: number;
 }
 
 function MatchCard({ match, onPress, onViewProfile, formatTimeAgo, delay }: MatchCardProps) {
@@ -324,25 +315,27 @@ function MatchCard({ match, onPress, onViewProfile, formatTimeAgo, delay }: Matc
     <Animated.View style={cardAnimatedStyle}>
       <TouchableOpacity style={styles.matchCard} onPress={onPress} activeOpacity={0.8}>
         <LinearGradient
-          colors={colors.gradientPrimary}
-          style={styles.matchCardGradient}
+          colors={match.unreadCount > 0 ? colors.gradientPrimary : colors.gradientSecondary}
+          style={styles.matchGradient}
         >
-          <View style={styles.matchCardContent}>
+          <View style={styles.matchContent}>
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               <LinearGradient
                 colors={colors.gradientSecondary}
-                style={styles.avatar}
+                style={styles.avatarGradient}
               >
                 <Text style={styles.avatarText}>
                   {match.user.name.charAt(0)}
                 </Text>
               </LinearGradient>
+              
               {match.user.verified && (
                 <View style={styles.verifiedBadge}>
                   <Icon name="checkmark-circle" size={16} color={colors.success} />
                 </View>
               )}
+              
               {match.unreadCount > 0 && (
                 <View style={styles.unreadBadge}>
                   <Text style={styles.unreadText}>
@@ -361,44 +354,49 @@ function MatchCard({ match, onPress, onViewProfile, formatTimeAgo, delay }: Matc
                 </Text>
               </View>
               
-              <Text style={styles.matchRole}>
-                {match.user.role} • {match.user.location}
-              </Text>
+              <Text style={styles.matchRole}>{match.user.role}</Text>
               
               {match.lastMessage ? (
                 <Text style={styles.lastMessage} numberOfLines={1}>
                   {match.lastMessage}
                 </Text>
               ) : (
-                <Text style={[styles.lastMessage, { fontStyle: 'italic', opacity: 0.6 }]}>
-                  Say hello! 👋
+                <Text style={styles.noMessage}>
+                  Say hello to start the conversation!
                 </Text>
               )}
               
               {/* Genres */}
-              <View style={styles.genreContainer}>
+              <View style={styles.genresContainer}>
                 {match.user.genres.slice(0, 2).map(genre => (
                   <View key={genre} style={styles.genreChip}>
                     <Text style={styles.genreText}>{genre}</Text>
                   </View>
                 ))}
+                {match.user.genres.length > 2 && (
+                  <Text style={styles.moreGenres}>
+                    +{match.user.genres.length - 2}
+                  </Text>
+                )}
               </View>
             </View>
 
             {/* Actions */}
             <View style={styles.matchActions}>
               <TouchableOpacity 
+                onPress={onViewProfile} 
                 style={styles.actionButton}
-                onPress={onViewProfile}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="person" size={20} color={colors.primary} />
+                <Icon name="person" size={20} color={colors.textMuted} />
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.actionButton, styles.chatButton]}
-                onPress={onPress}
+                onPress={onPress} 
+                style={styles.actionButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Icon name="chatbubble" size={20} color={colors.text} />
+                <Icon name="chatbubble" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -427,53 +425,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-    ...shadows.lg,
-  },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    padding: spacing.lg,
     borderRadius: borderRadius.lg,
-    alignItems: 'center',
+    overflow: 'hidden',
     ...shadows.md,
   },
-  statNumber: {
+  statsGradient: {
+    padding: spacing.lg,
+  },
+  statsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statsText: {
+    alignItems: 'center',
+  },
+  statsNumber: {
     fontSize: 24,
     fontFamily: 'Poppins_700Bold',
     color: colors.text,
-    marginVertical: spacing.sm,
   },
-  statLabel: {
+  statsLabel: {
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: colors.text,
     opacity: 0.9,
   },
   matchesList: {
+    gap: spacing.md,
     marginBottom: spacing.xl,
   },
   matchCard: {
-    marginBottom: spacing.md,
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
     ...shadows.md,
   },
-  matchCardGradient: {
+  matchGradient: {
     padding: 2,
   },
-  matchCardContent: {
+  matchContent: {
     backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg - 2,
     padding: spacing.lg,
@@ -484,7 +476,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginRight: spacing.md,
   },
-  avatar: {
+  avatarGradient: {
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -501,13 +493,13 @@ const styles = StyleSheet.create({
     bottom: -2,
     right: -2,
     backgroundColor: colors.backgroundCard,
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 2,
   },
   unreadBadge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -4,
+    right: -4,
     backgroundColor: colors.error,
     borderRadius: 10,
     minWidth: 20,
@@ -517,7 +509,7 @@ const styles = StyleSheet.create({
   },
   unreadText: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
     color: colors.text,
   },
   matchInfo: {
@@ -542,7 +534,7 @@ const styles = StyleSheet.create({
   matchRole: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    color: colors.primary,
     marginBottom: spacing.sm,
   },
   lastMessage: {
@@ -551,37 +543,64 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
-  genreContainer: {
+  noMessage: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    fontStyle: 'italic',
+    marginBottom: spacing.sm,
+  },
+  genresContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.xs,
   },
   genreChip: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundAlt,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
   },
   genreText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Inter_500Medium',
-    color: colors.text,
+    color: colors.textMuted,
+  },
+  moreGenres: {
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
   },
   matchActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.md,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chatButton: {
-    backgroundColor: colors.primary,
+  ctaContainer: {
+    alignItems: 'center',
+    padding: spacing.xl,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  actionButtons: {
-    marginTop: spacing.lg,
+  ctaTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  ctaDescription: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
   },
 });

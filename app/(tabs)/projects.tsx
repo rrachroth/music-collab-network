@@ -13,7 +13,6 @@ import Animated, {
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 import Button from '../../components/Button';
 import Icon from '../../components/Icon';
-import CreateProjectModal from '../../components/CreateProjectModal';
 import { 
   getCurrentUser, 
   getProjects, 
@@ -26,6 +25,7 @@ import {
   Project,
   Application 
 } from '../../utils/storage';
+import CreateProjectModal from '../../components/CreateProjectModal';
 
 interface ProjectWithApplications extends Project {
   applicationCount: number;
@@ -50,7 +50,7 @@ export default function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'my' | 'applied'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  
+
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
@@ -88,7 +88,7 @@ export default function ProjectsScreen() {
         };
       });
       
-      // Sort by creation date (newest first)
+      // Sort by most recent
       enrichedProjects.sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
@@ -107,7 +107,7 @@ export default function ProjectsScreen() {
   const filterProjects = useCallback(() => {
     if (!currentUser) return;
     
-    let filtered = [...projects];
+    let filtered = projects;
     
     switch (filter) {
       case 'my':
@@ -117,9 +117,7 @@ export default function ProjectsScreen() {
         filtered = projects.filter(p => p.hasApplied);
         break;
       default:
-        // Show all projects except user's own
-        filtered = projects.filter(p => !p.isOwner);
-        break;
+        filtered = projects.filter(p => !p.isOwner); // Show all except own projects
     }
     
     setFilteredProjects(filtered);
@@ -144,6 +142,7 @@ export default function ProjectsScreen() {
   };
 
   const handleCreateProject = () => {
+    console.log('📝 Creating new project');
     setShowCreateModal(true);
   };
 
@@ -153,18 +152,23 @@ export default function ProjectsScreen() {
     try {
       const newProject: Project = {
         id: generateId(),
-        title: projectData.title!,
-        description: projectData.description!,
-        genres: projectData.genres!,
+        title: projectData.title || '',
+        description: projectData.description || '',
+        createdBy: currentUser.id,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorRole: currentUser.role,
+        genres: projectData.genres || [],
         budget: projectData.budget || '',
         timeline: projectData.timeline || '',
         status: 'open',
-        createdBy: currentUser.id,
+        applicants: [],
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp(),
       };
       
       await addProject(newProject);
+      setShowCreateModal(false);
       await loadProjects();
       
       Alert.alert('Success', 'Project created successfully!');
@@ -182,42 +186,38 @@ export default function ProjectsScreen() {
         id: generateId(),
         projectId: project.id,
         applicantId: currentUser.id,
-        message: `Hi! I'm interested in collaborating on "${project.title}". I think my skills as a ${currentUser.role} would be a great fit for this project.`,
-        status: 'pending',
+        applicantName: currentUser.name,
+        message: `Hi! I'm interested in collaborating on "${project.title}". I'm a ${currentUser.role} with experience in ${currentUser.genres.join(', ')}.`,
+        portfolio: currentUser.highlights,
         appliedAt: getCurrentTimestamp(),
+        status: 'pending',
       };
       
       await addApplication(application);
       await loadProjects();
       
-      Alert.alert('Application Sent', 'Your application has been sent to the project owner!');
+      Alert.alert('Success', 'Application submitted successfully!');
     } catch (error) {
       console.error('❌ Error applying to project:', error);
-      Alert.alert('Error', 'Failed to apply to project. Please try again.');
+      Alert.alert('Error', 'Failed to submit application. Please try again.');
     }
   };
 
   const handleViewProject = (project: ProjectWithApplications) => {
-    console.log('👁️ Viewing project:', project.title);
+    console.log(`👁️ Viewing project: ${project.title}`);
     // TODO: Navigate to project detail view
   };
 
   const formatTimeAgo = (timestamp: string): string => {
     const now = new Date();
-    const date = new Date(timestamp);
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInHours = diffInMs / (1000 * 60 * 60);
-    const diffInDays = diffInHours / 24;
+    const time = new Date(timestamp);
+    const diffInSeconds = Math.floor((now.getTime() - time.getTime()) / 1000);
     
-    if (diffInHours < 1) {
-      return 'Just now';
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
-    } else if (diffInDays < 7) {
-      return `${Math.floor(diffInDays)}d ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return time.toLocaleDateString();
   };
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -231,12 +231,12 @@ export default function ProjectsScreen() {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
-          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+          colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
-        <Icon name="briefcase" size={80} />
+        <Icon name="briefcase" size={80} color={colors.primary} />
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Loading Projects...
+          Loading Projects
         </Text>
         <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
           Finding collaboration opportunities
@@ -248,7 +248,7 @@ export default function ProjectsScreen() {
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
-        colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+        colors={colors.gradientBackground}
         style={StyleSheet.absoluteFill}
       />
       
@@ -259,7 +259,7 @@ export default function ProjectsScreen() {
         </TouchableOpacity>
         
         <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
-          Projects ({filteredProjects.length})
+          Projects
         </Text>
         
         <TouchableOpacity onPress={handleCreateProject} style={styles.headerButton}>
@@ -268,99 +268,70 @@ export default function ProjectsScreen() {
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.filterTabs}>
+      <View style={styles.filterContainer}>
         <TouchableOpacity 
-          style={[styles.filterTab, filter === 'all' && styles.activeFilterTab]}
+          style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
           onPress={() => setFilter('all')}
         >
-          <Text style={[styles.filterTabText, filter === 'all' && styles.activeFilterTabText]}>
+          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
             All Projects
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.filterTab, filter === 'my' && styles.activeFilterTab]}
+          style={[styles.filterTab, filter === 'my' && styles.filterTabActive]}
           onPress={() => setFilter('my')}
         >
-          <Text style={[styles.filterTabText, filter === 'my' && styles.activeFilterTabText]}>
+          <Text style={[styles.filterText, filter === 'my' && styles.filterTextActive]}>
             My Projects
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.filterTab, filter === 'applied' && styles.activeFilterTab]}
+          style={[styles.filterTab, filter === 'applied' && styles.filterTabActive]}
           onPress={() => setFilter('applied')}
         >
-          <Text style={[styles.filterTabText, filter === 'applied' && styles.activeFilterTabText]}>
+          <Text style={[styles.filterText, filter === 'applied' && styles.filterTextActive]}>
             Applied
           </Text>
         </TouchableOpacity>
       </View>
 
-      {filteredProjects.length === 0 ? (
-        <Animated.View style={[commonStyles.centerContent, { flex: 1 }, animatedStyle]}>
-          <LinearGradient
-            colors={colors.gradientSecondary}
-            style={styles.emptyIcon}
-          >
-            <Icon name="briefcase-outline" size={60} />
-          </LinearGradient>
-          
-          <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-            {filter === 'my' ? 'No Projects Created' : 
-             filter === 'applied' ? 'No Applications Yet' : 
-             'No Projects Available'}
-          </Text>
-          
-          <Text style={[commonStyles.text, { marginBottom: spacing.xl, textAlign: 'center' }]}>
-            {filter === 'my' ? 'Create your first project to find collaborators!' :
-             filter === 'applied' ? 'Start applying to projects that interest you!' :
-             'Check back later for new collaboration opportunities!'}
-          </Text>
-          
-          <Button
-            text={filter === 'my' ? 'Create Project' : 'View All Projects'}
-            onPress={filter === 'my' ? handleCreateProject : () => setFilter('all')}
-            variant="gradient"
-            size="lg"
+      <Animated.ScrollView 
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        style={animatedStyle}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
-        </Animated.View>
-      ) : (
-        <Animated.ScrollView 
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          style={animatedStyle}
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-        >
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.statCard}
-            >
-              <Icon name="briefcase" size={32} />
-              <Text style={styles.statNumber}>{projects.filter(p => p.isOwner).length}</Text>
-              <Text style={styles.statLabel}>My Projects</Text>
-            </LinearGradient>
-            
-            <LinearGradient
-              colors={colors.gradientSecondary}
-              style={styles.statCard}
-            >
-              <Icon name="document" size={32} />
-              <Text style={styles.statNumber}>{projects.filter(p => p.hasApplied).length}</Text>
-              <Text style={styles.statLabel}>Applications</Text>
-            </LinearGradient>
+        }
+      >
+        {filteredProjects.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="briefcase-outline" size={80} color={colors.textMuted} />
+            <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+              {filter === 'my' ? 'No Projects Created' : 
+               filter === 'applied' ? 'No Applications' : 'No Projects Available'}
+            </Text>
+            <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>
+              {filter === 'my' ? 'Create your first project to start collaborating' :
+               filter === 'applied' ? 'Apply to projects to see them here' :
+               'Check back later for new collaboration opportunities'}
+            </Text>
+            {filter === 'my' && (
+              <Button
+                text="Create Project"
+                onPress={handleCreateProject}
+                variant="gradient"
+                size="lg"
+              />
+            )}
           </View>
-
-          {/* Projects List */}
+        ) : (
           <View style={styles.projectsList}>
             {filteredProjects.map((project, index) => (
               <ProjectCard
@@ -373,32 +344,33 @@ export default function ProjectsScreen() {
               />
             ))}
           </View>
+        )}
 
-          {/* Create Project CTA */}
-          {filter === 'all' && (
-            <View style={styles.ctaSection}>
-              <LinearGradient
-                colors={['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.1)']}
-                style={styles.ctaContainer}
-              >
-                <Icon name="add-circle" size={48} color={colors.primary} />
-                <Text style={[commonStyles.heading, { textAlign: 'center', marginTop: spacing.md }]}>
-                  Have a Project Idea?
-                </Text>
-                <Text style={[commonStyles.text, { marginVertical: spacing.md, textAlign: 'center' }]}>
-                  Create a project and find talented musicians to collaborate with
+        {/* Create Project CTA */}
+        {filter === 'all' && (
+          <View style={styles.ctaContainer}>
+            <LinearGradient
+              colors={colors.gradientPrimary}
+              style={styles.ctaGradient}
+            >
+              <View style={styles.ctaContent}>
+                <Icon name="add-circle" size={48} color={colors.text} />
+                <Text style={styles.ctaTitle}>Have a Project Idea?</Text>
+                <Text style={styles.ctaDescription}>
+                  Create a project and find the perfect collaborators
                 </Text>
                 <Button
-                  text="Create New Project"
+                  text="Create Project"
                   onPress={handleCreateProject}
-                  variant="gradient"
+                  variant="secondary"
                   size="lg"
+                  style={{ marginTop: spacing.lg }}
                 />
-              </LinearGradient>
-            </View>
-          )}
-        </Animated.ScrollView>
-      )}
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+      </Animated.ScrollView>
 
       {/* Create Project Modal */}
       <CreateProjectModal
@@ -429,16 +401,11 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
 
   const getStatusColor = () => {
     switch (project.status) {
-      case 'open':
-        return colors.success;
-      case 'in-progress':
-        return colors.warning;
-      case 'completed':
-        return colors.primary;
-      case 'closed':
-        return colors.error;
-      default:
-        return colors.textMuted;
+      case 'open': return colors.success;
+      case 'in_progress': return colors.warning;
+      case 'completed': return colors.primary;
+      case 'cancelled': return colors.error;
+      default: return colors.textMuted;
     }
   };
 
@@ -446,18 +413,20 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
     <Animated.View style={cardAnimatedStyle}>
       <TouchableOpacity style={styles.projectCard} onPress={onView} activeOpacity={0.8}>
         <LinearGradient
-          colors={colors.gradientPrimary}
-          style={styles.projectCardGradient}
+          colors={project.isOwner ? colors.gradientPrimary : colors.gradientSecondary}
+          style={styles.projectGradient}
         >
-          <View style={styles.projectCardContent}>
-            {/* Project Header */}
+          <View style={styles.projectContent}>
+            {/* Header */}
             <View style={styles.projectHeader}>
-              <View style={styles.projectTitleRow}>
+              <View style={styles.projectTitleContainer}>
                 <Text style={styles.projectTitle} numberOfLines={2}>
                   {project.title}
                 </Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
-                  <Text style={styles.statusText}>{project.status}</Text>
+                  <Text style={styles.statusText}>
+                    {project.status.replace('_', ' ').toUpperCase()}
+                  </Text>
                 </View>
               </View>
               
@@ -466,41 +435,48 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
               </Text>
             </View>
 
-            {/* Project Description */}
+            {/* Author */}
+            <View style={styles.authorContainer}>
+              <View style={styles.authorAvatar}>
+                <Text style={styles.authorInitial}>
+                  {project.authorName.charAt(0)}
+                </Text>
+              </View>
+              <View style={styles.authorInfo}>
+                <Text style={styles.authorName}>{project.authorName}</Text>
+                <Text style={styles.authorRole}>{project.authorRole}</Text>
+              </View>
+            </View>
+
+            {/* Description */}
             <Text style={styles.projectDescription} numberOfLines={3}>
               {project.description}
             </Text>
 
             {/* Genres */}
-            <View style={styles.projectGenres}>
+            <View style={styles.genresContainer}>
               {project.genres.slice(0, 3).map(genre => (
                 <View key={genre} style={styles.genreChip}>
                   <Text style={styles.genreText}>{genre}</Text>
                 </View>
               ))}
               {project.genres.length > 3 && (
-                <View style={styles.genreChip}>
-                  <Text style={styles.genreText}>+{project.genres.length - 3}</Text>
-                </View>
+                <Text style={styles.moreGenres}>
+                  +{project.genres.length - 3}
+                </Text>
               )}
             </View>
 
             {/* Project Details */}
             <View style={styles.projectDetails}>
-              {project.budget && (
-                <View style={styles.detailItem}>
-                  <Icon name="card" size={16} color={colors.textMuted} />
-                  <Text style={styles.detailText}>{project.budget}</Text>
-                </View>
-              )}
-              
-              {project.timeline && (
-                <View style={styles.detailItem}>
-                  <Icon name="time" size={16} color={colors.textMuted} />
-                  <Text style={styles.detailText}>{project.timeline}</Text>
-                </View>
-              )}
-              
+              <View style={styles.detailItem}>
+                <Icon name="cash" size={16} color={colors.textMuted} />
+                <Text style={styles.detailText}>{project.budget}</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Icon name="time" size={16} color={colors.textMuted} />
+                <Text style={styles.detailText}>{project.timeline}</Text>
+              </View>
               <View style={styles.detailItem}>
                 <Icon name="people" size={16} color={colors.textMuted} />
                 <Text style={styles.detailText}>
@@ -511,35 +487,28 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
 
             {/* Actions */}
             <View style={styles.projectActions}>
-              <TouchableOpacity 
-                style={styles.actionButton}
+              <Button
+                text="View Details"
                 onPress={onView}
-              >
-                <Icon name="eye" size={20} color={colors.primary} />
-                <Text style={styles.actionButtonText}>View</Text>
-              </TouchableOpacity>
+                variant="outline"
+                size="sm"
+                style={{ flex: 1 }}
+              />
               
               {!project.isOwner && !project.hasApplied && project.status === 'open' && (
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.applyButton]}
+                <Button
+                  text="Apply"
                   onPress={onApply}
-                >
-                  <Icon name="send" size={20} color={colors.text} />
-                  <Text style={[styles.actionButtonText, { color: colors.text }]}>Apply</Text>
-                </TouchableOpacity>
+                  variant="primary"
+                  size="sm"
+                  style={{ flex: 1, marginLeft: spacing.sm }}
+                />
               )}
               
               {project.hasApplied && (
-                <View style={[styles.actionButton, styles.appliedButton]}>
-                  <Icon name="checkmark" size={20} color={colors.success} />
-                  <Text style={[styles.actionButtonText, { color: colors.success }]}>Applied</Text>
-                </View>
-              )}
-              
-              {project.isOwner && (
-                <View style={[styles.actionButton, styles.ownerButton]}>
-                  <Icon name="person" size={20} color={colors.warning} />
-                  <Text style={[styles.actionButtonText, { color: colors.warning }]}>Owner</Text>
+                <View style={styles.appliedBadge}>
+                  <Icon name="checkmark-circle" size={16} color={colors.success} />
+                  <Text style={styles.appliedText}>Applied</Text>
                 </View>
               )}
             </View>
@@ -565,10 +534,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterTabs: {
+  filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -579,101 +548,103 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     marginHorizontal: spacing.xs,
   },
-  activeFilterTab: {
+  filterTabActive: {
     backgroundColor: colors.primary,
   },
-  filterTabText: {
+  filterText: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
     color: colors.textMuted,
   },
-  activeFilterTabText: {
+  filterTextActive: {
     color: colors.text,
-    fontWeight: 'bold',
+    fontFamily: 'Inter_600SemiBold',
   },
   content: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  emptyState: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-    ...shadows.lg,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    ...shadows.md,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginVertical: spacing.sm,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: colors.text,
-    opacity: 0.9,
+    paddingVertical: spacing.xxl,
   },
   projectsList: {
+    gap: spacing.md,
     marginBottom: spacing.xl,
   },
   projectCard: {
-    marginBottom: spacing.md,
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
     ...shadows.md,
   },
-  projectCardGradient: {
+  projectGradient: {
     padding: 2,
   },
-  projectCardContent: {
+  projectContent: {
     backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg - 2,
     padding: spacing.lg,
   },
   projectHeader: {
-    marginBottom: spacing.md,
-  },
-  projectTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  projectTitleContainer: {
+    flex: 1,
+    marginRight: spacing.md,
   },
   projectTitle: {
     fontSize: 18,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    flex: 1,
-    marginRight: spacing.sm,
+    marginBottom: spacing.xs,
   },
   statusBadge: {
-    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
   },
   statusText: {
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
     color: colors.text,
-    textTransform: 'capitalize',
   },
   projectTime: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+  },
+  authorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  authorAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  authorInitial: {
+    fontSize: 14,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.text,
+  },
+  authorInfo: {
+    flex: 1,
+  },
+  authorName: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+  },
+  authorRole: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
@@ -685,79 +656,91 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: spacing.md,
   },
-  projectGenres: {
+  genresContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: spacing.xs,
     marginBottom: spacing.md,
   },
   genreChip: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundAlt,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
   },
   genreText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Inter_500Medium',
-    color: colors.text,
+    color: colors.textMuted,
+  },
+  moreGenres: {
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
   },
   projectDetails: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    flex: 1,
   },
   detailText: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
+    marginLeft: spacing.xs,
   },
   projectActions: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
+    alignItems: 'center',
   },
-  actionButton: {
+  appliedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundAlt,
-    gap: spacing.xs,
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
   },
-  applyButton: {
-    backgroundColor: colors.primary,
-  },
-  appliedButton: {
-    backgroundColor: colors.backgroundAlt,
-    borderWidth: 1,
-    borderColor: colors.success,
-  },
-  ownerButton: {
-    backgroundColor: colors.backgroundAlt,
-    borderWidth: 1,
-    borderColor: colors.warning,
-  },
-  actionButtonText: {
-    fontSize: 12,
+  appliedText: {
+    fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
-    color: colors.primary,
-  },
-  ctaSection: {
-    marginTop: spacing.xl,
+    color: colors.success,
+    marginLeft: spacing.xs,
   },
   ctaContainer: {
-    borderRadius: borderRadius.xl,
+    marginTop: spacing.xl,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.lg,
+  },
+  ctaGradient: {
     padding: spacing.xl,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+  },
+  ctaContent: {
+    alignItems: 'center',
+  },
+  ctaTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.text,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  ctaDescription: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.text,
+    opacity: 0.9,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
 });

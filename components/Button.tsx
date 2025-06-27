@@ -1,10 +1,8 @@
 import { Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import { useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { colors, typography, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import { useEffect } from 'react';
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface ButtonProps {
   text: string;
@@ -19,11 +17,11 @@ interface ButtonProps {
   iconPosition?: 'left' | 'right';
 }
 
-export default function Button({ 
-  text, 
-  onPress, 
-  style, 
-  textStyle, 
+export default function Button({
+  text,
+  onPress,
+  style,
+  textStyle,
   disabled = false,
   loading = false,
   variant = 'primary',
@@ -35,11 +33,7 @@ export default function Button({
   const opacity = useSharedValue(1);
 
   useEffect(() => {
-    if (disabled) {
-      opacity.value = withTiming(0.5, { duration: 200 });
-    } else {
-      opacity.value = withTiming(1, { duration: 200 });
-    }
+    opacity.value = withTiming(disabled ? 0.6 : 1, { duration: 200 });
   }, [disabled, opacity]);
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -50,109 +44,92 @@ export default function Button({
   });
 
   const handlePressIn = () => {
-    if (!disabled && !loading) {
-      scale.value = withSpring(0.95, { damping: 15 });
-    }
+    scale.value = withSpring(0.95, { damping: 15 });
   };
 
   const handlePressOut = () => {
-    if (!disabled && !loading) {
-      scale.value = withSpring(1, { damping: 15 });
-    }
+    scale.value = withSpring(1, { damping: 15 });
   };
 
   const getButtonStyle = () => {
     const baseStyle = [styles.button, styles[size]];
     
     switch (variant) {
+      case 'primary':
+        return [...baseStyle, styles.primary];
       case 'secondary':
-        return [...baseStyle, styles.secondaryButton];
+        return [...baseStyle, styles.secondary];
       case 'outline':
-        return [...baseStyle, styles.outlineButton];
+        return [...baseStyle, styles.outline];
       case 'ghost':
-        return [...baseStyle, styles.ghostButton];
-      case 'gradient':
-        return [...baseStyle, styles.gradientButton];
-      default:
-        return [...baseStyle, styles.primaryButton];
-    }
-  };
-
-  const getTextStyle = () => {
-    const baseStyle = [styles.buttonText, styles[`${size}Text`]];
-    
-    switch (variant) {
-      case 'outline':
-        return [...baseStyle, styles.outlineButtonText];
-      case 'ghost':
-        return [...baseStyle, styles.ghostButtonText];
+        return [...baseStyle, styles.ghost];
       default:
         return baseStyle;
     }
   };
 
-  const renderContent = () => (
-    <>
-      {icon && iconPosition === 'left' && (
-        <Animated.View style={[styles.iconContainer, { marginRight: spacing.sm }]}>
-          {icon}
-        </Animated.View>
-      )}
-      {loading ? (
-        <ActivityIndicator 
-          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.text} 
-          size="small"
-        />
-      ) : (
-        <Text style={[...getTextStyle(), textStyle]}>
-          {text}
-        </Text>
-      )}
-      {icon && iconPosition === 'right' && (
-        <Animated.View style={[styles.iconContainer, { marginLeft: spacing.sm }]}>
-          {icon}
-        </Animated.View>
-      )}
-    </>
-  );
+  const getTextStyle = () => {
+    const baseStyle = [styles.text, styles[`${size}Text`]];
+    
+    switch (variant) {
+      case 'outline':
+        return [...baseStyle, styles.outlineText];
+      case 'ghost':
+        return [...baseStyle, styles.ghostText];
+      default:
+        return [...baseStyle, styles.primaryText];
+    }
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return <ActivityIndicator size="small" color={colors.text} />;
+    }
+
+    return (
+      <>
+        {icon && iconPosition === 'left' && icon}
+        <Text style={[getTextStyle(), textStyle]}>{text}</Text>
+        {icon && iconPosition === 'right' && icon}
+      </>
+    );
+  };
 
   if (variant === 'gradient') {
     return (
-      <AnimatedTouchable
-        style={[animatedStyle, style]}
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={1}
-        disabled={disabled || loading}
-      >
-        <LinearGradient
-          colors={colors.gradientPrimary}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[...getButtonStyle()]}
+      <Animated.View style={[animatedStyle, style]}>
+        <TouchableOpacity
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={disabled || loading}
+          activeOpacity={0.8}
+          style={styles.gradientButton}
         >
-          {renderContent()}
-        </LinearGradient>
-      </AnimatedTouchable>
+          <LinearGradient
+            colors={disabled ? [colors.grey, colors.grey] : colors.gradientPrimary}
+            style={[styles.gradientInner, styles[size]]}
+          >
+            {renderContent()}
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
   return (
-    <AnimatedTouchable 
-      style={[
-        animatedStyle,
-        ...getButtonStyle(),
-        style
-      ]} 
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      activeOpacity={1}
-      disabled={disabled || loading}
-    >
-      {renderContent()}
-    </AnimatedTouchable>
+    <Animated.View style={[animatedStyle, style]}>
+      <TouchableOpacity
+        style={[getButtonStyle(), style]}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || loading}
+        activeOpacity={0.8}
+      >
+        {renderContent()}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -164,43 +141,66 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     ...shadows.sm,
   },
+  gradientButton: {
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  gradientInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Variants
+  primary: {
+    backgroundColor: colors.primary,
+  },
+  secondary: {
+    backgroundColor: colors.secondary,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+  },
+  
+  // Sizes
   sm: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    minHeight: 40,
+    minHeight: 36,
   },
   md: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    minHeight: 48,
+    minHeight: 44,
   },
   lg: {
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
-    minHeight: 56,
+    minHeight: 52,
   },
-  primaryButton: {
-    backgroundColor: colors.primary,
-  },
-  secondaryButton: {
-    backgroundColor: colors.secondary,
-  },
-  outlineButton: {
-    backgroundColor: 'transparent',
-    borderColor: colors.primary,
-    borderWidth: 2,
-  },
-  ghostButton: {
-    backgroundColor: 'transparent',
-  },
-  gradientButton: {
-    backgroundColor: 'transparent',
-  },
-  buttonText: {
+  
+  // Text styles
+  text: {
     ...typography.button,
-    color: colors.text,
     textAlign: 'center',
   },
+  primaryText: {
+    color: colors.text,
+  },
+  outlineText: {
+    color: colors.primary,
+  },
+  ghostText: {
+    color: colors.primary,
+  },
+  
+  // Text sizes
   smText: {
     fontSize: 14,
   },
@@ -209,15 +209,5 @@ const styles = StyleSheet.create({
   },
   lgText: {
     fontSize: 18,
-  },
-  outlineButtonText: {
-    color: colors.primary,
-  },
-  ghostButtonText: {
-    color: colors.primary,
-  },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

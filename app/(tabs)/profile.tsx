@@ -186,12 +186,12 @@ export default function ProfileScreen() {
 
   const handleViewMatches = () => {
     console.log('💕 Viewing matches');
-    router.push('/matches');
+    router.push('/(tabs)/matches');
   };
 
   const handleViewProjects = () => {
     console.log('📋 Viewing projects');
-    router.push('/projects');
+    router.push('/(tabs)/projects');
   };
 
   const formatJoinDate = (dateString: string): string => {

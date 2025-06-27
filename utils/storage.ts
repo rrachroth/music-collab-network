@@ -16,12 +16,13 @@ export interface User {
   isOnboarded: boolean;
   profileImage?: string;
   lastActive: string;
+  createdAt: string;
 }
 
 export interface MediaFile {
   id: string;
   uri: string;
-  type: 'audio' | 'video';
+  type: 'audio' | 'video' | 'image';
   title: string;
   description?: string;
   duration: number;
@@ -52,6 +53,7 @@ export interface Project {
   id: string;
   title: string;
   description: string;
+  createdBy: string;
   authorId: string;
   authorName: string;
   authorRole: string;
@@ -350,6 +352,7 @@ export const initializeSampleData = async (): Promise<void> => {
           joinDate: '2024-01-15',
           isOnboarded: true,
           lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
         },
         {
           id: 'user_2',
@@ -365,6 +368,7 @@ export const initializeSampleData = async (): Promise<void> => {
           joinDate: '2024-02-20',
           isOnboarded: true,
           lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
         },
         {
           id: 'user_3',
@@ -380,6 +384,39 @@ export const initializeSampleData = async (): Promise<void> => {
           joinDate: '2024-03-10',
           isOnboarded: true,
           lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'user_4',
+          name: 'Sophia Strings',
+          role: 'Instrumentalist',
+          genres: ['Classical', 'Pop', 'Rock'],
+          location: 'Boston, MA',
+          bio: 'Professional violinist and string arranger. Classically trained with a passion for modern music.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.6,
+          verified: true,
+          joinDate: '2024-02-05',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'user_5',
+          name: 'Marcus Mix',
+          role: 'Mix Engineer',
+          genres: ['Hip-Hop', 'Pop', 'R&B'],
+          location: 'Atlanta, GA',
+          bio: 'Award-winning mix engineer with credits on platinum albums. Specializing in modern urban music.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.9,
+          verified: true,
+          joinDate: '2024-01-30',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
         },
       ];
 
@@ -390,6 +427,7 @@ export const initializeSampleData = async (): Promise<void> => {
           id: 'project_1',
           title: 'Looking for Vocalist - R&B Track',
           description: 'I have a smooth R&B instrumental ready and need a talented vocalist to bring it to life. Looking for someone with experience in contemporary R&B.',
+          createdBy: 'user_1',
           authorId: 'user_1',
           authorName: 'Alex Producer',
           authorRole: 'Producer',
@@ -405,12 +443,29 @@ export const initializeSampleData = async (): Promise<void> => {
           id: 'project_2',
           title: 'Hip-Hop Collab - Need Rapper',
           description: 'Fresh hip-hop beat with a trap influence. Looking for a skilled rapper with their own style and flow.',
+          createdBy: 'user_1',
           authorId: 'user_1',
           authorName: 'Alex Producer',
           authorRole: 'Producer',
           genres: ['Hip-Hop', 'Trap'],
           budget: '$300-500',
           timeline: '1 week',
+          status: 'open',
+          applicants: [],
+          createdAt: getCurrentTimestamp(),
+          updatedAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'project_3',
+          title: 'Pop Song Needs String Arrangement',
+          description: 'Working on a pop ballad that needs beautiful string arrangements. Looking for a skilled string player or arranger.',
+          createdBy: 'user_2',
+          authorId: 'user_2',
+          authorName: 'Maya Vocalist',
+          authorRole: 'Vocalist',
+          genres: ['Pop', 'Ballad'],
+          budget: '$400-800',
+          timeline: '3 weeks',
           status: 'open',
           applicants: [],
           createdAt: getCurrentTimestamp(),

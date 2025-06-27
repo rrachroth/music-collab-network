@@ -2,15 +2,11 @@ import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getCurrentUser } from '../utils/storage';
-import { commonStyles } from '../styles/commonStyles';
-import Icon from '../components/Icon';
+import { getCurrentUser } from './utils/storage';
+import { commonStyles } from './styles/commonStyles';
+import Icon from './components/Icon';
 
 export default function IndexScreen() {
-  useEffect(() => {
-    checkUserAndRedirect();
-  }, []);
-
   const checkUserAndRedirect = async () => {
     try {
       console.log('🔍 Checking user status...');
@@ -30,6 +26,10 @@ export default function IndexScreen() {
       router.replace('/onboarding');
     }
   };
+
+  useEffect(() => {
+    checkUserAndRedirect();
+  }, []);
 
   return (
     <View style={[commonStyles.container, commonStyles.centerContent]}>
