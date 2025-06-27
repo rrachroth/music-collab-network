@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, StyleSheet } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,66 +26,82 @@ import {
   Message 
 } from '../../utils/storage';
 
+interface MessageBubbleProps {
+  message: Message;
+  isOwn: boolean;
+  otherUser: User;
+}
+
 export default function ChatScreen() {
-  const insets = useSafeAreaInsets();
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [otherUser, setOtherUser] = useState<User | null>(null);
+  const [match, setMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
-  useEffect(() => {
-    loadChatData();
+  const loadChatData = useCallback(async () => {
+    if (!matchId) return;
     
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withSpring(0, { damping: 15 });
-  }, [matchId]);
-
-  const loadChatData = async () => {
     try {
       console.log('💬 Loading chat data for match:', matchId);
       setLoading(true);
       
-      const user = await getCurrentUser();
+      const [user, matches, allMessages, allUsers] = await Promise.all([
+        getCurrentUser(),
+        getMatches(),
+        getMessages(),
+        getAllUsers(),
+      ]);
+      
       if (!user) {
-        Alert.alert('Error', 'User not found');
-        router.back();
+        Alert.alert('Error', 'Please complete your profile first.', [
+          { text: 'Setup Profile', onPress: () => router.replace('/onboarding') }
+        ]);
         return;
       }
+      
       setCurrentUser(user);
       
       // Find the match
-      const matches = await getMatches();
-      const match = matches.find(m => m.id === matchId);
-      if (!match) {
-        Alert.alert('Error', 'Match not found');
-        router.back();
+      const currentMatch = matches.find(m => m.id === matchId);
+      if (!currentMatch) {
+        Alert.alert('Error', 'Match not found.', [
+          { text: 'Go Back', onPress: () => router.back() }
+        ]);
         return;
       }
       
-      // Get the other user
-      const otherUserId = match.userId === user.id ? match.matchedUserId : match.userId;
-      const allUsers = await getAllUsers();
-      const other = allUsers.find(u => u.id === otherUserId);
-      if (!other) {
-        Alert.alert('Error', 'User not found');
-        router.back();
+      setMatch(currentMatch);
+      
+      // Find the other user
+      const otherUserId = currentMatch.userId === user.id ? currentMatch.matchedUserId : currentMatch.userId;
+      const otherUserData = allUsers.find(u => u.id === otherUserId);
+      
+      if (!otherUserData) {
+        Alert.alert('Error', 'User not found.', [
+          { text: 'Go Back', onPress: () => router.back() }
+        ]);
         return;
       }
-      setOtherUser(other);
       
-      // Load messages
-      const chatMessages = await getMessages(matchId);
-      setMessages(chatMessages.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()));
+      setOtherUser(otherUserData);
       
-      console.log(`✅ Loaded ${chatMessages.length} messages`);
+      // Get messages for this match
+      const matchMessages = allMessages
+        .filter(msg => msg.matchId === matchId)
+        .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
+      
+      setMessages(matchMessages);
+      
+      console.log(`✅ Loaded ${matchMessages.length} messages for chat with ${otherUserData.name}`);
       
     } catch (error) {
       console.error('❌ Error loading chat data:', error);
@@ -93,26 +109,35 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [matchId]);
+
+  useEffect(() => {
+    loadChatData();
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [loadChatData, fadeIn, slideUp]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !currentUser || !otherUser || sending) return;
+    if (!newMessage.trim() || !currentUser || !match || sending) return;
     
     try {
       setSending(true);
       
       const message: Message = {
         id: generateId(),
-        matchId: matchId!,
+        matchId: match.id,
         senderId: currentUser.id,
-        receiverId: otherUser.id,
+        receiverId: match.userId === currentUser.id ? match.matchedUserId : match.userId,
         content: newMessage.trim(),
-        type: 'text',
         sentAt: getCurrentTimestamp(),
         isRead: false,
       };
       
       await addMessage(message);
+      
+      // Add message to local state immediately for better UX
       setMessages(prev => [...prev, message]);
       setNewMessage('');
       
@@ -145,23 +170,34 @@ export default function ChatScreen() {
           colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
           style={StyleSheet.absoluteFill}
         />
-        <Icon name="chatbubbles" size={80} />
+        <Icon name="chatbubble" size={80} />
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
           Loading Chat...
+        </Text>
+        <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
+          Connecting you with your match
         </Text>
       </View>
     );
   }
 
-  if (!otherUser) {
+  if (!currentUser || !otherUser || !match) {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
           colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
           style={StyleSheet.absoluteFill}
         />
-        <Text style={commonStyles.title}>User not found</Text>
-        <Button text="Go Back" onPress={() => router.back()} />
+        <Text style={commonStyles.title}>Chat Not Found</Text>
+        <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+          Unable to load this conversation
+        </Text>
+        <Button 
+          text="Go Back" 
+          onPress={() => router.back()} 
+          variant="gradient"
+          size="lg"
+        />
       </View>
     );
   }
@@ -183,114 +219,105 @@ export default function ChatScreen() {
         </TouchableOpacity>
         
         <View style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.avatarGradient}
-            >
-              <Text style={styles.avatarText}>
-                {otherUser.name.charAt(0)}
-              </Text>
-            </LinearGradient>
-          </View>
+          <LinearGradient
+            colors={colors.gradientSecondary}
+            style={styles.headerAvatar}
+          >
+            <Text style={styles.headerAvatarText}>
+              {otherUser.name.charAt(0)}
+            </Text>
+          </LinearGradient>
+          
           <View style={styles.headerText}>
-            <Text style={[commonStyles.heading, { fontSize: 18 }]}>
-              {otherUser.name}
-            </Text>
-            <Text style={[commonStyles.caption, { opacity: 0.8 }]}>
-              {otherUser.role} • {otherUser.location}
-            </Text>
+            <Text style={styles.headerName}>{otherUser.name}</Text>
+            <Text style={styles.headerRole}>{otherUser.role}</Text>
           </View>
         </View>
         
-        <TouchableOpacity 
-          onPress={() => router.push(`/profile/${otherUser.id}`)} 
-          style={styles.headerButton}
-        >
-          <Icon name="person" size={24} />
+        <TouchableOpacity onPress={() => {}} style={styles.headerButton}>
+          <Icon name="information-circle" size={24} />
         </TouchableOpacity>
       </View>
 
       {/* Messages */}
-      <Animated.View style={[styles.messagesContainer, animatedStyle]}>
-        <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {messages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <LinearGradient
-                colors={colors.gradientPrimary}
-                style={styles.emptyStateIcon}
-              >
-                <Icon name="heart" size={40} />
-              </LinearGradient>
-              <Text style={[commonStyles.heading, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>
-                You Matched!
+      <Animated.ScrollView
+        ref={scrollViewRef}
+        style={[styles.messagesContainer, animatedStyle]}
+        contentContainerStyle={styles.messagesContent}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.length === 0 ? (
+          <View style={styles.emptyChat}>
+            <LinearGradient
+              colors={colors.gradientPrimary}
+              style={styles.emptyIcon}
+            >
+              <Icon name="heart" size={48} />
+            </LinearGradient>
+            
+            <Text style={[commonStyles.heading, { marginTop: spacing.lg, textAlign: 'center' }]}>
+              It's a Match! 🎉
+            </Text>
+            
+            <Text style={[commonStyles.text, { marginTop: spacing.sm, textAlign: 'center' }]}>
+              You and {otherUser.name} are now connected! Start the conversation and create amazing music together.
+            </Text>
+            
+            <View style={styles.matchInfo}>
+              <Text style={styles.matchInfoTitle}>About {otherUser.name}</Text>
+              <Text style={styles.matchInfoText}>
+                {otherUser.role} • {otherUser.location}
               </Text>
-              <Text style={[commonStyles.text, { textAlign: 'center', marginBottom: spacing.lg }]}>
-                Start the conversation and begin your musical collaboration with {otherUser.name}.
+              <Text style={styles.matchInfoText}>
+                {otherUser.genres.slice(0, 3).join(', ')}
               </Text>
-              <View style={styles.suggestedMessages}>
-                <TouchableOpacity 
-                  style={styles.suggestedMessage}
-                  onPress={() => setNewMessage("Hey! Love your musical style. Want to collaborate?")}
-                >
-                  <Text style={styles.suggestedMessageText}>
-                    "Hey! Love your musical style. Want to collaborate?"
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.suggestedMessage}
-                  onPress={() => setNewMessage("Hi! What kind of project are you working on?")}
-                >
-                  <Text style={styles.suggestedMessageText}>
-                    "Hi! What kind of project are you working on?"
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          ) : (
-            messages.map((message) => (
+          </View>
+        ) : (
+          <View style={styles.messagesList}>
+            {messages.map((message, index) => (
               <MessageBubble
                 key={message.id}
                 message={message}
-                isOwn={message.senderId === currentUser?.id}
+                isOwn={message.senderId === currentUser.id}
                 otherUser={otherUser}
               />
-            ))
-          )}
-        </ScrollView>
-      </Animated.View>
+            ))}
+          </View>
+        )}
+      </Animated.ScrollView>
 
-      {/* Input */}
+      {/* Message Input */}
       <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
+        <View style={styles.inputRow}>
           <TextInput
-            style={styles.textInput}
-            placeholder="Type a message..."
+            style={styles.messageInput}
+            placeholder={`Message ${otherUser.name}...`}
             placeholderTextColor={colors.textMuted}
             value={newMessage}
             onChangeText={setNewMessage}
             multiline
             maxLength={500}
           />
-          <TouchableOpacity
-            style={[styles.sendButton, { opacity: newMessage.trim() ? 1 : 0.5 }]}
+          
+          <TouchableOpacity 
+            style={[
+              styles.sendButton,
+              (!newMessage.trim() || sending) && styles.sendButtonDisabled
+            ]}
             onPress={sendMessage}
             disabled={!newMessage.trim() || sending}
           >
             <LinearGradient
-              colors={colors.gradientPrimary}
+              colors={newMessage.trim() && !sending ? colors.gradientPrimary : ['#333', '#333']}
               style={styles.sendButtonGradient}
             >
-              {sending ? (
-                <Icon name="hourglass" size={20} />
-              ) : (
-                <Icon name="send" size={20} />
-              )}
+              <Icon 
+                name={sending ? "hourglass" : "send"} 
+                size={20} 
+                color={newMessage.trim() && !sending ? colors.text : colors.textMuted} 
+              />
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -299,16 +326,14 @@ export default function ChatScreen() {
   );
 }
 
-interface MessageBubbleProps {
-  message: Message;
-  isOwn: boolean;
-  otherUser: User;
-}
-
 function MessageBubble({ message, isOwn, otherUser }: MessageBubbleProps) {
-  const formatTime = (timestamp: string) => {
+  const formatTime = (timestamp: string): string => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
   };
 
   return (
@@ -317,20 +342,30 @@ function MessageBubble({ message, isOwn, otherUser }: MessageBubbleProps) {
         <View style={styles.messageAvatar}>
           <LinearGradient
             colors={colors.gradientSecondary}
-            style={styles.messageAvatarGradient}
+            style={styles.avatarSmall}
           >
-            <Text style={styles.messageAvatarText}>
+            <Text style={styles.avatarSmallText}>
               {otherUser.name.charAt(0)}
             </Text>
           </LinearGradient>
         </View>
       )}
       
-      <View style={[styles.messageContent, isOwn ? styles.ownMessageContent : styles.otherMessageContent]}>
-        <Text style={[styles.messageText, isOwn ? styles.ownMessageText : styles.otherMessageText]}>
+      <View style={[
+        styles.messageContent,
+        isOwn ? styles.ownMessageContent : styles.otherMessageContent
+      ]}>
+        <Text style={[
+          styles.messageText,
+          isOwn ? styles.ownMessageText : styles.otherMessageText
+        ]}>
           {message.content}
         </Text>
-        <Text style={[styles.messageTime, isOwn ? styles.ownMessageTime : styles.otherMessageTime]}>
+        
+        <Text style={[
+          styles.messageTime,
+          isOwn ? styles.ownMessageTime : styles.otherMessageTime
+        ]}>
           {formatTime(message.sentAt)}
         </Text>
       </View>
@@ -360,22 +395,30 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
   },
   headerAvatar: {
-    marginRight: spacing.md,
-  },
-  avatarGradient: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.md,
   },
-  avatarText: {
-    fontSize: 16,
-    fontFamily: 'Poppins_600SemiBold',
+  headerAvatarText: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
   },
   headerText: {
     flex: 1,
+  },
+  headerName: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+  },
+  headerRole: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
   },
   messagesContainer: {
     flex: 1,
@@ -385,35 +428,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  emptyState: {
+  emptyChat: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    ...shadows.lg,
   },
-  emptyStateIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.md,
-  },
-  suggestedMessages: {
-    width: '100%',
-    gap: spacing.sm,
-  },
-  suggestedMessage: {
+  matchInfo: {
+    marginTop: spacing.xl,
+    padding: spacing.lg,
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    width: '100%',
   },
-  suggestedMessageText: {
+  matchInfoTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  matchInfoText: {
     fontSize: 14,
+    fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  messagesList: {
+    flex: 1,
   },
   messageBubble: {
     flexDirection: 'row',
@@ -428,51 +479,55 @@ const styles = StyleSheet.create({
   },
   messageAvatar: {
     marginRight: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  messageAvatarGradient: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  avatarSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  messageAvatarText: {
-    fontSize: 12,
-    fontFamily: 'Poppins_600SemiBold',
+  avatarSmallText: {
+    fontSize: 14,
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
   },
   messageContent: {
     maxWidth: '75%',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   ownMessageContent: {
     backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: borderRadius.sm,
   },
   otherMessageContent: {
     backgroundColor: colors.backgroundCard,
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: borderRadius.sm,
     borderWidth: 1,
     borderColor: colors.border,
   },
   messageText: {
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     lineHeight: 22,
-    marginBottom: spacing.xs,
   },
   ownMessageText: {
     color: colors.text,
   },
   otherMessageText: {
-    color: colors.textSecondary,
+    color: colors.text,
   },
   messageTime: {
     fontSize: 12,
-    opacity: 0.7,
+    fontFamily: 'Inter_400Regular',
+    marginTop: spacing.xs,
   },
   ownMessageTime: {
     color: colors.text,
+    opacity: 0.8,
     textAlign: 'right',
   },
   otherMessageTime: {
@@ -483,31 +538,35 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
-  inputWrapper: {
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    gap: spacing.sm,
   },
-  textInput: {
+  messageInput: {
     flex: 1,
-    fontSize: 16,
+    backgroundColor: colors.backgroundCard,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     color: colors.text,
+    fontSize: 16,
     maxHeight: 100,
-    paddingVertical: spacing.sm,
   },
   sendButton: {
-    marginLeft: spacing.sm,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
   sendButtonGradient: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

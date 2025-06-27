@@ -130,7 +130,7 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.8, { duration: 200 });
     }
-  }, [visible]);
+  }, [visible, modalOpacity, modalScale]);
 
   return (
     <Modal

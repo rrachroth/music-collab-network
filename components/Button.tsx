@@ -40,7 +40,7 @@ export default function Button({
     } else {
       opacity.value = withTiming(1, { duration: 200 });
     }
-  }, [disabled]);
+  }, [disabled, opacity]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {

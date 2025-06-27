@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,15 +37,7 @@ export default function MatchesScreen() {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
-  useEffect(() => {
-    loadMatches();
-    
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withSpring(0, { damping: 15 });
-  }, []);
-
-  const loadMatches = async () => {
+  const loadMatches = useCallback(async () => {
     try {
       console.log('💕 Loading matches...');
       setLoading(true);
@@ -110,7 +102,15 @@ export default function MatchesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadMatches();
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [loadMatches, fadeIn, slideUp]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -311,7 +311,7 @@ function MatchCard({ match, onPress, onViewProfile, formatTimeAgo, delay }: Matc
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     return {

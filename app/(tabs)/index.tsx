@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, Dimensions, RefreshControl, StyleSheet } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -42,12 +42,7 @@ export default function HomeScreen() {
   const scale = useSharedValue(0.8);
   const pulseScale = useSharedValue(1);
 
-  useEffect(() => {
-    initializeApp();
-    startPulseAnimation();
-  }, []);
-
-  const startPulseAnimation = () => {
+  const startPulseAnimation = useCallback(() => {
     pulseScale.value = withRepeat(
       withSequence(
         withTiming(1.05, { duration: 2000 }),
@@ -56,9 +51,9 @@ export default function HomeScreen() {
       -1,
       true
     );
-  };
+  }, [pulseScale]);
 
-  const initializeApp = async () => {
+  const initializeApp = useCallback(async () => {
     try {
       console.log('🏠 Initializing Muse App');
       setLoading(true);
@@ -93,7 +88,12 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fadeIn, slideUp, scale]);
+
+  useEffect(() => {
+    initializeApp();
+    startPulseAnimation();
+  }, [initializeApp, startPulseAnimation]);
 
   const loadStats = async () => {
     try {
@@ -453,7 +453,7 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     return {
