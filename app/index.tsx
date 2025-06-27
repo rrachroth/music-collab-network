@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getCurrentUser } from './utils/storage';
-import { commonStyles } from './styles/commonStyles';
-import Icon from './components/Icon';
+import { getCurrentUser } from '../utils/storage';
+import { commonStyles } from '../styles/commonStyles';
+import Icon from '../components/Icon';
 
 export default function IndexScreen() {
   const checkUserAndRedirect = async () => {
@@ -29,7 +29,7 @@ export default function IndexScreen() {
 
   useEffect(() => {
     checkUserAndRedirect();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={[commonStyles.container, commonStyles.centerContent]}>

@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,15 +37,7 @@ export default function ProfileScreen() {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
-  useEffect(() => {
-    loadProfile();
-    
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withSpring(0, { damping: 15 });
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       console.log('👤 Loading profile...');
       setLoading(true);
@@ -71,7 +63,15 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [loadProfile, fadeIn, slideUp]);
 
   const loadStats = async (currentUser: User) => {
     try {
@@ -553,7 +553,7 @@ function HighlightCard({ highlight, delay }: HighlightCardProps) {
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     return {

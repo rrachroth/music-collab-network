@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, StyleSheet } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,19 +54,7 @@ export default function ProjectsScreen() {
     { id: 'my-projects', name: 'My Projects', icon: 'person' },
   ];
 
-  useEffect(() => {
-    loadProjects();
-    
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withSpring(0, { damping: 15 });
-  }, []);
-
-  useEffect(() => {
-    filterProjects();
-  }, [projects, filter]);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     try {
       console.log('📋 Loading projects...');
       setLoading(true);
@@ -111,9 +99,9 @@ export default function ProjectsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filterProjects = () => {
+  const filterProjects = useCallback(() => {
     let filtered = [...projects];
     
     switch (filter) {
@@ -147,7 +135,19 @@ export default function ProjectsScreen() {
     }
     
     setFilteredProjects(filtered);
-  };
+  }, [projects, filter]);
+
+  useEffect(() => {
+    loadProjects();
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [loadProjects, fadeIn, slideUp]);
+
+  useEffect(() => {
+    filterProjects();
+  }, [filterProjects]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -470,7 +470,7 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     return {

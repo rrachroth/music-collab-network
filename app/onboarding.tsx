@@ -1,5 +1,5 @@
 import { Text, View, ScrollView, TextInput, Alert, Dimensions, TouchableOpacity } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,20 +45,7 @@ export default function OnboardingScreen() {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
-  useEffect(() => {
-    console.log('🎯 Onboarding Screen - Step', step);
-    loadExistingUser();
-    
-    // Reset animations for each step
-    fadeIn.value = 0;
-    slideUp.value = 30;
-    
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withSpring(0, { damping: 15 });
-  }, [step]);
-
-  const loadExistingUser = async () => {
+  const loadExistingUser = useCallback(async () => {
     try {
       const existingUser = await getCurrentUser();
       if (existingUser && !existingUser.isOnboarded) {
@@ -72,7 +59,20 @@ export default function OnboardingScreen() {
     } catch (error) {
       console.error('❌ Error loading existing user:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    console.log('🎯 Onboarding Screen - Step', step);
+    loadExistingUser();
+    
+    // Reset animations for each step
+    fadeIn.value = 0;
+    slideUp.value = 30;
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [step, loadExistingUser, fadeIn, slideUp]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
