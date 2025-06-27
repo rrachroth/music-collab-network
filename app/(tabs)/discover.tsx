@@ -325,7 +325,7 @@ export default function DiscoverScreen() {
       </View>
 
       {/* Compatibility Badge */}
-      <View style={styles.compatibilityBadge}>
+      <View style={[styles.compatibilityBadge, { top: insets.top + 80 }]}>
         <LinearGradient
           colors={colors.gradientPrimary}
           style={styles.compatibilityGradient}
@@ -651,7 +651,6 @@ const styles = StyleSheet.create({
   },
   compatibilityBadge: {
     position: 'absolute',
-    top: insets.top + 80,
     right: spacing.lg,
     borderRadius: borderRadius.md,
     overflow: 'hidden',
