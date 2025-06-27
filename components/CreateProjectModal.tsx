@@ -1,4 +1,5 @@
-import React, { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
+import React from 'react';
+import { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 

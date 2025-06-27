@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, StyleSheet } from 'react-native';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

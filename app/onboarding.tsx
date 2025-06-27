@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, TextInput, Alert, Dimensions } from 'react-native';
+import { Text, View, ScrollView, TextInput, Alert, Dimensions, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -380,31 +380,29 @@ interface RoleCardProps {
 
 function RoleCard({ role, selected, onPress }: RoleCardProps) {
   return (
-    <Animated.View style={[
-      styles.roleCard,
-      selected && styles.roleCardSelected
-    ]}>
-      <Button
-        text=""
-        onPress={onPress}
-        variant="ghost"
-        style={[styles.roleButton, selected && styles.roleButtonSelected]}
-      >
-        <View style={styles.roleContent}>
-          <Icon 
-            name={role.icon as any} 
-            size={32} 
-            color={selected ? colors.text : colors.textMuted} 
-          />
-          <Text style={[
-            styles.roleText,
-            selected && styles.roleTextSelected
-          ]}>
-            {role.name}
-          </Text>
-        </View>
-      </Button>
-    </Animated.View>
+    <TouchableOpacity 
+      style={[
+        styles.roleCard,
+        styles.roleButton,
+        selected && styles.roleButtonSelected
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.roleContent}>
+        <Icon 
+          name={role.icon as any} 
+          size={32} 
+          style={{ color: selected ? colors.text : colors.textMuted }}
+        />
+        <Text style={[
+          styles.roleText,
+          selected && styles.roleTextSelected
+        ]}>
+          {role.name}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 

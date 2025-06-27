@@ -24,7 +24,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    console.log('🚀 MusicLinked App Initializing');
+    console.log('🚀 Muse App Initializing');
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
