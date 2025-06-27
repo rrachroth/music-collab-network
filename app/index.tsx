@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Alert, Dimensions, RefreshControl, StyleSheet } from 'react-native';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,11 +11,13 @@ import Animated, {
   withDelay,
   interpolate,
   useAnimatedScrollHandler,
+  withSequence,
+  withRepeat,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
 import Button from '../components/Button';
 import Icon from '../components/Icon';
-import { getCurrentUser, initializeSampleData, User } from '../utils/storage';
+import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +25,14 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalMatches: 0,
+    totalProjects: 0,
+    userMatches: 0,
+  });
+  
   const scrollY = useSharedValue(0);
   const headerOpacity = useSharedValue(0);
   
@@ -30,10 +40,23 @@ export default function HomeScreen() {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(50);
   const scale = useSharedValue(0.8);
+  const pulseScale = useSharedValue(1);
 
   useEffect(() => {
     initializeApp();
+    startPulseAnimation();
   }, []);
+
+  const startPulseAnimation = () => {
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 2000 }),
+        withTiming(1, { duration: 2000 })
+      ),
+      -1,
+      true
+    );
+  };
 
   const initializeApp = async () => {
     try {
@@ -47,12 +70,15 @@ export default function HomeScreen() {
       const currentUser = await getCurrentUser();
       setUser(currentUser);
       
+      // Load app statistics
+      await loadStats();
+      
       console.log('👤 Current user:', currentUser?.name || 'No user');
       
       // Start entrance animations
-      fadeIn.value = withTiming(1, { duration: 800 });
-      slideUp.value = withSpring(0, { damping: 15 });
-      scale.value = withSpring(1, { damping: 15 });
+      fadeIn.value = withTiming(1, { duration: 1000 });
+      slideUp.value = withSpring(0, { damping: 15, stiffness: 100 });
+      scale.value = withSpring(1, { damping: 15, stiffness: 100 });
       
     } catch (error) {
       console.error('❌ Error initializing app:', error);
@@ -60,6 +86,36 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadStats = async () => {
+    try {
+      const [allUsers, matches, projects] = await Promise.all([
+        getAllUsers(),
+        getMatches(),
+        getProjects(),
+      ]);
+
+      const currentUser = await getCurrentUser();
+      const userMatches = currentUser ? matches.filter(m => 
+        m.userId === currentUser.id || m.matchedUserId === currentUser.id
+      ).length : 0;
+
+      setStats({
+        totalUsers: allUsers.length,
+        totalMatches: matches.length,
+        totalProjects: projects.length,
+        userMatches,
+      });
+    } catch (error) {
+      console.error('❌ Error loading stats:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await initializeApp();
+    setRefreshing(false);
   };
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
@@ -87,6 +143,12 @@ export default function HomeScreen() {
   const animatedHeaderStyle = useAnimatedStyle(() => {
     return {
       opacity: headerOpacity.value,
+    };
+  });
+
+  const animatedPulseStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: pulseScale.value }],
     };
   });
 
@@ -132,17 +194,42 @@ export default function HomeScreen() {
     router.push('/projects');
   };
 
+  const handleMatches = () => {
+    console.log('💕 Opening matches');
+    if (!user?.isOnboarded) {
+      Alert.alert(
+        'Complete Your Profile',
+        'Please complete your profile setup first.',
+        [
+          { text: 'Setup Profile', onPress: () => router.push('/onboarding') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+    router.push('/matches');
+  };
+
   if (loading) {
     return (
-      <View style={[commonStyles.container, commonStyles.content]}>
+      <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
-          colors={colors.gradientPrimary}
-          style={styles.logoGradient}
-        >
-          <Icon name="musical-notes" size={60} color={colors.text} />
-        </LinearGradient>
+          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+          style={StyleSheet.absoluteFill}
+        />
+        <Animated.View style={[animatedPulseStyle]}>
+          <LinearGradient
+            colors={colors.gradientPrimary}
+            style={styles.logoGradient}
+          >
+            <Icon name="musical-notes" size={60} />
+          </LinearGradient>
+        </Animated.View>
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
           Loading Muse...
+        </Text>
+        <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
+          Preparing your musical journey
         </Text>
       </View>
     );
@@ -150,6 +237,11 @@ export default function HomeScreen() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+        style={StyleSheet.absoluteFill}
+      />
+      
       {/* Floating Header */}
       <Animated.View style={[styles.floatingHeader, animatedHeaderStyle]}>
         <LinearGradient
@@ -167,6 +259,14 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         <Animated.View style={animatedContainerStyle}>
           {/* Hero Section */}
@@ -176,7 +276,7 @@ export default function HomeScreen() {
                 colors={colors.gradientPrimary}
                 style={styles.logoGradient}
               >
-                <Icon name="musical-notes" size={60} color={colors.text} />
+                <Icon name="musical-notes" size={60} />
               </LinearGradient>
             </View>
             
@@ -188,7 +288,7 @@ export default function HomeScreen() {
               The Professional Network for Musicians
             </Text>
 
-            {user && (
+            {user && user.isOnboarded && (
               <View style={styles.userWelcome}>
                 <Text style={[commonStyles.text, { textAlign: 'center', marginBottom: spacing.sm }]}>
                   Welcome back, {user.name}! 👋
@@ -196,20 +296,69 @@ export default function HomeScreen() {
                 <Text style={[commonStyles.caption, { textAlign: 'center', opacity: 0.8 }]}>
                   {user.role} • {user.genres.slice(0, 2).join(', ')}
                 </Text>
+                {stats.userMatches > 0 && (
+                  <TouchableOpacity 
+                    style={styles.matchesBadge}
+                    onPress={handleMatches}
+                  >
+                    <Text style={styles.matchesBadgeText}>
+                      {stats.userMatches} New Match{stats.userMatches !== 1 ? 'es' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
             <View style={styles.statsContainer}>
-              <StatCard number="10K+" label="Artists" />
-              <StatCard number="5K+" label="Collabs" />
-              <StatCard number="50+" label="Genres" />
+              <StatCard number={`${stats.totalUsers}+`} label="Artists" />
+              <StatCard number={`${stats.totalMatches}+`} label="Matches" />
+              <StatCard number={`${stats.totalProjects}+`} label="Projects" />
             </View>
           </View>
+
+          {/* Quick Actions */}
+          {user?.isOnboarded && (
+            <View style={[commonStyles.section, { marginTop: spacing.lg }]}>
+              <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+                Quick Actions
+              </Text>
+              <View style={styles.quickActions}>
+                <QuickActionCard
+                  icon="search"
+                  title="Discover"
+                  subtitle="Find musicians"
+                  onPress={handleExplore}
+                  gradient={colors.gradientPrimary}
+                />
+                <QuickActionCard
+                  icon="heart"
+                  title="Matches"
+                  subtitle={`${stats.userMatches} new`}
+                  onPress={handleMatches}
+                  gradient={colors.gradientSecondary}
+                />
+                <QuickActionCard
+                  icon="briefcase"
+                  title="Projects"
+                  subtitle="Browse & create"
+                  onPress={handleProjects}
+                  gradient={colors.gradientPrimary}
+                />
+                <QuickActionCard
+                  icon="person"
+                  title="Profile"
+                  subtitle="Edit & view"
+                  onPress={handleProfile}
+                  gradient={colors.gradientSecondary}
+                />
+              </View>
+            </View>
+          )}
 
           {/* Features Section */}
           <View style={[commonStyles.section, { marginTop: spacing.xl }]}>
             <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
-              Discover Your Sound
+              {user?.isOnboarded ? 'Explore Features' : 'Discover Your Sound'}
             </Text>
             
             <FeatureCard
@@ -256,11 +405,14 @@ export default function HomeScreen() {
               style={styles.ctaContainer}
             >
               <Text style={[commonStyles.heading, { textAlign: 'center', marginBottom: spacing.md }]}>
-                Ready to Make Music?
+                {user?.isOnboarded ? 'Ready to Collaborate?' : 'Ready to Make Music?'}
               </Text>
               
               <Text style={[commonStyles.text, { marginBottom: spacing.lg, opacity: 0.8, textAlign: 'center' }]}>
-                Join thousands of musicians already collaborating on Muse
+                {user?.isOnboarded 
+                  ? 'Continue building your network and creating amazing music'
+                  : 'Join thousands of musicians already collaborating on Muse'
+                }
               </Text>
 
               <View style={styles.buttonGroup}>
@@ -283,7 +435,7 @@ export default function HomeScreen() {
                 )}
                 
                 <Button
-                  text="View My Profile"
+                  text={user?.isOnboarded ? "View My Profile" : "Learn More"}
                   onPress={handleProfile}
                   variant="outline"
                   size="md"
@@ -295,7 +447,7 @@ export default function HomeScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={[commonStyles.caption, { opacity: 0.6 }]}>
-              Version 1.0.0 - Alpha Build
+              Version 1.0.0 - Production Ready
             </Text>
             <Text style={[commonStyles.caption, { opacity: 0.4, marginTop: spacing.xs }]}>
               Made with ❤️ for musicians worldwide
@@ -343,7 +495,7 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
         >
           <View style={styles.featureContent}>
             <View style={styles.featureIcon}>
-              <Icon name={icon} size={32} color={colors.text} />
+              <Icon name={icon} size={32} />
             </View>
             <View style={styles.featureText}>
               <Text style={[commonStyles.heading, { fontSize: 18, marginBottom: spacing.xs }]}>
@@ -354,7 +506,7 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
               </Text>
             </View>
             <View style={styles.featureArrow}>
-              <Icon name="chevron-forward" size={24} color={colors.textMuted} />
+              <Icon name="chevron-forward" size={24} />
             </View>
           </View>
         </LinearGradient>
@@ -377,9 +529,32 @@ function StatCard({ number, label }: StatCardProps) {
   );
 }
 
-const styles = {
+interface QuickActionCardProps {
+  icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  gradient: string[];
+}
+
+function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActionCardProps) {
+  return (
+    <TouchableOpacity style={styles.quickActionCard} onPress={onPress} activeOpacity={0.8}>
+      <LinearGradient
+        colors={gradient}
+        style={styles.quickActionGradient}
+      >
+        <Icon name={icon} size={24} />
+        <Text style={styles.quickActionTitle}>{title}</Text>
+        <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
   floatingHeader: {
-    position: 'absolute' as const,
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
@@ -391,7 +566,7 @@ const styles = {
     paddingHorizontal: spacing.lg,
   },
   heroSection: {
-    alignItems: 'center' as const,
+    alignItems: 'center',
     paddingVertical: spacing.xl,
     marginBottom: spacing.xl,
   },
@@ -402,26 +577,40 @@ const styles = {
     width: 120,
     height: 120,
     borderRadius: 60,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...shadows.lg,
   },
   userWelcome: {
     marginBottom: spacing.lg,
-    padding: spacing.md,
+    padding: spacing.lg,
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    width: '100%',
+    alignItems: 'center',
+  },
+  matchesBadge: {
+    backgroundColor: colors.success,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  matchesBadgeText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   statsContainer: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-around' as const,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     width: '100%',
     marginTop: spacing.lg,
   },
   statCard: {
-    alignItems: 'center' as const,
+    alignItems: 'center',
     padding: spacing.md,
   },
   statNumber: {
@@ -435,10 +624,40 @@ const styles = {
     fontFamily: 'Inter_500Medium',
     color: colors.textMuted,
   },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  quickActionCard: {
+    width: '48%',
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  quickActionGradient: {
+    padding: spacing.md,
+    alignItems: 'center',
+    minHeight: 80,
+    justifyContent: 'center',
+  },
+  quickActionTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    marginTop: spacing.xs,
+  },
+  quickActionSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: colors.text,
+    opacity: 0.8,
+  },
   featureCard: {
     marginBottom: spacing.md,
     borderRadius: borderRadius.lg,
-    overflow: 'hidden' as const,
+    overflow: 'hidden',
     ...shadows.md,
   },
   featureGradient: {
@@ -448,16 +667,16 @@ const styles = {
     backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg - 2,
     padding: spacing.lg,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   featureIcon: {
     width: 60,
     height: 60,
     borderRadius: 30,
     backgroundColor: colors.backgroundAlt,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: spacing.md,
   },
   featureText: {
@@ -469,7 +688,7 @@ const styles = {
   ctaContainer: {
     borderRadius: borderRadius.xl,
     padding: spacing.xl,
-    alignItems: 'center' as const,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
@@ -478,8 +697,8 @@ const styles = {
     gap: spacing.sm,
   },
   footer: {
-    alignItems: 'center' as const,
+    alignItems: 'center',
     paddingVertical: spacing.xl,
     marginTop: spacing.xl,
   },
-};
+});
