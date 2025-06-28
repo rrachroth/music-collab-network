@@ -10,10 +10,10 @@ import Animated, {
   withSpring,
   withDelay 
 } from 'react-native-reanimated';
-import { commonStyles, colors, spacing, borderRadius } from '../styles/commonStyles';
-import Button from '../components/Button';
-import Icon from '../components/Icon';
-import { saveCurrentUser, getCurrentUser, generateId, getCurrentTimestamp, User } from '../utils/storage';
+import { commonStyles, colors, spacing, borderRadius } from './styles/commonStyles';
+import Button from './components/Button';
+import Icon from './components/Icon';
+import { saveCurrentUser, getCurrentUser, generateId, getCurrentTimestamp, User } from './utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -72,7 +72,7 @@ export default function OnboardingScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, [step, loadExistingUser, fadeIn, slideUp]);
+  }, [step]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -123,7 +123,19 @@ export default function OnboardingScreen() {
     if (step > 1) {
       setStep(step - 1);
     } else {
-      router.back();
+      // Instead of router.back(), go to home or show confirmation
+      Alert.alert(
+        'Exit Setup?',
+        'Are you sure you want to exit profile setup? Your progress will be lost.',
+        [
+          { text: 'Continue Setup', style: 'cancel' },
+          { 
+            text: 'Exit', 
+            style: 'destructive',
+            onPress: () => router.replace('/(tabs)')
+          }
+        ]
+      );
     }
   };
 
@@ -165,10 +177,8 @@ export default function OnboardingScreen() {
           {
             text: 'Start Exploring',
             onPress: () => {
-              // Use a timeout to ensure the alert is dismissed before navigation
-              setTimeout(() => {
-                router.replace('/(tabs)');
-              }, 100);
+              // Use replace to prevent going back to onboarding
+              router.replace('/(tabs)');
             }
           }
         ]

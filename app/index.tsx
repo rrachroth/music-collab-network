@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getCurrentUser } from '../utils/storage';
-import { commonStyles } from '../styles/commonStyles';
-import Icon from '../components/Icon';
+import { getCurrentUser } from './utils/storage';
+import { commonStyles } from './styles/commonStyles';
+import Icon from './components/Icon';
 
 export default function IndexScreen() {
   const checkUserAndRedirect = async () => {
@@ -17,7 +17,7 @@ export default function IndexScreen() {
         console.log('👤 User needs onboarding, redirecting...');
         router.replace('/onboarding');
       } else {
-        console.log('✅ User is onboarded, redirecting to tabs...');
+        console.log('✅ User is onboarded, redirecting to home...');
         router.replace('/(tabs)');
       }
     } catch (error) {
@@ -28,8 +28,13 @@ export default function IndexScreen() {
   };
 
   useEffect(() => {
-    checkUserAndRedirect();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Add a small delay to ensure the app is fully loaded
+    const timer = setTimeout(() => {
+      checkUserAndRedirect();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={[commonStyles.container, commonStyles.centerContent]}>
