@@ -1,8 +1,8 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
-import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -11,8 +11,9 @@ import Animated, {
   withDelay,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import Button from '../../components/Button';
 import Icon from '../../components/Icon';
+import Button from '../../components/Button';
+import { pickImage, pickVideo, pickAudio } from '../../utils/mediaUtils';
 import { 
   getCurrentUser, 
   updateCurrentUser, 
@@ -21,7 +22,6 @@ import {
   getApplications,
   User 
 } from '../../utils/storage';
-import { pickImage, pickVideo, pickAudio } from '../../utils/mediaUtils';
 
 interface StatCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -47,39 +47,23 @@ interface HighlightCardProps {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ matches: 0, projects: 0, collaborations: 0 });
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState({
-    matches: 0,
-    projects: 0,
-    applications: 0,
-    collaborations: 0,
-  });
-  
+  const [loading, setLoading] = useState(true);
+
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
 
   const loadProfile = useCallback(async () => {
     try {
       console.log('👤 Loading profile...');
-      setLoading(true);
-      
       const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        Alert.alert('Error', 'Please complete your profile first.', [
-          { text: 'Setup Profile', onPress: () => router.replace('/onboarding') }
-        ]);
-        return;
+      if (currentUser) {
+        setUser(currentUser);
+        await loadStats(currentUser);
       }
-      
-      setUser(currentUser);
-      await loadStats(currentUser);
-      
-      console.log('✅ Profile loaded successfully');
-      
     } catch (error) {
       console.error('❌ Error loading profile:', error);
-      Alert.alert('Error', 'Failed to load profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -89,44 +73,48 @@ export default function ProfileScreen() {
     loadProfile();
     
     // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
+    fadeIn.value = withTiming(1, { duration: 800 });
     slideUp.value = withSpring(0, { damping: 15 });
   }, [loadProfile, fadeIn, slideUp]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
 
   const loadStats = async (currentUser: User) => {
     try {
       const [matches, projects, applications] = await Promise.all([
         getMatches(),
         getProjects(),
-        getApplications(),
+        getApplications()
       ]);
-
+      
       const userMatches = matches.filter(m => 
         m.userId === currentUser.id || m.matchedUserId === currentUser.id
-      ).length;
-
-      const userProjects = projects.filter(p => p.createdBy === currentUser.id).length;
-      const userApplications = applications.filter(a => a.applicantId === currentUser.id).length;
-
+      );
+      
+      const userProjects = projects.filter(p => p.createdBy === currentUser.id);
+      
       setStats({
-        matches: userMatches,
-        projects: userProjects,
-        applications: userApplications,
-        collaborations: userMatches + userApplications,
+        matches: userMatches.length,
+        projects: userProjects.length,
+        collaborations: currentUser.collaborations?.length || 0
       });
     } catch (error) {
       console.error('❌ Error loading stats:', error);
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadProfile();
     setRefreshing(false);
-  };
+  }, [loadProfile]);
 
   const handleEditProfile = () => {
-    console.log('✏️ Editing profile');
     router.push('/onboarding');
   };
 
@@ -146,7 +134,6 @@ export default function ProfileScreen() {
   const uploadMedia = async (type: 'audio' | 'video' | 'image') => {
     try {
       let result;
-      
       switch (type) {
         case 'audio':
           result = await pickAudio();
@@ -160,13 +147,12 @@ export default function ProfileScreen() {
       }
       
       if (result && user) {
-        const updatedHighlights = [...user.highlights, result];
-        const updatedUser = { ...user, highlights: updatedHighlights };
-        
-        await updateCurrentUser(updatedUser);
-        setUser(updatedUser);
-        
-        Alert.alert('Success', 'Highlight uploaded successfully!');
+        const updatedHighlights = [...(user.highlights || []), result];
+        const updatedUser = await updateCurrentUser({ highlights: updatedHighlights });
+        if (updatedUser) {
+          setUser(updatedUser);
+          Alert.alert('Success', 'Highlight uploaded successfully!');
+        }
       }
     } catch (error) {
       console.error('❌ Error uploading media:', error);
@@ -175,53 +161,43 @@ export default function ProfileScreen() {
   };
 
   const handleSettings = () => {
-    console.log('⚙️ Opening settings');
-    // TODO: Navigate to settings
+    Alert.alert('Settings', 'Settings feature coming soon!');
   };
 
   const handleViewCollaborations = () => {
-    console.log('🤝 Viewing collaborations');
-    // TODO: Navigate to collaborations view
+    Alert.alert('Collaborations', 'View collaborations feature coming soon!');
   };
 
   const handleViewMatches = () => {
-    console.log('💕 Viewing matches');
     router.push('/(tabs)/matches');
   };
 
   const handleViewProjects = () => {
-    console.log('📋 Viewing projects');
     router.push('/(tabs)/projects');
   };
 
   const formatJoinDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long' 
-    });
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+    } catch {
+      return 'Recently';
+    }
   };
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
-    };
-  });
 
   if (loading) {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
-          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
-          style={StyleSheet.absoluteFill}
+          colors={colors.gradientBackground}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
         <Icon name="person" size={80} />
-        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Loading Profile...
-        </Text>
-        <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
-          Getting your information ready
+        <Text style={[commonStyles.caption, { marginTop: 16 }]}>
+          Loading profile...
         </Text>
       </View>
     );
@@ -231,16 +207,19 @@ export default function ProfileScreen() {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
-          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
-          style={StyleSheet.absoluteFill}
+          colors={colors.gradientBackground}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
-        <Text style={commonStyles.title}>Profile Not Found</Text>
-        <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
-          Please complete your profile setup
+        <Icon name="person-add" size={80} />
+        <Text style={[commonStyles.title, { marginTop: 24 }]}>
+          No Profile Found
         </Text>
-        <Button 
-          text="Setup Profile" 
-          onPress={() => router.replace('/onboarding')} 
+        <Text style={[commonStyles.text, { marginBottom: 32 }]}>
+          Let's create your profile to get started
+        </Text>
+        <Button
+          text="Create Profile"
+          onPress={() => router.push('/onboarding')}
           variant="gradient"
           size="lg"
         />
@@ -251,206 +230,177 @@ export default function ProfileScreen() {
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
-        colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
-        style={StyleSheet.absoluteFill}
+        colors={colors.gradientBackground}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-          <Icon name="arrow-back" size={24} />
-        </TouchableOpacity>
-        
-        <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
-          My Profile
-        </Text>
-        
-        <TouchableOpacity onPress={handleSettings} style={styles.headerButton}>
-          <Icon name="settings" size={24} />
-        </TouchableOpacity>
-      </View>
-
-      <Animated.ScrollView 
-        contentContainerStyle={styles.content}
+      <ScrollView
+        style={commonStyles.wrapper}
+        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
         showsVerticalScrollIndicator={false}
-        style={animatedStyle}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
         }
       >
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <LinearGradient
-            colors={colors.gradientPrimary}
-            style={styles.avatarGradient}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user.name.charAt(0)}
-              </Text>
-            </View>
-          </LinearGradient>
-          
-          <View style={styles.profileInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.profileName}>{user.name}</Text>
+        <Animated.View style={animatedStyle}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.profileImageContainer}>
+              <LinearGradient
+                colors={colors.gradientPrimary}
+                style={styles.profileImage}
+              >
+                <Icon name="person" size={48} color={colors.text} />
+              </LinearGradient>
+              
               {user.verified && (
-                <Icon name="checkmark-circle" size={24} color={colors.success} />
+                <View style={styles.verifiedBadge}>
+                  <Icon name="checkmark-circle" size={20} color={colors.success} />
+                </View>
               )}
             </View>
             
-            <Text style={styles.profileRole}>
-              {user.role} • {user.location}
-            </Text>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{user.name}</Text>
+              <Text style={styles.profileRole}>{user.role}</Text>
+              <Text style={styles.profileLocation}>
+                <Icon name="location" size={14} color={colors.textMuted} />
+                {' '}{user.location}
+              </Text>
+              <Text style={styles.joinDate}>
+                Member since {formatJoinDate(user.joinDate)}
+              </Text>
+            </View>
             
-            {user.rating > 0 && (
-              <View style={styles.ratingContainer}>
-                <Icon name="star" size={18} color={colors.warning} />
-                <Text style={styles.ratingText}>{user.rating.toFixed(1)}</Text>
-                <Text style={styles.ratingLabel}>rating</Text>
-              </View>
-            )}
-            
-            <Text style={styles.joinDate}>
-              Member since {formatJoinDate(user.createdAt)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Bio */}
-        <View style={styles.bioSection}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.bioText}>{user.bio}</Text>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Statistics</Text>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="heart"
-              number={stats.matches}
-              label="Matches"
-              onPress={handleViewMatches}
-              gradient={colors.gradientPrimary}
-            />
-            <StatCard
-              icon="briefcase"
-              number={stats.projects}
-              label="Projects"
-              onPress={handleViewProjects}
-              gradient={colors.gradientSecondary}
-            />
-            <StatCard
-              icon="document"
-              number={stats.applications}
-              label="Applications"
-              onPress={handleViewProjects}
-              gradient={colors.gradientPrimary}
-            />
-            <StatCard
-              icon="people"
-              number={stats.collaborations}
-              label="Collaborations"
-              onPress={handleViewCollaborations}
-              gradient={colors.gradientSecondary}
-            />
-          </View>
-        </View>
-
-        {/* Genres */}
-        <View style={styles.genresSection}>
-          <Text style={styles.sectionTitle}>Musical Genres</Text>
-          <View style={styles.genreContainer}>
-            {user.genres.map(genre => (
-              <View key={genre} style={styles.genreChip}>
-                <Text style={styles.genreText}>{genre}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Highlights */}
-        <View style={styles.highlightsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              Highlights ({user.highlights.length})
-            </Text>
-            <TouchableOpacity onPress={handleUploadHighlight} style={styles.addButton}>
-              <Icon name="add" size={20} color={colors.primary} />
+            <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
+              <Icon name="settings" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
-          
-          {user.highlights.length > 0 ? (
-            <View style={styles.highlightsGrid}>
-              {user.highlights.map((highlight, index) => (
-                <HighlightCard
-                  key={highlight.id}
-                  highlight={highlight}
-                  delay={index * 100}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyHighlights}>
-              <Icon name="musical-note" size={48} color={colors.textMuted} />
-              <Text style={[commonStyles.text, { marginTop: spacing.md, textAlign: 'center' }]}>
-                No highlights uploaded yet
-              </Text>
-              <Text style={[commonStyles.caption, { marginTop: spacing.sm, textAlign: 'center' }]}>
-                Upload audio, video, or images to showcase your work
-              </Text>
-              <Button
-                text="Upload First Highlight"
-                onPress={handleUploadHighlight}
-                variant="outline"
-                size="md"
-                style={{ marginTop: spacing.lg }}
-              />
+
+          {/* Bio */}
+          {user.bio && (
+            <View style={styles.bioSection}>
+              <Text style={styles.bioText}>{user.bio}</Text>
             </View>
           )}
-        </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickActionsSection}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <QuickActionCard
-              icon="create"
-              title="Edit Profile"
-              subtitle="Update your info"
-              onPress={handleEditProfile}
-              gradient={colors.gradientPrimary}
-            />
-            <QuickActionCard
-              icon="add-circle"
-              title="Upload Media"
-              subtitle="Add highlights"
-              onPress={handleUploadHighlight}
-              gradient={colors.gradientSecondary}
-            />
-            <QuickActionCard
-              icon="heart"
-              title="View Matches"
-              subtitle={`${stats.matches} connections`}
-              onPress={handleViewMatches}
-              gradient={colors.gradientPrimary}
-            />
-            <QuickActionCard
-              icon="briefcase"
-              title="My Projects"
-              subtitle={`${stats.projects} active`}
-              onPress={handleViewProjects}
-              gradient={colors.gradientSecondary}
-            />
+          {/* Genres */}
+          <View style={styles.genresSection}>
+            <Text style={styles.sectionTitle}>Genres</Text>
+            <View style={styles.genresContainer}>
+              {user.genres.map((genre, index) => (
+                <View key={index} style={styles.genreChip}>
+                  <Text style={styles.genreText}>{genre}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
-      </Animated.ScrollView>
+
+          {/* Stats */}
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>Stats</Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                icon="heart"
+                number={stats.matches}
+                label="Matches"
+                onPress={handleViewMatches}
+                gradient={colors.gradientPrimary}
+              />
+              <StatCard
+                icon="folder"
+                number={stats.projects}
+                label="Projects"
+                onPress={handleViewProjects}
+                gradient={colors.gradientSecondary}
+              />
+              <StatCard
+                icon="people"
+                number={stats.collaborations}
+                label="Collabs"
+                onPress={handleViewCollaborations}
+                gradient={['#F59E0B', '#EF4444']}
+              />
+            </View>
+          </View>
+
+          {/* Highlights */}
+          <View style={styles.highlightsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Highlights</Text>
+              <Button
+                text="Add"
+                onPress={handleUploadHighlight}
+                variant="outline"
+                size="sm"
+              />
+            </View>
+            
+            {user.highlights && user.highlights.length > 0 ? (
+              <View style={styles.highlightsGrid}>
+                {user.highlights.map((highlight, index) => (
+                  <HighlightCard
+                    key={highlight.id}
+                    highlight={highlight}
+                    delay={index * 100}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyHighlights}>
+                <Icon name="musical-notes" size={48} color={colors.textMuted} />
+                <Text style={styles.emptyText}>No highlights yet</Text>
+                <Text style={styles.emptySubtext}>
+                  Upload audio, video, or images to showcase your work
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActionsSection}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsGrid}>
+              <QuickActionCard
+                icon="create"
+                title="Edit Profile"
+                subtitle="Update your information"
+                onPress={handleEditProfile}
+                gradient={colors.gradientPrimary}
+              />
+              <QuickActionCard
+                icon="add-circle"
+                title="New Project"
+                subtitle="Start a collaboration"
+                onPress={() => router.push('/(tabs)/projects')}
+                gradient={colors.gradientSecondary}
+              />
+              <QuickActionCard
+                icon="search"
+                title="Discover"
+                subtitle="Find new artists"
+                onPress={() => router.push('/(tabs)/discover')}
+                gradient={['#F59E0B', '#EF4444']}
+              />
+              <QuickActionCard
+                icon="chatbubbles"
+                title="Messages"
+                subtitle="Chat with matches"
+                onPress={() => router.push('/(tabs)/matches')}
+                gradient={['#10B981', '#059669']}
+              />
+            </View>
+          </View>
+
+          {/* Bottom Spacing */}
+          <View style={{ height: spacing.xxl }} />
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 }
@@ -460,12 +410,12 @@ function StatCard({ icon, number, label, onPress, gradient }: StatCardProps) {
     <TouchableOpacity style={styles.statCard} onPress={onPress} activeOpacity={0.8}>
       <LinearGradient
         colors={gradient}
-        style={styles.statCardGradient}
+        style={styles.statGradient}
       >
-        <Icon name={icon} size={24} />
-        <Text style={styles.statNumber}>{number}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
+        <Icon name={icon} size={24} color={colors.text} />
       </LinearGradient>
+      <Text style={styles.statNumber}>{number}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -477,24 +427,24 @@ function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActi
         colors={gradient}
         style={styles.quickActionGradient}
       >
-        <Icon name={icon} size={24} />
-        <Text style={styles.quickActionTitle}>{title}</Text>
-        <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
+        <Icon name={icon} size={20} color={colors.text} />
       </LinearGradient>
+      <Text style={styles.quickActionTitle}>{title}</Text>
+      <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
     </TouchableOpacity>
   );
 }
 
 function HighlightCard({ highlight, delay }: HighlightCardProps) {
-  const cardScale = useSharedValue(0.9);
   const cardOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.9);
 
   useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
   }, [delay, cardOpacity, cardScale]);
 
-  const cardAnimatedStyle = useAnimatedStyle(() => {
+  const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
@@ -502,21 +452,24 @@ function HighlightCard({ highlight, delay }: HighlightCardProps) {
   });
 
   return (
-    <Animated.View style={[styles.highlightCard, cardAnimatedStyle]}>
+    <Animated.View style={[styles.highlightCard, animatedStyle]}>
       <LinearGradient
         colors={colors.gradientPrimary}
-        style={styles.highlightGradient}
+        style={styles.highlightIcon}
       >
-        <View style={styles.highlightContent}>
-          <Icon 
-            name={highlight.type === 'audio' ? 'musical-note' : highlight.type === 'video' ? 'videocam' : 'image'} 
-            size={32} 
-            color={colors.text}
-          />
-          <Text style={styles.highlightTitle}>{highlight.title}</Text>
-          <Text style={styles.highlightType}>{highlight.type}</Text>
-        </View>
+        <Icon 
+          name={highlight.type === 'audio' ? 'musical-note' : highlight.type === 'video' ? 'videocam' : 'image'} 
+          size={20} 
+          color={colors.text} 
+        />
       </LinearGradient>
+      <Text style={styles.highlightTitle}>{highlight.title}</Text>
+      <Text style={styles.highlightDuration}>
+        {highlight.type === 'audio' || highlight.type === 'video' 
+          ? `${Math.floor(highlight.duration / 60)}:${(highlight.duration % 60).toString().padStart(2, '0')}`
+          : highlight.type
+        }
+      </Text>
     </Animated.View>
   );
 }
@@ -524,100 +477,68 @@ function HighlightCard({ highlight, delay }: HighlightCardProps) {
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.xl,
-    padding: spacing.lg,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  avatarGradient: {
-    padding: 3,
-    borderRadius: 50,
-    marginRight: spacing.lg,
+  profileImageContainer: {
+    position: 'relative',
+    marginRight: spacing.md,
   },
-  avatar: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
-    backgroundColor: colors.backgroundCard,
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.md,
   },
-  avatarText: {
-    fontSize: 36,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 2,
   },
   profileInfo: {
     flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+    paddingTop: spacing.xs,
   },
   profileName: {
     fontSize: 24,
     fontFamily: 'Poppins_700Bold',
     color: colors.text,
-    marginRight: spacing.sm,
+    marginBottom: spacing.xs,
   },
   profileRole: {
     fontSize: 16,
-    fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
-    marginBottom: spacing.sm,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  ratingText: {
-    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    marginLeft: spacing.xs,
-    marginRight: spacing.xs,
+    color: colors.primary,
+    marginBottom: spacing.xs,
   },
-  ratingLabel: {
+  profileLocation: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
+    marginBottom: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   joinDate: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
   },
-  bioSection: {
-    marginBottom: spacing.xl,
+  settingsButton: {
+    padding: spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    marginBottom: spacing.md,
+  bioSection: {
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   bioText: {
     fontSize: 16,
@@ -625,119 +546,134 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
-  statsSection: {
-    marginBottom: spacing.xl,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  statCard: {
-    width: '48%',
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    ...shadows.md,
-  },
-  statCardGradient: {
-    padding: spacing.md,
-    alignItems: 'center',
-    minHeight: 80,
-    justifyContent: 'center',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginVertical: spacing.xs,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: colors.text,
-    opacity: 0.9,
-  },
   genresSection: {
     marginBottom: spacing.xl,
   },
-  genreContainer: {
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  genresContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
   genreChip: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundCard,
+    borderColor: colors.primary,
+    borderWidth: 1,
+    borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   genreText: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
+    color: colors.primary,
+  },
+  statsSection: {
+    marginBottom: spacing.xl,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
+  },
+  statGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
   },
   highlightsSection: {
     marginBottom: spacing.xl,
   },
   sectionHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: spacing.md,
-  },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   highlightsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   highlightCard: {
     width: '48%',
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    ...shadows.md,
-  },
-  highlightGradient: {
-    padding: 2,
-  },
-  highlightContent: {
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md - 2,
+    borderRadius: borderRadius.md,
     padding: spacing.md,
     alignItems: 'center',
-    minHeight: 100,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
+  },
+  highlightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
   highlightTitle: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
     textAlign: 'center',
   },
-  highlightType: {
+  highlightDuration: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
-    marginTop: spacing.xs,
-    textTransform: 'capitalize',
   },
   emptyHighlights: {
-    alignItems: 'center',
-    padding: spacing.xl,
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
+    padding: spacing.xl,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    borderStyle: 'dashed',
+  },
+  emptyText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.textMuted,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   quickActionsSection: {
     marginBottom: spacing.xl,
@@ -745,31 +681,37 @@ const styles = StyleSheet.create({
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: spacing.md,
     justifyContent: 'space-between',
-    gap: spacing.sm,
   },
   quickActionCard: {
     width: '48%',
+    backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    ...shadows.md,
+    padding: spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
   },
   quickActionGradient: {
-    padding: spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    minHeight: 80,
     justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
   quickActionTitle: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
   quickActionSubtitle: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: colors.text,
-    opacity: 0.8,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
 });

@@ -341,7 +341,7 @@ export const initializeSampleData = async (): Promise<void> => {
         {
           id: 'user_1',
           name: 'Alex Producer',
-          role: 'Producer',
+          role: 'producer',
           genres: ['Hip-Hop', 'R&B'],
           location: 'Los Angeles, CA',
           bio: 'Grammy-nominated producer specializing in modern hip-hop and R&B. Looking for talented vocalists and rappers.',
@@ -357,7 +357,7 @@ export const initializeSampleData = async (): Promise<void> => {
         {
           id: 'user_2',
           name: 'Maya Vocalist',
-          role: 'Vocalist',
+          role: 'vocalist',
           genres: ['Pop', 'R&B'],
           location: 'Nashville, TN',
           bio: 'Professional vocalist with 10+ years experience. Featured on multiple Billboard charting songs.',
@@ -373,7 +373,7 @@ export const initializeSampleData = async (): Promise<void> => {
         {
           id: 'user_3',
           name: 'Jordan Beats',
-          role: 'Producer',
+          role: 'producer',
           genres: ['Electronic', 'Pop'],
           location: 'New York, NY',
           bio: 'Electronic music producer and sound designer. Specializing in innovative pop productions.',
@@ -389,7 +389,7 @@ export const initializeSampleData = async (): Promise<void> => {
         {
           id: 'user_4',
           name: 'Sophia Strings',
-          role: 'Instrumentalist',
+          role: 'instrumentalist',
           genres: ['Classical', 'Pop', 'Rock'],
           location: 'Boston, MA',
           bio: 'Professional violinist and string arranger. Classically trained with a passion for modern music.',
@@ -405,7 +405,7 @@ export const initializeSampleData = async (): Promise<void> => {
         {
           id: 'user_5',
           name: 'Marcus Mix',
-          role: 'Mix Engineer',
+          role: 'mixer',
           genres: ['Hip-Hop', 'Pop', 'R&B'],
           location: 'Atlanta, GA',
           bio: 'Award-winning mix engineer with credits on platinum albums. Specializing in modern urban music.',

@@ -1,8 +1,8 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, StyleSheet } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
-import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -11,8 +11,9 @@ import Animated, {
   withDelay,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import Button from '../../components/Button';
 import Icon from '../../components/Icon';
+import Button from '../../components/Button';
+import CreateProjectModal from '../../components/CreateProjectModal';
 import { 
   getCurrentUser, 
   getProjects, 
@@ -25,7 +26,6 @@ import {
   Project,
   Application 
 } from '../../utils/storage';
-import CreateProjectModal from '../../components/CreateProjectModal';
 
 interface ProjectWithApplications extends Project {
   applicationCount: number;
@@ -43,13 +43,13 @@ interface ProjectCardProps {
 
 export default function ProjectsScreen() {
   const insets = useSafeAreaInsets();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<ProjectWithApplications[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<ProjectWithApplications[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'my' | 'applied'>('all');
+  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'open' | 'my_projects'>('all');
 
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -57,77 +57,59 @@ export default function ProjectsScreen() {
   const loadProjects = useCallback(async () => {
     try {
       console.log('📋 Loading projects...');
-      setLoading(true);
-      
-      const user = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Error', 'Please complete your profile first.', [
-          { text: 'Setup Profile', onPress: () => router.replace('/onboarding') }
-        ]);
-        return;
-      }
-      
-      setCurrentUser(user);
-      
-      const [allProjects, applications] = await Promise.all([
+      const [currentUser, allProjects, applications] = await Promise.all([
+        getCurrentUser(),
         getProjects(),
-        getApplications(),
+        getApplications()
       ]);
       
-      // Enrich projects with application data
-      const enrichedProjects: ProjectWithApplications[] = allProjects.map(project => {
-        const projectApplications = applications.filter(app => app.projectId === project.id);
-        const hasApplied = projectApplications.some(app => app.applicantId === user.id);
-        const isOwner = project.createdBy === user.id;
+      if (currentUser) {
+        setUser(currentUser);
         
-        return {
-          ...project,
-          applicationCount: projectApplications.length,
-          hasApplied,
-          isOwner,
-        };
-      });
-      
-      // Sort by most recent
-      enrichedProjects.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      
-      setProjects(enrichedProjects);
-      console.log(`✅ Loaded ${enrichedProjects.length} projects`);
-      
+        const projectsWithApplications: ProjectWithApplications[] = allProjects.map(project => {
+          const projectApplications = applications.filter(app => app.projectId === project.id);
+          const hasApplied = projectApplications.some(app => app.applicantId === currentUser.id);
+          const isOwner = project.createdBy === currentUser.id;
+          
+          return {
+            ...project,
+            applicationCount: projectApplications.length,
+            hasApplied,
+            isOwner
+          };
+        });
+        
+        setProjects(projectsWithApplications);
+      }
     } catch (error) {
       console.error('❌ Error loading projects:', error);
-      Alert.alert('Error', 'Failed to load projects. Please try again.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   const filterProjects = useCallback(() => {
-    if (!currentUser) return;
-    
     let filtered = projects;
     
     switch (filter) {
-      case 'my':
+      case 'open':
+        filtered = projects.filter(p => p.status === 'open');
+        break;
+      case 'my_projects':
         filtered = projects.filter(p => p.isOwner);
         break;
-      case 'applied':
-        filtered = projects.filter(p => p.hasApplied);
-        break;
       default:
-        filtered = projects.filter(p => !p.isOwner); // Show all except own projects
+        filtered = projects;
     }
     
     setFilteredProjects(filtered);
-  }, [projects, filter, currentUser]);
+  }, [projects, filter]);
 
   useEffect(() => {
     loadProjects();
     
     // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
+    fadeIn.value = withTiming(1, { duration: 800 });
     slideUp.value = withSpring(0, { damping: 15 });
   }, [loadProjects, fadeIn, slideUp]);
 
@@ -135,29 +117,35 @@ export default function ProjectsScreen() {
     filterProjects();
   }, [filterProjects]);
 
-  const onRefresh = async () => {
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadProjects();
     setRefreshing(false);
-  };
+  }, [loadProjects]);
 
   const handleCreateProject = () => {
-    console.log('📝 Creating new project');
     setShowCreateModal(true);
   };
 
   const handleProjectCreated = async (projectData: Partial<Project>) => {
-    if (!currentUser) return;
+    if (!user) return;
     
     try {
       const newProject: Project = {
         id: generateId(),
         title: projectData.title || '',
         description: projectData.description || '',
-        createdBy: currentUser.id,
-        authorId: currentUser.id,
-        authorName: currentUser.name,
-        authorRole: currentUser.role,
+        createdBy: user.id,
+        authorId: user.id,
+        authorName: user.name,
+        authorRole: user.role,
         genres: projectData.genres || [],
         budget: projectData.budget || '',
         timeline: projectData.timeline || '',
@@ -179,67 +167,93 @@ export default function ProjectsScreen() {
   };
 
   const handleApplyToProject = async (project: ProjectWithApplications) => {
-    if (!currentUser) return;
+    if (!user) return;
     
-    try {
-      const application: Application = {
-        id: generateId(),
-        projectId: project.id,
-        applicantId: currentUser.id,
-        applicantName: currentUser.name,
-        message: `Hi! I'm interested in collaborating on "${project.title}". I'm a ${currentUser.role} with experience in ${currentUser.genres.join(', ')}.`,
-        portfolio: currentUser.highlights,
-        appliedAt: getCurrentTimestamp(),
-        status: 'pending',
-      };
-      
-      await addApplication(application);
-      await loadProjects();
-      
-      Alert.alert('Success', 'Application submitted successfully!');
-    } catch (error) {
-      console.error('❌ Error applying to project:', error);
-      Alert.alert('Error', 'Failed to submit application. Please try again.');
+    if (project.hasApplied) {
+      Alert.alert('Already Applied', 'You have already applied to this project.');
+      return;
     }
+    
+    if (project.isOwner) {
+      Alert.alert('Own Project', 'You cannot apply to your own project.');
+      return;
+    }
+    
+    Alert.prompt(
+      'Apply to Project',
+      'Tell the project owner why you\'re interested and what you can bring to this collaboration:',
+      async (message) => {
+        if (message && message.trim()) {
+          try {
+            const application: Application = {
+              id: generateId(),
+              projectId: project.id,
+              applicantId: user.id,
+              applicantName: user.name,
+              message: message.trim(),
+              portfolio: user.highlights || [],
+              appliedAt: getCurrentTimestamp(),
+              status: 'pending'
+            };
+            
+            await addApplication(application);
+            await loadProjects();
+            
+            Alert.alert('Success', 'Application submitted successfully!');
+          } catch (error) {
+            console.error('❌ Error applying to project:', error);
+            Alert.alert('Error', 'Failed to submit application. Please try again.');
+          }
+        }
+      },
+      'plain-text',
+      '',
+      'I\'m interested in collaborating on this project because...'
+    );
   };
 
   const handleViewProject = (project: ProjectWithApplications) => {
-    console.log(`👁️ Viewing project: ${project.title}`);
-    // TODO: Navigate to project detail view
+    Alert.alert(
+      project.title,
+      `${project.description}\n\nBudget: ${project.budget}\nTimeline: ${project.timeline}\nApplications: ${project.applicationCount}`,
+      [
+        { text: 'Close', style: 'cancel' },
+        ...(project.isOwner ? [{ text: 'View Applications', onPress: () => {} }] : []),
+        ...(!project.isOwner && !project.hasApplied && project.status === 'open' ? [{ text: 'Apply', onPress: () => handleApplyToProject(project) }] : [])
+      ]
+    );
   };
 
   const formatTimeAgo = (timestamp: string): string => {
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffInSeconds = Math.floor((now.getTime() - time.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-    return time.toLocaleDateString();
+    try {
+      const now = new Date();
+      const date = new Date(timestamp);
+      const diffInMs = now.getTime() - date.getTime();
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInHours / 24);
+      
+      if (diffInDays > 0) {
+        return `${diffInDays}d ago`;
+      } else if (diffInHours > 0) {
+        return `${diffInHours}h ago`;
+      } else {
+        return 'Just now';
+      }
+    } catch {
+      return 'Recently';
+    }
   };
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
-    };
-  });
 
   if (loading) {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
           colors={colors.gradientBackground}
-          style={StyleSheet.absoluteFill}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
-        <Icon name="briefcase" size={80} color={colors.primary} />
-        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Loading Projects
-        </Text>
-        <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
-          Finding collaboration opportunities
+        <Icon name="folder" size={80} />
+        <Text style={[commonStyles.caption, { marginTop: 16 }]}>
+          Loading projects...
         </Text>
       </View>
     );
@@ -249,27 +263,26 @@ export default function ProjectsScreen() {
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={colors.gradientBackground}
-        style={StyleSheet.absoluteFill}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-          <Icon name="arrow-back" size={24} />
-        </TouchableOpacity>
-        
-        <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
+        <Text style={[commonStyles.title, { textAlign: 'left', marginBottom: 0 }]}>
           Projects
         </Text>
-        
-        <TouchableOpacity onPress={handleCreateProject} style={styles.headerButton}>
-          <Icon name="add" size={24} />
-        </TouchableOpacity>
+        <Button
+          text="Create"
+          onPress={handleCreateProject}
+          variant="gradient"
+          size="sm"
+          icon={<Icon name="add" size={16} color={colors.text} />}
+        />
       </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
           onPress={() => setFilter('all')}
         >
@@ -277,63 +290,40 @@ export default function ProjectsScreen() {
             All Projects
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.filterTab, filter === 'my' && styles.filterTabActive]}
-          onPress={() => setFilter('my')}
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'open' && styles.filterTabActive]}
+          onPress={() => setFilter('open')}
         >
-          <Text style={[styles.filterText, filter === 'my' && styles.filterTextActive]}>
-            My Projects
+          <Text style={[styles.filterText, filter === 'open' && styles.filterTextActive]}>
+            Open
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.filterTab, filter === 'applied' && styles.filterTabActive]}
-          onPress={() => setFilter('applied')}
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'my_projects' && styles.filterTabActive]}
+          onPress={() => setFilter('my_projects')}
         >
-          <Text style={[styles.filterText, filter === 'applied' && styles.filterTextActive]}>
-            Applied
+          <Text style={[styles.filterText, filter === 'my_projects' && styles.filterTextActive]}>
+            My Projects
           </Text>
         </TouchableOpacity>
       </View>
 
-      <Animated.ScrollView 
-        contentContainerStyle={styles.content}
+      <ScrollView
+        style={commonStyles.wrapper}
+        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.md }]}
         showsVerticalScrollIndicator={false}
-        style={animatedStyle}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
         }
       >
-        {filteredProjects.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="briefcase-outline" size={80} color={colors.textMuted} />
-            <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-              {filter === 'my' ? 'No Projects Created' : 
-               filter === 'applied' ? 'No Applications' : 'No Projects Available'}
-            </Text>
-            <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>
-              {filter === 'my' ? 'Create your first project to start collaborating' :
-               filter === 'applied' ? 'Apply to projects to see them here' :
-               'Check back later for new collaboration opportunities'}
-            </Text>
-            {filter === 'my' && (
-              <Button
-                text="Create Project"
-                onPress={handleCreateProject}
-                variant="gradient"
-                size="lg"
-              />
-            )}
-          </View>
-        ) : (
-          <View style={styles.projectsList}>
-            {filteredProjects.map((project, index) => (
+        <Animated.View style={animatedStyle}>
+          {filteredProjects.length > 0 ? (
+            filteredProjects.map((project, index) => (
               <ProjectCard
                 key={project.id}
                 project={project}
@@ -342,57 +332,55 @@ export default function ProjectsScreen() {
                 formatTimeAgo={formatTimeAgo}
                 delay={index * 100}
               />
-            ))}
-          </View>
-        )}
-
-        {/* Create Project CTA */}
-        {filter === 'all' && (
-          <View style={styles.ctaContainer}>
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.ctaGradient}
-            >
-              <View style={styles.ctaContent}>
-                <Icon name="add-circle" size={48} color={colors.text} />
-                <Text style={styles.ctaTitle}>Have a Project Idea?</Text>
-                <Text style={styles.ctaDescription}>
-                  Create a project and find the perfect collaborators
-                </Text>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="folder-open" size={80} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>No Projects Found</Text>
+              <Text style={styles.emptySubtitle}>
+                {filter === 'my_projects' 
+                  ? 'You haven\'t created any projects yet'
+                  : 'No projects match your current filter'
+                }
+              </Text>
+              {filter === 'my_projects' && (
                 <Button
-                  text="Create Project"
+                  text="Create Your First Project"
                   onPress={handleCreateProject}
-                  variant="secondary"
+                  variant="gradient"
                   size="lg"
                   style={{ marginTop: spacing.lg }}
                 />
-              </View>
-            </LinearGradient>
-          </View>
-        )}
-      </Animated.ScrollView>
+              )}
+            </View>
+          )}
+
+          {/* Bottom Spacing */}
+          <View style={{ height: spacing.xxl }} />
+        </Animated.View>
+      </ScrollView>
 
       {/* Create Project Modal */}
       <CreateProjectModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleProjectCreated}
-        currentUser={currentUser}
+        currentUser={user}
       />
     </View>
   );
 }
 
 function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: ProjectCardProps) {
-  const cardScale = useSharedValue(0.9);
   const cardOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.9);
 
   useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
   }, [delay, cardOpacity, cardScale]);
 
-  const cardAnimatedStyle = useAnimatedStyle(() => {
+  const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
@@ -401,119 +389,73 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
 
   const getStatusColor = () => {
     switch (project.status) {
-      case 'open': return colors.success;
-      case 'in_progress': return colors.warning;
-      case 'completed': return colors.primary;
-      case 'cancelled': return colors.error;
-      default: return colors.textMuted;
+      case 'open':
+        return colors.success;
+      case 'in_progress':
+        return colors.warning;
+      case 'completed':
+        return colors.primary;
+      default:
+        return colors.textMuted;
     }
   };
 
   return (
-    <Animated.View style={cardAnimatedStyle}>
+    <Animated.View style={animatedStyle}>
       <TouchableOpacity style={styles.projectCard} onPress={onView} activeOpacity={0.8}>
-        <LinearGradient
-          colors={project.isOwner ? colors.gradientPrimary : colors.gradientSecondary}
-          style={styles.projectGradient}
-        >
-          <View style={styles.projectContent}>
-            {/* Header */}
-            <View style={styles.projectHeader}>
-              <View style={styles.projectTitleContainer}>
-                <Text style={styles.projectTitle} numberOfLines={2}>
-                  {project.title}
-                </Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
-                  <Text style={styles.statusText}>
-                    {project.status.replace('_', ' ').toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-              
-              <Text style={styles.projectTime}>
-                {formatTimeAgo(project.createdAt)}
-              </Text>
-            </View>
-
-            {/* Author */}
-            <View style={styles.authorContainer}>
-              <View style={styles.authorAvatar}>
-                <Text style={styles.authorInitial}>
-                  {project.authorName.charAt(0)}
-                </Text>
-              </View>
-              <View style={styles.authorInfo}>
-                <Text style={styles.authorName}>{project.authorName}</Text>
-                <Text style={styles.authorRole}>{project.authorRole}</Text>
-              </View>
-            </View>
-
-            {/* Description */}
-            <Text style={styles.projectDescription} numberOfLines={3}>
-              {project.description}
-            </Text>
-
-            {/* Genres */}
-            <View style={styles.genresContainer}>
-              {project.genres.slice(0, 3).map(genre => (
-                <View key={genre} style={styles.genreChip}>
-                  <Text style={styles.genreText}>{genre}</Text>
-                </View>
-              ))}
-              {project.genres.length > 3 && (
-                <Text style={styles.moreGenres}>
-                  +{project.genres.length - 3}
-                </Text>
-              )}
-            </View>
-
-            {/* Project Details */}
-            <View style={styles.projectDetails}>
-              <View style={styles.detailItem}>
-                <Icon name="cash" size={16} color={colors.textMuted} />
-                <Text style={styles.detailText}>{project.budget}</Text>
-              </View>
-              <View style={styles.detailItem}>
-                <Icon name="time" size={16} color={colors.textMuted} />
-                <Text style={styles.detailText}>{project.timeline}</Text>
-              </View>
-              <View style={styles.detailItem}>
-                <Icon name="people" size={16} color={colors.textMuted} />
-                <Text style={styles.detailText}>
-                  {project.applicationCount} applicant{project.applicationCount !== 1 ? 's' : ''}
-                </Text>
-              </View>
-            </View>
-
-            {/* Actions */}
-            <View style={styles.projectActions}>
-              <Button
-                text="View Details"
-                onPress={onView}
-                variant="outline"
-                size="sm"
-                style={{ flex: 1 }}
-              />
-              
-              {!project.isOwner && !project.hasApplied && project.status === 'open' && (
-                <Button
-                  text="Apply"
-                  onPress={onApply}
-                  variant="primary"
-                  size="sm"
-                  style={{ flex: 1, marginLeft: spacing.sm }}
-                />
-              )}
-              
-              {project.hasApplied && (
-                <View style={styles.appliedBadge}>
-                  <Icon name="checkmark-circle" size={16} color={colors.success} />
-                  <Text style={styles.appliedText}>Applied</Text>
-                </View>
-              )}
-            </View>
+        <View style={styles.projectHeader}>
+          <View style={styles.projectInfo}>
+            <Text style={styles.projectTitle}>{project.title}</Text>
+            <Text style={styles.projectAuthor}>by {project.authorName}</Text>
           </View>
-        </LinearGradient>
+          
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
+            <Text style={styles.statusText}>{project.status}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.projectDescription} numberOfLines={3}>
+          {project.description}
+        </Text>
+
+        <View style={styles.projectGenres}>
+          {project.genres.slice(0, 3).map((genre, index) => (
+            <View key={index} style={styles.genreChip}>
+              <Text style={styles.genreText}>{genre}</Text>
+            </View>
+          ))}
+          {project.genres.length > 3 && (
+            <Text style={styles.moreGenres}>+{project.genres.length - 3} more</Text>
+          )}
+        </View>
+
+        <View style={styles.projectFooter}>
+          <View style={styles.projectMeta}>
+            <Text style={styles.metaText}>
+              <Icon name="time" size={12} color={colors.textMuted} />
+              {' '}{formatTimeAgo(project.createdAt)}
+            </Text>
+            <Text style={styles.metaText}>
+              <Icon name="people" size={12} color={colors.textMuted} />
+              {' '}{project.applicationCount} applications
+            </Text>
+          </View>
+
+          <View style={styles.projectActions}>
+            {project.isOwner ? (
+              <Text style={styles.ownerLabel}>Your Project</Text>
+            ) : project.hasApplied ? (
+              <Text style={styles.appliedLabel}>Applied</Text>
+            ) : project.status === 'open' ? (
+              <Button
+                text="Apply"
+                onPress={onApply}
+                variant="primary"
+                size="sm"
+              />
+            ) : null}
+          </View>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -523,33 +465,31 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: spacing.sm,
   },
   filterTab: {
     flex: 1,
     paddingVertical: spacing.sm,
-    alignItems: 'center',
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
-    marginHorizontal: spacing.xs,
+    alignItems: 'center',
+    backgroundColor: colors.backgroundCard,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   filterTabActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterText: {
     fontSize: 14,
@@ -560,38 +500,22 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: 'Inter_600SemiBold',
   },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  projectsList: {
-    gap: spacing.md,
-    marginBottom: spacing.xl,
-  },
   projectCard: {
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    ...shadows.md,
-  },
-  projectGradient: {
-    padding: 2,
-  },
-  projectContent: {
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg - 2,
+    borderRadius: borderRadius.lg,
     padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.md,
   },
   projectHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  projectTitleContainer: {
+  projectInfo: {
     flex: 1,
     marginRight: spacing.md,
   },
@@ -601,146 +525,99 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  projectAuthor: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+  },
   statusBadge: {
-    alignSelf: 'flex-start',
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
   statusText: {
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-    color: colors.text,
-  },
-  projectTime: {
     fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-  },
-  authorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  authorAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  authorInitial: {
-    fontSize: 14,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-  },
-  authorInfo: {
-    flex: 1,
-  },
-  authorName: {
-    fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-  },
-  authorRole: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
+    textTransform: 'capitalize',
   },
   projectDescription: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 24,
     marginBottom: spacing.md,
   },
-  genresContainer: {
+  projectGenres: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     marginBottom: spacing.md,
   },
   genreChip: {
     backgroundColor: colors.backgroundAlt,
+    borderColor: colors.primary,
+    borderWidth: 1,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: spacing.xs,
   },
   genreText: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    color: colors.primary,
   },
   moreGenres: {
-    fontSize: 10,
-    fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
-  },
-  projectDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  detailText: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
-    marginLeft: spacing.xs,
+  },
+  projectFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  projectMeta: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  metaText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   projectActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
-  appliedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    flex: 1,
-    justifyContent: 'center',
-    marginLeft: spacing.sm,
+  ownerLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.primary,
   },
-  appliedText: {
-    fontSize: 14,
+  appliedLabel: {
+    fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: colors.success,
-    marginLeft: spacing.xs,
   },
-  ctaContainer: {
-    marginTop: spacing.xl,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    ...shadows.lg,
-  },
-  ctaGradient: {
-    padding: spacing.xl,
+  emptyState: {
     alignItems: 'center',
+    paddingVertical: spacing.xxl,
   },
-  ctaContent: {
-    alignItems: 'center',
-  },
-  ctaTitle: {
+  emptyTitle: {
     fontSize: 20,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginTop: spacing.md,
-    textAlign: 'center',
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.textMuted,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  ctaDescription: {
-    fontSize: 14,
+  emptySubtitle: {
+    fontSize: 16,
     fontFamily: 'Inter_400Regular',
-    color: colors.text,
-    opacity: 0.9,
+    color: colors.textMuted,
     textAlign: 'center',
-    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
 });

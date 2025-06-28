@@ -1,8 +1,8 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, Dimensions, RefreshControl, StyleSheet } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
-import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -15,9 +15,11 @@ import Animated, {
   withRepeat,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import Button from '../../components/Button';
 import Icon from '../../components/Icon';
+import Button from '../../components/Button';
 import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../../utils/storage';
+
+const { width } = Dimensions.get('window');
 
 interface FeatureCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -44,14 +46,9 @@ interface QuickActionCardProps {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ matches: 0, projects: 0, users: 0 });
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState({
-    totalUsers: '0',
-    activeProjects: '0',
-    matches: '0',
-    collaborations: '0',
-  });
+  const [loading, setLoading] = useState(true);
 
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -60,21 +57,23 @@ export default function HomeScreen() {
 
   const initializeApp = useCallback(async () => {
     try {
-      console.log('🚀 Initializing app...');
-      setLoading(true);
+      console.log('🏠 Initializing Home Screen...');
       
+      // Initialize sample data first
       await initializeSampleData();
-      const currentUser = await getCurrentUser();
       
+      // Load current user
+      const currentUser = await getCurrentUser();
       if (currentUser) {
         setUser(currentUser);
-        await loadStats();
+        console.log('👤 User loaded:', currentUser.name);
       }
       
-      console.log('✅ App initialized successfully');
+      // Load stats
+      await loadStats();
+      
     } catch (error) {
       console.error('❌ Error initializing app:', error);
-      Alert.alert('Error', 'Failed to initialize app. Please restart.');
     } finally {
       setLoading(false);
     }
@@ -100,76 +99,6 @@ export default function HomeScreen() {
     slideUp.value = withSpring(0, { damping: 15 });
   }, [initializeApp, startPulseAnimation, fadeIn, slideUp]);
 
-  const loadStats = async () => {
-    try {
-      const [allUsers, matches, projects] = await Promise.all([
-        getAllUsers(),
-        getMatches(),
-        getProjects(),
-      ]);
-
-      setStats({
-        totalUsers: allUsers.length.toString(),
-        activeProjects: projects.filter(p => p.status === 'open').length.toString(),
-        matches: matches.length.toString(),
-        collaborations: projects.filter(p => p.status === 'completed').length.toString(),
-      });
-    } catch (error) {
-      console.error('❌ Error loading stats:', error);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await initializeApp();
-    setRefreshing(false);
-  };
-
-  const handleGetStarted = () => {
-    console.log('🚀 Getting started');
-    if (!user) {
-      router.push('/onboarding');
-    } else {
-      router.push('/(tabs)/discover');
-    }
-  };
-
-  const handleExplore = () => {
-    console.log('🔍 Exploring');
-    router.push('/(tabs)/discover');
-  };
-
-  const handleProfile = () => {
-    console.log('👤 Opening profile');
-    router.push('/(tabs)/profile');
-  };
-
-  const handleProjects = () => {
-    console.log('📋 Opening projects');
-    router.push('/(tabs)/projects');
-  };
-
-  const handleMatches = () => {
-    console.log('💕 Opening matches');
-    router.push('/(tabs)/matches');
-  };
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
-
-  const headerAnimatedStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(scrollY.value, [0, 100], [1, 0.8]);
-    const scale = interpolate(scrollY.value, [0, 100], [1, 0.95]);
-    
-    return {
-      opacity,
-      transform: [{ scale }],
-    };
-  });
-
   const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: fadeIn.value,
@@ -177,28 +106,70 @@ export default function HomeScreen() {
     };
   });
 
-  const pulseAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: pulseScale.value }],
-    };
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
   });
+
+  const loadStats = async () => {
+    try {
+      const [allUsers, matches, projects] = await Promise.all([
+        getAllUsers(),
+        getMatches(),
+        getProjects()
+      ]);
+      
+      setStats({
+        users: allUsers.length,
+        matches: matches.length,
+        projects: projects.length
+      });
+    } catch (error) {
+      console.error('❌ Error loading stats:', error);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await initializeApp();
+    setRefreshing(false);
+  }, [initializeApp]);
+
+  const handleGetStarted = () => {
+    router.push('/(tabs)/discover');
+  };
+
+  const handleExplore = () => {
+    router.push('/(tabs)/discover');
+  };
+
+  const handleProfile = () => {
+    router.push('/(tabs)/profile');
+  };
+
+  const handleProjects = () => {
+    router.push('/(tabs)/projects');
+  };
+
+  const handleMatches = () => {
+    router.push('/(tabs)/matches');
+  };
 
   if (loading) {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
           colors={colors.gradientBackground}
-          style={StyleSheet.absoluteFill}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
-        <Animated.View style={[pulseAnimatedStyle, { alignItems: 'center' }]}>
-          <Icon name="musical-notes" size={80} color={colors.primary} />
-          <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-            Muse
-          </Text>
-          <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
-            Connecting musicians worldwide
-          </Text>
-        </Animated.View>
+        <Icon name="musical-notes" size={80} />
+        <Text style={[commonStyles.title, { marginTop: 24 }]}>
+          Muse
+        </Text>
+        <Text style={[commonStyles.caption, { marginTop: 8 }]}>
+          Loading your musical journey...
+        </Text>
       </View>
     );
   }
@@ -207,166 +178,170 @@ export default function HomeScreen() {
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={colors.gradientBackground}
-        style={StyleSheet.absoluteFill}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       
-      <Animated.ScrollView 
-        contentContainerStyle={styles.content}
+      <Animated.ScrollView
+        style={commonStyles.wrapper}
+        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
         showsVerticalScrollIndicator={false}
-        style={animatedStyle}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
         }
       >
-        {/* Header */}
-        <Animated.View style={[styles.header, headerAnimatedStyle]}>
-          <View style={styles.headerContent}>
-            <View>
-              <Text style={styles.greeting}>
-                {user ? `Welcome back, ${user.name.split(' ')[0]}!` : 'Welcome to Muse'}
+        <Animated.View style={animatedStyle}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={[commonStyles.title, { textAlign: 'left', marginBottom: 0 }]}>
+                Welcome back{user ? `, ${user.name.split(' ')[0]}` : ''}! 👋
               </Text>
-              <Text style={styles.subtitle}>
-                {user ? 'Ready to create something amazing?' : 'Connect with musicians worldwide'}
+              <Text style={[commonStyles.text, { textAlign: 'left', marginTop: spacing.sm }]}>
+                Ready to create some amazing music?
               </Text>
             </View>
             
-            <TouchableOpacity onPress={handleProfile} style={styles.profileButton}>
+            <TouchableOpacity 
+              style={styles.profileButton}
+              onPress={handleProfile}
+            >
               <LinearGradient
                 colors={colors.gradientPrimary}
                 style={styles.profileGradient}
               >
-                <Text style={styles.profileInitial}>
-                  {user ? user.name.charAt(0) : 'M'}
-                </Text>
+                <Icon name="person" size={24} color={colors.text} />
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </Animated.View>
 
-        {/* Stats */}
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Platform Stats</Text>
-          <View style={styles.statsGrid}>
-            <StatCard number={stats.totalUsers} label="Musicians" />
-            <StatCard number={stats.activeProjects} label="Active Projects" />
-            <StatCard number={stats.matches} label="Connections" />
-            <StatCard number={stats.collaborations} label="Collaborations" />
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            <StatCard number={stats.users.toString()} label="Artists" />
+            <StatCard number={stats.projects.toString()} label="Projects" />
+            <StatCard number={stats.matches.toString()} label="Matches" />
           </View>
-        </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickActionsSection}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <QuickActionCard
-              icon="search"
-              title="Discover"
-              subtitle="Find musicians"
-              onPress={handleExplore}
-              gradient={colors.gradientPrimary}
-            />
-            <QuickActionCard
-              icon="add-circle"
-              title="Create Project"
-              subtitle="Start collaborating"
-              onPress={handleProjects}
-              gradient={colors.gradientSecondary}
-            />
-            <QuickActionCard
-              icon="heart"
-              title="Matches"
-              subtitle="View connections"
-              onPress={handleMatches}
-              gradient={colors.gradientPrimary}
-            />
-            <QuickActionCard
-              icon="person"
-              title="Profile"
-              subtitle="Edit your profile"
-              onPress={handleProfile}
-              gradient={colors.gradientSecondary}
-            />
-          </View>
-        </View>
-
-        {/* Features */}
-        <View style={styles.featuresSection}>
-          <Text style={styles.sectionTitle}>What You Can Do</Text>
-          <FeatureCard
-            icon="people"
-            title="Connect with Musicians"
-            description="Discover and match with talented musicians from around the world"
-            gradient={colors.gradientPrimary}
-            onPress={handleExplore}
-            delay={0}
-          />
-          <FeatureCard
-            icon="musical-notes"
-            title="Collaborate on Projects"
-            description="Create and join music projects with other artists"
-            gradient={colors.gradientSecondary}
-            onPress={handleProjects}
-            delay={100}
-          />
-          <FeatureCard
-            icon="chatbubbles"
-            title="Chat & Share Ideas"
-            description="Communicate with your matches and share creative ideas"
-            gradient={colors.gradientPrimary}
-            onPress={handleMatches}
-            delay={200}
-          />
-        </View>
-
-        {/* CTA */}
-        <View style={styles.ctaSection}>
-          <LinearGradient
-            colors={colors.gradientPrimary}
-            style={styles.ctaGradient}
-          >
-            <View style={styles.ctaContent}>
-              <Icon name="rocket" size={48} color={colors.text} />
-              <Text style={styles.ctaTitle}>
-                {user ? 'Start Creating Today' : 'Join the Community'}
-              </Text>
-              <Text style={styles.ctaDescription}>
-                {user 
-                  ? 'Discover new collaborators and create amazing music together'
-                  : 'Connect with musicians and start your musical journey'
-                }
-              </Text>
-              <Button
-                text={user ? 'Explore Musicians' : 'Get Started'}
-                onPress={handleGetStarted}
-                variant="secondary"
-                size="lg"
-                style={{ marginTop: spacing.lg }}
+          {/* Quick Actions */}
+          <View style={styles.section}>
+            <Text style={[commonStyles.heading, { textAlign: 'left', marginBottom: spacing.lg }]}>
+              Quick Actions
+            </Text>
+            
+            <View style={styles.quickActionsGrid}>
+              <QuickActionCard
+                icon="search"
+                title="Discover"
+                subtitle="Find new collaborators"
+                onPress={handleExplore}
+                gradient={colors.gradientPrimary}
+              />
+              <QuickActionCard
+                icon="heart"
+                title="Matches"
+                subtitle="View your connections"
+                onPress={handleMatches}
+                gradient={colors.gradientSecondary}
+              />
+              <QuickActionCard
+                icon="folder"
+                title="Projects"
+                subtitle="Browse open projects"
+                onPress={handleProjects}
+                gradient={['#F59E0B', '#EF4444']}
+              />
+              <QuickActionCard
+                icon="person"
+                title="Profile"
+                subtitle="Edit your profile"
+                onPress={handleProfile}
+                gradient={['#10B981', '#059669']}
               />
             </View>
-          </LinearGradient>
-        </View>
+          </View>
+
+          {/* Featured Content */}
+          <View style={styles.section}>
+            <Text style={[commonStyles.heading, { textAlign: 'left', marginBottom: spacing.lg }]}>
+              Explore Muse
+            </Text>
+            
+            <FeatureCard
+              icon="musical-notes"
+              title="Discover Artists"
+              description="Swipe through talented musicians and find your perfect collaborator"
+              gradient={colors.gradientPrimary}
+              onPress={handleExplore}
+              delay={0}
+            />
+            
+            <FeatureCard
+              icon="folder-open"
+              title="Open Projects"
+              description="Browse exciting music projects looking for collaborators"
+              gradient={colors.gradientSecondary}
+              onPress={handleProjects}
+              delay={200}
+            />
+            
+            <FeatureCard
+              icon="chatbubbles"
+              title="Connect & Chat"
+              description="Message your matches and start creating music together"
+              gradient={['#F59E0B', '#EF4444']}
+              onPress={handleMatches}
+              delay={400}
+            />
+          </View>
+
+          {/* CTA Section */}
+          <View style={styles.ctaSection}>
+            <LinearGradient
+              colors={colors.gradientPrimary}
+              style={styles.ctaCard}
+            >
+              <Icon name="rocket" size={48} color={colors.text} />
+              <Text style={[commonStyles.subtitle, { color: colors.text, marginTop: spacing.md }]}>
+                Start Your Musical Journey
+              </Text>
+              <Text style={[commonStyles.text, { color: colors.text, opacity: 0.9, marginBottom: spacing.lg }]}>
+                Connect with artists worldwide and create amazing music together
+              </Text>
+              <Button
+                text="Get Started"
+                onPress={handleGetStarted}
+                variant="outline"
+                size="lg"
+                style={{ backgroundColor: colors.text, borderColor: colors.text }}
+                textStyle={{ color: colors.primary }}
+              />
+            </LinearGradient>
+          </View>
+
+          {/* Bottom Spacing */}
+          <View style={{ height: spacing.xxl }} />
+        </Animated.View>
       </Animated.ScrollView>
     </View>
   );
 }
 
 function FeatureCard({ icon, title, description, gradient, onPress, delay }: FeatureCardProps) {
-  const cardScale = useSharedValue(0.9);
   const cardOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.9);
 
   useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
   }, [delay, cardOpacity, cardScale]);
 
-  const cardAnimatedStyle = useAnimatedStyle(() => {
+  const animatedCardStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
@@ -374,21 +349,21 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
   });
 
   return (
-    <Animated.View style={cardAnimatedStyle}>
+    <Animated.View style={animatedCardStyle}>
       <TouchableOpacity style={styles.featureCard} onPress={onPress} activeOpacity={0.8}>
         <LinearGradient
           colors={gradient}
           style={styles.featureGradient}
         >
-          <View style={styles.featureContent}>
-            <Icon name={icon} size={32} color={colors.text} />
-            <View style={styles.featureText}>
-              <Text style={styles.featureTitle}>{title}</Text>
-              <Text style={styles.featureDescription}>{description}</Text>
-            </View>
-            <Icon name="chevron-forward" size={24} color={colors.text} />
-          </View>
+          <Icon name={icon} size={32} color={colors.text} />
         </LinearGradient>
+        
+        <View style={styles.featureContent}>
+          <Text style={styles.featureTitle}>{title}</Text>
+          <Text style={styles.featureDescription}>{description}</Text>
+        </View>
+        
+        <Icon name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -411,76 +386,50 @@ function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActi
         style={styles.quickActionGradient}
       >
         <Icon name={icon} size={24} color={colors.text} />
-        <Text style={styles.quickActionTitle}>{title}</Text>
-        <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
       </LinearGradient>
+      <Text style={styles.quickActionTitle}>{title}</Text>
+      <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
   header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: spacing.xl,
   },
   headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  greeting: {
-    fontSize: 28,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
+    flex: 1,
+    marginRight: spacing.md,
   },
   profileButton: {
-    borderRadius: 25,
+    borderRadius: borderRadius.full,
     overflow: 'hidden',
     ...shadows.md,
   },
   profileGradient: {
-    width: 50,
-    height: 50,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileInitial: {
-    fontSize: 20,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-  },
-  statsSection: {
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  statsGrid: {
+  statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: spacing.sm,
+    marginBottom: spacing.xl,
+    gap: spacing.md,
   },
   statCard: {
     flex: 1,
     backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.md,
-    padding: spacing.md,
+    padding: spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadows.sm,
   },
   statNumber: {
     fontSize: 24,
@@ -489,69 +438,70 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'Inter_500Medium',
     color: colors.textMuted,
-    textAlign: 'center',
   },
-  quickActionsSection: {
+  section: {
     marginBottom: spacing.xl,
   },
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: spacing.md,
     justifyContent: 'space-between',
-    gap: spacing.sm,
   },
   quickActionCard: {
     width: '48%',
+    backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    ...shadows.md,
+    padding: spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
   },
   quickActionGradient: {
-    padding: spacing.md,
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    minHeight: 80,
     justifyContent: 'center',
+    marginBottom: spacing.md,
   },
   quickActionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginTop: spacing.xs,
-    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   quickActionSubtitle: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: colors.text,
-    opacity: 0.8,
+    color: colors.textMuted,
     textAlign: 'center',
   },
-  featuresSection: {
-    marginBottom: spacing.xl,
-  },
   featureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg,
-    overflow: 'hidden',
+    padding: spacing.lg,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.md,
   },
   featureGradient: {
-    padding: 2,
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
   featureContent: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg - 2,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  featureText: {
     flex: 1,
-    marginLeft: spacing.md,
-    marginRight: spacing.sm,
   },
   featureTitle: {
     fontSize: 18,
@@ -566,31 +516,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   ctaSection: {
-    marginBottom: spacing.xl,
+    marginTop: spacing.xl,
   },
-  ctaGradient: {
-    borderRadius: borderRadius.lg,
+  ctaCard: {
+    borderRadius: borderRadius.xl,
     padding: spacing.xl,
     alignItems: 'center',
     ...shadows.lg,
-  },
-  ctaContent: {
-    alignItems: 'center',
-  },
-  ctaTitle: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  ctaDescription: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
-    color: colors.text,
-    opacity: 0.9,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    lineHeight: 24,
   },
 });
