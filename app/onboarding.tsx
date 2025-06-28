@@ -10,10 +10,10 @@ import Animated, {
   withSpring,
   withDelay 
 } from 'react-native-reanimated';
-import { commonStyles, colors, spacing, borderRadius } from './styles/commonStyles';
-import Button from './components/Button';
-import Icon from './components/Icon';
-import { saveCurrentUser, getCurrentUser, generateId, getCurrentTimestamp, User } from './utils/storage';
+import { commonStyles, colors, spacing, borderRadius } from '../styles/commonStyles';
+import Button from '../components/Button';
+import Icon from '../components/Icon';
+import { saveCurrentUser, getCurrentUser, generateId, getCurrentTimestamp, User } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
