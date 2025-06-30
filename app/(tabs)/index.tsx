@@ -1,8 +1,8 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, Dimensions, RefreshControl, StyleSheet } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -15,11 +15,9 @@ import Animated, {
   withRepeat,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import Icon from '../../components/Icon';
 import Button from '../../components/Button';
+import Icon from '../../components/Icon';
 import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../../utils/storage';
-
-const { width } = Dimensions.get('window');
 
 interface FeatureCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -46,36 +44,65 @@ interface QuickActionCardProps {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState({ matches: 0, projects: 0, users: 0 });
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalMatches: 0,
+    totalProjects: 0
+  });
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
-  const pulseScale = useSharedValue(1);
   const scrollY = useSharedValue(0);
+  const pulseScale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
 
   const initializeApp = useCallback(async () => {
     try {
-      console.log('🏠 Initializing Home Screen...');
+      console.log('🏠 Initializing home screen...');
       
-      // Initialize sample data first
+      // Initialize sample data if needed
       await initializeSampleData();
       
       // Load current user
       const currentUser = await getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        console.log('👤 User loaded:', currentUser.name);
-      }
+      setUser(currentUser);
       
       // Load stats
       await loadStats();
       
     } catch (error) {
       console.error('❌ Error initializing app:', error);
-    } finally {
-      setLoading(false);
+    }
+  }, []);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const [allUsers, allMatches, allProjects] = await Promise.all([
+        getAllUsers(),
+        getMatches(),
+        getProjects()
+      ]);
+
+      setStats({
+        totalUsers: allUsers.length,
+        totalMatches: allMatches.length,
+        totalProjects: allProjects.length
+      });
+    } catch (error) {
+      console.error('❌ Error loading stats:', error);
     }
   }, []);
 
@@ -99,91 +126,88 @@ export default function HomeScreen() {
     slideUp.value = withSpring(0, { damping: 15 });
   }, [initializeApp, startPulseAnimation, fadeIn, slideUp]);
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([initializeApp(), loadStats()]);
+    setRefreshing(false);
+  }, [initializeApp, loadStats]);
+
+  const handleGetStarted = useCallback(() => {
+    if (!user || !user.isOnboarded) {
+      router.push('/onboarding');
+    } else {
+      router.push('/(tabs)/discover');
+    }
+  }, [user]);
+
+  const handleExplore = useCallback(() => {
+    router.push('/(tabs)/discover');
+  }, []);
+
+  const handleProfile = useCallback(() => {
+    router.push('/(tabs)/profile');
+  }, []);
+
+  const handleProjects = useCallback(() => {
+    router.push('/(tabs)/projects');
+  }, []);
+
+  const handleMatches = useCallback(() => {
+    router.push('/(tabs)/matches');
+  }, []);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(scrollY.value, [0, 100], [1, 0.8]);
+    const translateY = interpolate(scrollY.value, [0, 100], [0, -10]);
+    
     return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
+      opacity,
+      transform: [{ translateY }],
     };
   });
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
+  const pulseAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: pulseScale.value }],
+    };
   });
-
-  const loadStats = async () => {
-    try {
-      const [allUsers, matches, projects] = await Promise.all([
-        getAllUsers(),
-        getMatches(),
-        getProjects()
-      ]);
-      
-      setStats({
-        users: allUsers.length,
-        matches: matches.length,
-        projects: projects.length
-      });
-    } catch (error) {
-      console.error('❌ Error loading stats:', error);
-    }
-  };
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await initializeApp();
-    setRefreshing(false);
-  }, [initializeApp]);
-
-  const handleGetStarted = () => {
-    router.push('/(tabs)/discover');
-  };
-
-  const handleExplore = () => {
-    router.push('/(tabs)/discover');
-  };
-
-  const handleProfile = () => {
-    router.push('/(tabs)/profile');
-  };
-
-  const handleProjects = () => {
-    router.push('/(tabs)/projects');
-  };
-
-  const handleMatches = () => {
-    router.push('/(tabs)/matches');
-  };
-
-  if (loading) {
-    return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        <Icon name="musical-notes" size={80} />
-        <Text style={[commonStyles.title, { marginTop: 24 }]}>
-          Muse
-        </Text>
-        <Text style={[commonStyles.caption, { marginTop: 8 }]}>
-          Loading your musical journey...
-        </Text>
-      </View>
-    );
-  }
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={colors.gradientBackground}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        style={StyleSheet.absoluteFill}
       />
       
+      {/* Header */}
+      <Animated.View style={[styles.header, headerAnimatedStyle]}>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.greeting}>
+              {user ? `Welcome back, ${user.name.split(' ')[0]}!` : 'Welcome to Muse'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {user ? 'Ready to create some music?' : 'Connect. Collaborate. Create.'}
+            </Text>
+          </View>
+          
+          <Animated.View style={pulseAnimatedStyle}>
+            <TouchableOpacity onPress={handleProfile} style={styles.profileButton}>
+              <LinearGradient
+                colors={colors.gradientPrimary}
+                style={styles.profileGradient}
+              >
+                <Text style={styles.profileInitial}>
+                  {user ? user.name.charAt(0) : 'M'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Animated.View>
+
       <Animated.ScrollView
-        style={commonStyles.wrapper}
-        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
@@ -197,135 +221,112 @@ export default function HomeScreen() {
         }
       >
         <Animated.View style={animatedStyle}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerContent}>
-              <Text style={[commonStyles.title, { textAlign: 'left', marginBottom: 0 }]}>
-                Welcome back{user ? `, ${user.name.split(' ')[0]}` : ''}! 👋
-              </Text>
-              <Text style={[commonStyles.text, { textAlign: 'left', marginTop: spacing.sm }]}>
-                Ready to create some amazing music?
-              </Text>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.profileButton}
-              onPress={handleProfile}
-            >
-              <LinearGradient
-                colors={colors.gradientPrimary}
-                style={styles.profileGradient}
-              >
-                <Icon name="person" size={24} color={colors.text} />
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-
-          {/* Stats Cards */}
+          {/* Stats */}
           <View style={styles.statsContainer}>
-            <StatCard number={stats.users.toString()} label="Artists" />
-            <StatCard number={stats.projects.toString()} label="Projects" />
-            <StatCard number={stats.matches.toString()} label="Matches" />
+            <LinearGradient
+              colors={colors.gradientPrimary}
+              style={styles.statsGradient}
+            >
+              <View style={styles.statsContent}>
+                <StatCard number={stats.totalUsers.toString()} label="Musicians" />
+                <StatCard number={stats.totalMatches.toString()} label="Matches" />
+                <StatCard number={stats.totalProjects.toString()} label="Projects" />
+              </View>
+            </LinearGradient>
           </View>
 
           {/* Quick Actions */}
-          <View style={styles.section}>
-            <Text style={[commonStyles.heading, { textAlign: 'left', marginBottom: spacing.lg }]}>
-              Quick Actions
-            </Text>
+          <View style={styles.quickActionsContainer}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
             
             <View style={styles.quickActionsGrid}>
               <QuickActionCard
                 icon="search"
                 title="Discover"
-                subtitle="Find new collaborators"
+                subtitle="Find musicians"
                 onPress={handleExplore}
                 gradient={colors.gradientPrimary}
               />
+              
               <QuickActionCard
                 icon="heart"
                 title="Matches"
-                subtitle="View your connections"
+                subtitle="Your connections"
                 onPress={handleMatches}
                 gradient={colors.gradientSecondary}
               />
+              
               <QuickActionCard
                 icon="folder"
                 title="Projects"
-                subtitle="Browse open projects"
+                subtitle="Collaborations"
                 onPress={handleProjects}
-                gradient={['#F59E0B', '#EF4444']}
+                gradient={['#10B981', '#059669']}
               />
+              
               <QuickActionCard
                 icon="person"
                 title="Profile"
-                subtitle="Edit your profile"
+                subtitle="Your music profile"
                 onPress={handleProfile}
-                gradient={['#10B981', '#059669']}
+                gradient={['#F59E0B', '#D97706']}
               />
             </View>
           </View>
 
-          {/* Featured Content */}
-          <View style={styles.section}>
-            <Text style={[commonStyles.heading, { textAlign: 'left', marginBottom: spacing.lg }]}>
-              Explore Muse
-            </Text>
+          {/* Features */}
+          <View style={styles.featuresContainer}>
+            <Text style={styles.sectionTitle}>Why Muse?</Text>
             
             <FeatureCard
               icon="musical-notes"
-              title="Discover Artists"
-              description="Swipe through talented musicians and find your perfect collaborator"
+              title="Find Your Sound"
+              description="Connect with musicians who share your musical vision and style"
               gradient={colors.gradientPrimary}
               onPress={handleExplore}
               delay={0}
             />
             
             <FeatureCard
-              icon="folder-open"
-              title="Open Projects"
-              description="Browse exciting music projects looking for collaborators"
+              icon="people"
+              title="Build Your Network"
+              description="Grow your professional network and find long-term collaborators"
               gradient={colors.gradientSecondary}
-              onPress={handleProjects}
-              delay={200}
+              onPress={handleMatches}
+              delay={100}
             />
             
             <FeatureCard
-              icon="chatbubbles"
-              title="Connect & Chat"
-              description="Message your matches and start creating music together"
-              gradient={['#F59E0B', '#EF4444']}
-              onPress={handleMatches}
-              delay={400}
+              icon="rocket"
+              title="Launch Projects"
+              description="Start new projects and find the perfect team to bring them to life"
+              gradient={['#10B981', '#059669']}
+              onPress={handleProjects}
+              delay={200}
             />
           </View>
 
-          {/* CTA Section */}
-          <View style={styles.ctaSection}>
+          {/* CTA */}
+          <View style={styles.ctaContainer}>
             <LinearGradient
               colors={colors.gradientPrimary}
-              style={styles.ctaCard}
+              style={styles.ctaGradient}
             >
-              <Icon name="rocket" size={48} color={colors.text} />
-              <Text style={[commonStyles.subtitle, { color: colors.text, marginTop: spacing.md }]}>
-                Start Your Musical Journey
-              </Text>
-              <Text style={[commonStyles.text, { color: colors.text, opacity: 0.9, marginBottom: spacing.lg }]}>
-                Connect with artists worldwide and create amazing music together
+              <Icon name="musical-notes" size={48} color={colors.text} />
+              <Text style={styles.ctaTitle}>Ready to Make Music?</Text>
+              <Text style={styles.ctaDescription}>
+                Join thousands of musicians creating amazing music together
               </Text>
               <Button
-                text="Get Started"
+                text={user?.isOnboarded ? "Start Discovering" : "Get Started"}
                 onPress={handleGetStarted}
-                variant="outline"
+                variant="secondary"
                 size="lg"
-                style={{ backgroundColor: colors.text, borderColor: colors.text }}
+                style={{ marginTop: spacing.lg, backgroundColor: colors.text }}
                 textStyle={{ color: colors.primary }}
               />
             </LinearGradient>
           </View>
-
-          {/* Bottom Spacing */}
-          <View style={{ height: spacing.xxl }} />
         </Animated.View>
       </Animated.ScrollView>
     </View>
@@ -336,34 +337,36 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
   const cardOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.9);
 
-  useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
-    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay, cardOpacity, cardScale]);
-
-  const animatedCardStyle = useAnimatedStyle(() => {
+  const cardAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
     };
   });
 
+  useEffect(() => {
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
+    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
+  }, [delay, cardOpacity, cardScale]);
+
   return (
-    <Animated.View style={animatedCardStyle}>
+    <Animated.View style={cardAnimatedStyle}>
       <TouchableOpacity style={styles.featureCard} onPress={onPress} activeOpacity={0.8}>
         <LinearGradient
           colors={gradient}
           style={styles.featureGradient}
         >
-          <Icon name={icon} size={32} color={colors.text} />
+          <View style={styles.featureContent}>
+            <View style={styles.featureIcon}>
+              <Icon name={icon} size={32} color={colors.text} />
+            </View>
+            <View style={styles.featureText}>
+              <Text style={styles.featureTitle}>{title}</Text>
+              <Text style={styles.featureDescription}>{description}</Text>
+            </View>
+            <Icon name="chevron-forward" size={20} color={colors.text} />
+          </View>
         </LinearGradient>
-        
-        <View style={styles.featureContent}>
-          <Text style={styles.featureTitle}>{title}</Text>
-          <Text style={styles.featureDescription}>{description}</Text>
-        </View>
-        
-        <Icon name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -385,122 +388,154 @@ function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActi
         colors={gradient}
         style={styles.quickActionGradient}
       >
-        <Icon name={icon} size={24} color={colors.text} />
+        <Icon name={icon} size={28} color={colors.text} />
+        <Text style={styles.quickActionTitle}>{title}</Text>
+        <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
       </LinearGradient>
-      <Text style={styles.quickActionTitle}>{title}</Text>
-      <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   headerContent: {
-    flex: 1,
-    marginRight: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  greeting: {
+    fontSize: 24,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
   },
   profileButton: {
-    borderRadius: borderRadius.full,
+    borderRadius: 25,
     overflow: 'hidden',
     ...shadows.md,
   },
   profileGradient: {
-    width: 48,
-    height: 48,
+    width: 50,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  profileInitial: {
+    fontSize: 20,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.text,
+  },
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: spacing.xl,
-    gap: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  statsGradient: {
+    padding: spacing.lg,
+  },
+  statsContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
   },
   statCard: {
-    flex: 1,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.sm,
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 28,
     fontFamily: 'Poppins_700Bold',
-    color: colors.primary,
-    marginBottom: spacing.xs,
+    color: colors.text,
   },
   statLabel: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    color: colors.text,
+    opacity: 0.9,
+    marginTop: spacing.xs,
   },
-  section: {
+  quickActionsContainer: {
     marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
-    justifyContent: 'space-between',
   },
   quickActionCard: {
     width: '48%',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.sm,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
   },
   quickActionGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
+    padding: spacing.lg,
     alignItems: 'center',
+    minHeight: 120,
     justifyContent: 'center',
-    marginBottom: spacing.md,
   },
   quickActionTitle: {
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
   },
   quickActionSubtitle: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
+    color: colors.text,
+    opacity: 0.8,
+    marginTop: spacing.xs,
     textAlign: 'center',
   },
+  featuresContainer: {
+    marginBottom: spacing.xl,
+  },
   featureCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
     ...shadows.md,
   },
   featureGradient: {
-    width: 56,
-    height: 56,
+    padding: 2,
+  },
+  featureContent: {
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.lg - 2,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  featureIcon: {
+    width: 60,
+    height: 60,
     borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
   },
-  featureContent: {
+  featureText: {
     flex: 1,
   },
   featureTitle: {
@@ -515,13 +550,29 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 20,
   },
-  ctaSection: {
-    marginTop: spacing.xl,
+  ctaContainer: {
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.xl,
+    ...shadows.lg,
   },
-  ctaCard: {
-    borderRadius: borderRadius.xl,
+  ctaGradient: {
     padding: spacing.xl,
     alignItems: 'center',
-    ...shadows.lg,
+  },
+  ctaTitle: {
+    fontSize: 24,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  ctaDescription: {
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    color: colors.text,
+    opacity: 0.9,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

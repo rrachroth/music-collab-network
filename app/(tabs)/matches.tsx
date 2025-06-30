@@ -123,28 +123,28 @@ export default function MatchesScreen() {
     slideUp.value = withSpring(0, { damping: 15 });
   }, [loadMatches, fadeIn, slideUp]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMatches();
     setRefreshing(false);
-  };
+  }, [loadMatches]);
 
-  const handleStartChat = (match: MatchWithUser) => {
+  const handleStartChat = useCallback((match: MatchWithUser) => {
     console.log(`💬 Starting chat with ${match.user.name}`);
     router.push(`/chat/${match.id}`);
-  };
+  }, []);
 
-  const handleViewProfile = (userId: string) => {
+  const handleViewProfile = useCallback((userId: string) => {
     console.log(`👤 Viewing profile: ${userId}`);
     // TODO: Navigate to profile view
-  };
+  }, []);
 
-  const handleBackToDiscover = () => {
+  const handleBackToDiscover = useCallback(() => {
     console.log('🔍 Back to discover');
     router.push('/(tabs)/discover');
-  };
+  }, []);
 
-  const formatTimeAgo = (timestamp: string): string => {
+  const formatTimeAgo = useCallback((timestamp: string): string => {
     const now = new Date();
     const time = new Date(timestamp);
     const diffInSeconds = Math.floor((now.getTime() - time.getTime()) / 1000);
@@ -154,7 +154,7 @@ export default function MatchesScreen() {
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
     return time.toLocaleDateString();
-  };
+  }, []);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {

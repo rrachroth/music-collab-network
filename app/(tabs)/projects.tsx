@@ -1,19 +1,7 @@
-import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, StyleSheet } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming,
-  withSpring,
-  withDelay,
-} from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import Icon from '../../components/Icon';
-import Button from '../../components/Button';
-import CreateProjectModal from '../../components/CreateProjectModal';
+import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   getCurrentUser, 
   getProjects, 
@@ -26,6 +14,18 @@ import {
   Project,
   Application 
 } from '../../utils/storage';
+import CreateProjectModal from '../../components/CreateProjectModal';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming,
+  withSpring,
+  withDelay,
+} from 'react-native-reanimated';
+import Icon from '../../components/Icon';
+import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, StyleSheet } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import Button from '../../components/Button';
 
 interface ProjectWithApplications extends Project {
   applicationCount: number;
@@ -43,33 +43,39 @@ interface ProjectCardProps {
 
 export default function ProjectsScreen() {
   const insets = useSafeAreaInsets();
-  const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<ProjectWithApplications[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<ProjectWithApplications[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'open' | 'my_projects'>('all');
-
+  const [filter, setFilter] = useState<'all' | 'my' | 'open'>('all');
+  
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
 
   const loadProjects = useCallback(async () => {
     try {
       console.log('📋 Loading projects...');
-      const [currentUser, allProjects, applications] = await Promise.all([
+      const [user, allProjects, applications] = await Promise.all([
         getCurrentUser(),
         getProjects(),
         getApplications()
       ]);
-      
-      if (currentUser) {
-        setUser(currentUser);
+
+      if (user) {
+        setCurrentUser(user);
         
         const projectsWithApplications: ProjectWithApplications[] = allProjects.map(project => {
           const projectApplications = applications.filter(app => app.projectId === project.id);
-          const hasApplied = projectApplications.some(app => app.applicantId === currentUser.id);
-          const isOwner = project.createdBy === currentUser.id;
+          const hasApplied = projectApplications.some(app => app.applicantId === user.id);
+          const isOwner = project.authorId === user.id;
           
           return {
             ...project,
@@ -78,51 +84,53 @@ export default function ProjectsScreen() {
             isOwner
           };
         });
-        
+
         setProjects(projectsWithApplications);
       }
     } catch (error) {
       console.error('❌ Error loading projects:', error);
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Failed to load projects');
     }
   }, []);
 
   const filterProjects = useCallback(() => {
-    let filtered = projects;
+    if (!currentUser) return;
+
+    let filtered = [...projects];
     
     switch (filter) {
-      case 'open':
-        filtered = projects.filter(p => p.status === 'open');
+      case 'my':
+        filtered = projects.filter(project => project.authorId === currentUser.id);
         break;
-      case 'my_projects':
-        filtered = projects.filter(p => p.isOwner);
+      case 'open':
+        filtered = projects.filter(project => 
+          project.status === 'open' && 
+          project.authorId !== currentUser.id &&
+          !project.hasApplied
+        );
         break;
       default:
-        filtered = projects;
+        // Show all projects
+        break;
     }
+
+    // Sort by creation date (newest first)
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
     setFilteredProjects(filtered);
-  }, [projects, filter]);
+  }, [projects, filter, currentUser]);
 
   useEffect(() => {
     loadProjects();
     
     // Animate in
-    fadeIn.value = withTiming(1, { duration: 800 });
+    fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
   }, [loadProjects, fadeIn, slideUp]);
 
   useEffect(() => {
     filterProjects();
   }, [filterProjects]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
-    };
-  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -135,17 +143,17 @@ export default function ProjectsScreen() {
   };
 
   const handleProjectCreated = async (projectData: Partial<Project>) => {
-    if (!user) return;
-    
     try {
+      if (!currentUser) return;
+
       const newProject: Project = {
         id: generateId(),
         title: projectData.title || '',
         description: projectData.description || '',
-        createdBy: user.id,
-        authorId: user.id,
-        authorName: user.name,
-        authorRole: user.role,
+        createdBy: currentUser.id,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorRole: currentUser.role,
         genres: projectData.genres || [],
         budget: projectData.budget || '',
         timeline: projectData.timeline || '',
@@ -154,7 +162,7 @@ export default function ProjectsScreen() {
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp(),
       };
-      
+
       await addProject(newProject);
       setShowCreateModal(false);
       await loadProjects();
@@ -162,54 +170,44 @@ export default function ProjectsScreen() {
       Alert.alert('Success', 'Project created successfully!');
     } catch (error) {
       console.error('❌ Error creating project:', error);
-      Alert.alert('Error', 'Failed to create project. Please try again.');
+      Alert.alert('Error', 'Failed to create project');
     }
   };
 
   const handleApplyToProject = async (project: ProjectWithApplications) => {
-    if (!user) return;
-    
-    if (project.hasApplied) {
-      Alert.alert('Already Applied', 'You have already applied to this project.');
-      return;
-    }
-    
-    if (project.isOwner) {
-      Alert.alert('Own Project', 'You cannot apply to your own project.');
-      return;
-    }
-    
-    Alert.prompt(
-      'Apply to Project',
-      'Tell the project owner why you\'re interested and what you can bring to this collaboration:',
-      async (message) => {
-        if (message && message.trim()) {
-          try {
+    try {
+      if (!currentUser) return;
+
+      Alert.prompt(
+        'Apply to Project',
+        'Tell the project owner why you\'re perfect for this collaboration:',
+        async (message) => {
+          if (message && message.trim()) {
             const application: Application = {
               id: generateId(),
               projectId: project.id,
-              applicantId: user.id,
-              applicantName: user.name,
+              applicantId: currentUser.id,
+              applicantName: currentUser.name,
               message: message.trim(),
-              portfolio: user.highlights || [],
+              portfolio: currentUser.highlights,
               appliedAt: getCurrentTimestamp(),
               status: 'pending'
             };
-            
+
             await addApplication(application);
             await loadProjects();
             
             Alert.alert('Success', 'Application submitted successfully!');
-          } catch (error) {
-            console.error('❌ Error applying to project:', error);
-            Alert.alert('Error', 'Failed to submit application. Please try again.');
           }
-        }
-      },
-      'plain-text',
-      '',
-      'I\'m interested in collaborating on this project because...'
-    );
+        },
+        'plain-text',
+        '',
+        'default'
+      );
+    } catch (error) {
+      console.error('❌ Error applying to project:', error);
+      Alert.alert('Error', 'Failed to submit application');
+    }
   };
 
   const handleViewProject = (project: ProjectWithApplications) => {
@@ -218,46 +216,30 @@ export default function ProjectsScreen() {
       `${project.description}\n\nBudget: ${project.budget}\nTimeline: ${project.timeline}\nApplications: ${project.applicationCount}`,
       [
         { text: 'Close', style: 'cancel' },
-        ...(project.isOwner ? [{ text: 'View Applications', onPress: () => {} }] : []),
-        ...(!project.isOwner && !project.hasApplied && project.status === 'open' ? [{ text: 'Apply', onPress: () => handleApplyToProject(project) }] : [])
+        ...(project.isOwner ? [
+          { text: 'View Applications', onPress: () => console.log('View applications') }
+        ] : []),
+        ...(!project.isOwner && !project.hasApplied && project.status === 'open' ? [
+          { text: 'Apply', onPress: () => handleApplyToProject(project) }
+        ] : [])
       ]
     );
   };
 
   const formatTimeAgo = (timestamp: string): string => {
-    try {
-      const now = new Date();
-      const date = new Date(timestamp);
-      const diffInMs = now.getTime() - date.getTime();
-      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-      const diffInDays = Math.floor(diffInHours / 24);
-      
-      if (diffInDays > 0) {
-        return `${diffInDays}d ago`;
-      } else if (diffInHours > 0) {
-        return `${diffInHours}h ago`;
-      } else {
-        return 'Just now';
-      }
-    } catch {
-      return 'Recently';
-    }
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    return `${diffInWeeks}w ago`;
   };
-
-  if (loading) {
-    return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        <Icon name="folder" size={80} />
-        <Text style={[commonStyles.caption, { marginTop: 16 }]}>
-          Loading projects...
-        </Text>
-      </View>
-    );
-  }
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
@@ -268,15 +250,15 @@ export default function ProjectsScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[commonStyles.title, { textAlign: 'left', marginBottom: 0 }]}>
+        <Text style={[commonStyles.title, { marginBottom: 0 }]}>
           Projects
         </Text>
         <Button
           text="Create"
           onPress={handleCreateProject}
-          variant="gradient"
+          variant="primary"
           size="sm"
-          icon={<Icon name="add" size={16} color={colors.text} />}
+          icon={<Icon name="add" size={20} color={colors.text} />}
         />
       </View>
 
@@ -287,7 +269,7 @@ export default function ProjectsScreen() {
           onPress={() => setFilter('all')}
         >
           <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-            All Projects
+            All
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -299,17 +281,16 @@ export default function ProjectsScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.filterTab, filter === 'my_projects' && styles.filterTabActive]}
-          onPress={() => setFilter('my_projects')}
+          style={[styles.filterTab, filter === 'my' && styles.filterTabActive]}
+          onPress={() => setFilter('my')}
         >
-          <Text style={[styles.filterText, filter === 'my_projects' && styles.filterTextActive]}>
+          <Text style={[styles.filterText, filter === 'my' && styles.filterTextActive]}>
             My Projects
           </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        style={commonStyles.wrapper}
         contentContainerStyle={[commonStyles.content, { paddingTop: spacing.md }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -322,7 +303,29 @@ export default function ProjectsScreen() {
         }
       >
         <Animated.View style={animatedStyle}>
-          {filteredProjects.length > 0 ? (
+          {filteredProjects.length === 0 ? (
+            <View style={[commonStyles.card, styles.emptyState]}>
+              <Icon name="folder-open" size={48} color={colors.textMuted} />
+              <Text style={[commonStyles.text, { marginTop: spacing.md }]}>
+                {filter === 'my' ? 'No projects created yet' : 
+                 filter === 'open' ? 'No open projects available' : 
+                 'No projects found'}
+              </Text>
+              <Text style={[commonStyles.caption, { marginTop: spacing.xs }]}>
+                {filter === 'my' ? 'Create your first project to find collaborators' :
+                 'Check back later for new collaboration opportunities'}
+              </Text>
+              {filter === 'my' && (
+                <Button
+                  text="Create Project"
+                  onPress={handleCreateProject}
+                  variant="primary"
+                  size="sm"
+                  style={{ marginTop: spacing.lg }}
+                />
+              )}
+            </View>
+          ) : (
             filteredProjects.map((project, index) => (
               <ProjectCard
                 key={project.id}
@@ -333,39 +336,15 @@ export default function ProjectsScreen() {
                 delay={index * 100}
               />
             ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Icon name="folder-open" size={80} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No Projects Found</Text>
-              <Text style={styles.emptySubtitle}>
-                {filter === 'my_projects' 
-                  ? 'You haven\'t created any projects yet'
-                  : 'No projects match your current filter'
-                }
-              </Text>
-              {filter === 'my_projects' && (
-                <Button
-                  text="Create Your First Project"
-                  onPress={handleCreateProject}
-                  variant="gradient"
-                  size="lg"
-                  style={{ marginTop: spacing.lg }}
-                />
-              )}
-            </View>
           )}
-
-          {/* Bottom Spacing */}
-          <View style={{ height: spacing.xxl }} />
         </Animated.View>
       </ScrollView>
 
-      {/* Create Project Modal */}
       <CreateProjectModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleProjectCreated}
-        currentUser={user}
+        currentUser={currentUser}
       />
     </View>
   );
@@ -375,42 +354,44 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
   const cardOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.9);
 
-  useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
-    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay, cardOpacity, cardScale]);
-
-  const animatedStyle = useAnimatedStyle(() => {
+  const cardAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
     };
   });
 
+  useEffect(() => {
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
+  }, [delay, cardOpacity, cardScale]);
+
   const getStatusColor = () => {
     switch (project.status) {
-      case 'open':
-        return colors.success;
-      case 'in_progress':
-        return colors.warning;
-      case 'completed':
-        return colors.primary;
-      default:
-        return colors.textMuted;
+      case 'open': return colors.success;
+      case 'in_progress': return colors.warning;
+      case 'completed': return colors.primary;
+      case 'cancelled': return colors.error;
+      default: return colors.textMuted;
     }
   };
 
   return (
-    <Animated.View style={animatedStyle}>
-      <TouchableOpacity style={styles.projectCard} onPress={onView} activeOpacity={0.8}>
+    <Animated.View style={cardAnimatedStyle}>
+      <TouchableOpacity style={styles.projectCard} onPress={onView}>
         <View style={styles.projectHeader}>
           <View style={styles.projectInfo}>
-            <Text style={styles.projectTitle}>{project.title}</Text>
-            <Text style={styles.projectAuthor}>by {project.authorName}</Text>
+            <Text style={styles.projectTitle} numberOfLines={2}>
+              {project.title}
+            </Text>
+            <Text style={styles.projectAuthor}>
+              by {project.authorName} • {project.authorRole}
+            </Text>
           </View>
-          
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
-            <Text style={styles.statusText}>{project.status}</Text>
+            <Text style={styles.statusText}>
+              {project.status.replace('_', ' ').toUpperCase()}
+            </Text>
           </View>
         </View>
 
@@ -420,42 +401,49 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
 
         <View style={styles.projectGenres}>
           {project.genres.slice(0, 3).map((genre, index) => (
-            <View key={index} style={styles.genreChip}>
+            <View key={index} style={styles.genreTag}>
               <Text style={styles.genreText}>{genre}</Text>
             </View>
           ))}
           {project.genres.length > 3 && (
-            <Text style={styles.moreGenres}>+{project.genres.length - 3} more</Text>
+            <Text style={styles.moreGenres}>+{project.genres.length - 3}</Text>
           )}
         </View>
 
         <View style={styles.projectFooter}>
           <View style={styles.projectMeta}>
-            <Text style={styles.metaText}>
-              <Icon name="time" size={12} color={colors.textMuted} />
-              {' '}{formatTimeAgo(project.createdAt)}
-            </Text>
-            <Text style={styles.metaText}>
-              <Icon name="people" size={12} color={colors.textMuted} />
-              {' '}{project.applicationCount} applications
-            </Text>
+            <Text style={styles.projectBudget}>{project.budget}</Text>
+            <Text style={styles.projectTimeline}>{project.timeline}</Text>
           </View>
-
           <View style={styles.projectActions}>
-            {project.isOwner ? (
-              <Text style={styles.ownerLabel}>Your Project</Text>
-            ) : project.hasApplied ? (
-              <Text style={styles.appliedLabel}>Applied</Text>
-            ) : project.status === 'open' ? (
-              <Button
-                text="Apply"
-                onPress={onApply}
-                variant="primary"
-                size="sm"
-              />
-            ) : null}
+            <Text style={styles.applicationCount}>
+              {project.applicationCount} applications
+            </Text>
+            <Text style={styles.projectTime}>
+              {formatTimeAgo(project.createdAt)}
+            </Text>
           </View>
         </View>
+
+        {!project.isOwner && !project.hasApplied && project.status === 'open' && (
+          <Button
+            text="Apply"
+            onPress={(e) => {
+              e.stopPropagation();
+              onApply();
+            }}
+            variant="primary"
+            size="sm"
+            style={{ marginTop: spacing.md }}
+          />
+        )}
+
+        {project.hasApplied && (
+          <View style={styles.appliedBadge}>
+            <Icon name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.appliedText}>Applied</Text>
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -478,11 +466,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   filterTab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
     backgroundColor: colors.backgroundCard,
     borderWidth: 1,
     borderColor: colors.border,
@@ -498,7 +484,10 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: colors.text,
-    fontFamily: 'Inter_600SemiBold',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
   },
   projectCard: {
     backgroundColor: colors.backgroundCard,
@@ -506,13 +495,13 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
     ...shadows.md,
   },
   projectHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: spacing.md,
   },
   projectInfo: {
@@ -521,7 +510,7 @@ const styles = StyleSheet.create({
   },
   projectTitle: {
     fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
     marginBottom: spacing.xs,
   },
@@ -536,88 +525,87 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    textTransform: 'capitalize',
   },
   projectDescription: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    lineHeight: 24,
+    lineHeight: 20,
     marginBottom: spacing.md,
   },
   projectGenres: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     marginBottom: spacing.md,
+    alignItems: 'center',
   },
-  genreChip: {
+  genreTag: {
     backgroundColor: colors.backgroundAlt,
-    borderColor: colors.primary,
-    borderWidth: 1,
-    borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
   },
   genreText: {
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
-    color: colors.primary,
+    color: colors.textSecondary,
   },
   moreGenres: {
     fontSize: 12,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_500Medium',
     color: colors.textMuted,
   },
   projectFooter: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
   projectMeta: {
     flex: 1,
-    gap: spacing.sm,
   },
-  metaText: {
+  projectBudget: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.success,
+    marginBottom: spacing.xs,
+  },
+  projectTimeline: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   projectActions: {
     alignItems: 'flex-end',
   },
-  ownerLabel: {
+  applicationCount: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
     color: colors.primary,
+    marginBottom: spacing.xs,
   },
-  appliedLabel: {
+  projectTime: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.success,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontFamily: 'Poppins_600SemiBold',
-    color: colors.textMuted,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: 16,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: spacing.lg,
+  },
+  appliedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  appliedText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: colors.success,
+    marginLeft: spacing.xs,
   },
 });

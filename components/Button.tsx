@@ -30,11 +30,7 @@ export default function Button({
   iconPosition = 'left'
 }: ButtonProps) {
   const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    opacity.value = withTiming(disabled ? 0.6 : 1, { duration: 200 });
-  }, [disabled, opacity]);
+  const opacity = useSharedValue(disabled ? 0.5 : 1);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -43,12 +39,20 @@ export default function Button({
     };
   });
 
+  useEffect(() => {
+    opacity.value = withTiming(disabled ? 0.5 : 1, { duration: 200 });
+  }, [disabled, opacity]);
+
   const handlePressIn = () => {
-    scale.value = withSpring(0.95, { damping: 15 });
+    if (!disabled && !loading) {
+      scale.value = withSpring(0.95, { damping: 15 });
+    }
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15 });
+    if (!disabled && !loading) {
+      scale.value = withSpring(1, { damping: 15 });
+    }
   };
 
   const getButtonStyle = () => {
@@ -63,8 +67,10 @@ export default function Button({
         return [...baseStyle, styles.outline];
       case 'ghost':
         return [...baseStyle, styles.ghost];
+      case 'gradient':
+        return [...baseStyle, styles.gradient];
       default:
-        return baseStyle;
+        return [...baseStyle, styles.primary];
     }
   };
 
@@ -73,11 +79,11 @@ export default function Button({
     
     switch (variant) {
       case 'outline':
-        return [...baseStyle, styles.outlineText];
+        return [...baseStyle, { color: colors.primary }];
       case 'ghost':
-        return [...baseStyle, styles.ghostText];
+        return [...baseStyle, { color: colors.textSecondary }];
       default:
-        return [...baseStyle, styles.primaryText];
+        return [...baseStyle, { color: colors.text }];
     }
   };
 
@@ -89,7 +95,7 @@ export default function Button({
     return (
       <>
         {icon && iconPosition === 'left' && icon}
-        <Text style={[getTextStyle(), textStyle]}>{text}</Text>
+        <Text style={[...getTextStyle(), textStyle]}>{text}</Text>
         {icon && iconPosition === 'right' && icon}
       </>
     );
@@ -104,11 +110,10 @@ export default function Button({
           onPressOut={handlePressOut}
           disabled={disabled || loading}
           activeOpacity={0.8}
-          style={styles.gradientButton}
         >
           <LinearGradient
-            colors={disabled ? [colors.grey, colors.grey] : colors.gradientPrimary}
-            style={[styles.gradientInner, styles[size]]}
+            colors={colors.gradientPrimary}
+            style={[...getButtonStyle(), { backgroundColor: 'transparent' }]}
           >
             {renderContent()}
           </LinearGradient>
@@ -120,7 +125,7 @@ export default function Button({
   return (
     <Animated.View style={[animatedStyle, style]}>
       <TouchableOpacity
-        style={[getButtonStyle(), style]}
+        style={getButtonStyle()}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -139,33 +144,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: borderRadius.md,
+    gap: spacing.sm,
     ...shadows.sm,
-  },
-  gradientButton: {
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    ...shadows.md,
-  },
-  gradientInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  // Variants
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  secondary: {
-    backgroundColor: colors.secondary,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
   },
   
   // Sizes
@@ -185,22 +165,30 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   
+  // Variants
+  primary: {
+    backgroundColor: colors.primary,
+  },
+  secondary: {
+    backgroundColor: colors.secondary,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+  },
+  gradient: {
+    backgroundColor: 'transparent',
+  },
+  
   // Text styles
   text: {
     ...typography.button,
     textAlign: 'center',
   },
-  primaryText: {
-    color: colors.text,
-  },
-  outlineText: {
-    color: colors.primary,
-  },
-  ghostText: {
-    color: colors.primary,
-  },
-  
-  // Text sizes
   smText: {
     fontSize: 14,
   },

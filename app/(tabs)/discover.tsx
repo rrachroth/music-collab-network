@@ -109,21 +109,21 @@ export default function DiscoverScreen() {
     return Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  };
+  }, [loadData]);
 
-  const resetCardPosition = () => {
+  const resetCardPosition = useCallback(() => {
     translateX.value = withSpring(0);
     translateY.value = withSpring(0);
     rotate.value = withSpring(0);
     scale.value = withSpring(1);
     opacity.value = withSpring(1);
-  };
+  }, [translateX, translateY, rotate, scale, opacity]);
 
-  const handleSwipe = async (direction: 'left' | 'right') => {
+  const handleSwipe = useCallback(async (direction: 'left' | 'right') => {
     if (!currentUser || currentIndex >= profiles.length) return;
     
     const currentProfile = profiles[currentIndex];
@@ -156,14 +156,14 @@ export default function DiscoverScreen() {
     }
     
     nextProfile();
-  };
+  }, [currentUser, currentIndex, profiles]);
 
-  const nextProfile = () => {
+  const nextProfile = useCallback(() => {
     setCurrentIndex(prev => prev + 1);
     resetCardPosition();
-  };
+  }, [resetCardPosition]);
 
-  const handleButtonSwipe = (direction: 'left' | 'right') => {
+  const handleButtonSwipe = useCallback((direction: 'left' | 'right') => {
     const targetX = direction === 'right' ? CARD_WIDTH : -CARD_WIDTH;
     
     translateX.value = withTiming(targetX, { duration: 300 });
@@ -173,20 +173,20 @@ export default function DiscoverScreen() {
     setTimeout(() => {
       runOnJS(handleSwipe)(direction);
     }, 300);
-  };
+  }, [translateX, rotate, opacity, handleSwipe]);
 
-  const handleViewProfile = () => {
+  const handleViewProfile = useCallback(() => {
     if (currentIndex < profiles.length) {
       const profile = profiles[currentIndex];
       console.log(`👤 Viewing profile: ${profile.name}`);
       // TODO: Navigate to profile view
     }
-  };
+  }, [currentIndex, profiles]);
 
-  const handleSuperLike = () => {
+  const handleSuperLike = useCallback(() => {
     console.log('⭐ Super like!');
     handleButtonSwipe('right');
-  };
+  }, [handleButtonSwipe]);
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
@@ -217,7 +217,7 @@ export default function DiscoverScreen() {
           runOnJS(handleSwipe)(direction);
         }, 300);
       } else {
-        resetCardPosition();
+        runOnJS(resetCardPosition)();
       }
     },
   });

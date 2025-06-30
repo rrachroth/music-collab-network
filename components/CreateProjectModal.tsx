@@ -1,6 +1,7 @@
 import { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
@@ -9,10 +10,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import Button from './Button';
-import Icon from './Icon';
 import { User, Project } from '../utils/storage';
-import { StyleSheet } from 'react-native';
+import Icon from './Icon';
+import Button from './Button';
 
 interface CreateProjectModalProps {
   visible: boolean;
@@ -22,16 +22,26 @@ interface CreateProjectModalProps {
 }
 
 const GENRES = [
-  'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Electronic', 'Jazz', 'Classical', 
-  'Country', 'Folk', 'Reggae', 'Blues', 'Funk', 'Soul', 'Trap', 'House'
+  'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Electronic', 'Jazz',
+  'Classical', 'Country', 'Reggae', 'Latin', 'Alternative', 'Indie'
 ];
 
 const BUDGET_OPTIONS = [
-  'Free', '$100-300', '$300-500', '$500-1000', '$1000-2000', '$2000+'
+  'Free/Collaboration',
+  '$100-300',
+  '$300-500',
+  '$500-1000',
+  '$1000-2000',
+  '$2000+'
 ];
 
 const TIMELINE_OPTIONS = [
-  '1 week', '2 weeks', '1 month', '2 months', '3+ months', 'Flexible'
+  '1 week',
+  '2 weeks',
+  '1 month',
+  '2-3 months',
+  '3+ months',
+  'No rush'
 ];
 
 export default function CreateProjectModal({ visible, onClose, onSubmit, currentUser }: CreateProjectModalProps) {
@@ -40,9 +50,17 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [budget, setBudget] = useState('');
   const [timeline, setTimeline] = useState('');
-  
-  const modalScale = useSharedValue(0.9);
+  const [loading, setLoading] = useState(false);
+
   const modalOpacity = useSharedValue(0);
+  const modalScale = useSharedValue(0.9);
+
+  const modalAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: modalOpacity.value,
+      transform: [{ scale: modalScale.value }],
+    };
+  });
 
   useEffect(() => {
     if (visible) {
@@ -54,19 +72,13 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
     }
   }, [visible, modalOpacity, modalScale]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: modalOpacity.value,
-      transform: [{ scale: modalScale.value }],
-    };
-  });
-
   const resetForm = () => {
     setTitle('');
     setDescription('');
     setSelectedGenres([]);
     setBudget('');
     setTimeline('');
+    setLoading(false);
   };
 
   const handleClose = () => {
@@ -74,42 +86,51 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
     onClose();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert('Error', 'Please enter a project title');
       return;
     }
-    
+
     if (!description.trim()) {
       Alert.alert('Error', 'Please enter a project description');
       return;
     }
-    
+
     if (selectedGenres.length === 0) {
       Alert.alert('Error', 'Please select at least one genre');
       return;
     }
-    
+
     if (!budget) {
       Alert.alert('Error', 'Please select a budget range');
       return;
     }
-    
+
     if (!timeline) {
       Alert.alert('Error', 'Please select a timeline');
       return;
     }
 
-    const projectData: Partial<Project> = {
-      title: title.trim(),
-      description: description.trim(),
-      genres: selectedGenres,
-      budget,
-      timeline,
-    };
+    try {
+      setLoading(true);
+      
+      const projectData: Partial<Project> = {
+        title: title.trim(),
+        description: description.trim(),
+        genres: selectedGenres,
+        budget,
+        timeline,
+      };
 
-    onSubmit(projectData);
-    resetForm();
+      await onSubmit(projectData);
+      resetForm();
+    } catch (error) {
+      console.error('❌ Error creating project:', error);
+      Alert.alert('Error', 'Failed to create project. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleGenre = (genre: string) => {
@@ -124,147 +145,147 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[styles.modal, animatedStyle]}>
+        <Animated.View style={[styles.modal, modalAnimatedStyle]}>
           <LinearGradient
             colors={colors.gradientBackground}
             style={styles.modalGradient}
           >
-            <View style={styles.modalContent}>
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.title}>Create Project</Text>
-                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                  <Icon name="close" size={24} color={colors.textMuted} />
-                </TouchableOpacity>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Create Project</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                <Icon name="close" size={24} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Title */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Project Title *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Looking for vocalist for R&B track"
+                  placeholderTextColor={colors.textMuted}
+                  value={title}
+                  onChangeText={setTitle}
+                  maxLength={100}
+                />
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Title */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>Project Title *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="e.g., Looking for vocalist for R&B track"
-                    placeholderTextColor={colors.textMuted}
-                    maxLength={100}
-                  />
-                </View>
+              {/* Description */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Description *</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Describe your project, what you're looking for, and any specific requirements..."
+                  placeholderTextColor={colors.textMuted}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  maxLength={500}
+                />
+              </View>
 
-                {/* Description */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>Description *</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder="Describe your project, what you're looking for, and any specific requirements..."
-                    placeholderTextColor={colors.textMuted}
-                    multiline
-                    numberOfLines={4}
-                    maxLength={500}
-                  />
-                  <Text style={styles.charCount}>
-                    {description.length}/500
-                  </Text>
+              {/* Genres */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Genres *</Text>
+                <View style={styles.genreGrid}>
+                  {GENRES.map(genre => (
+                    <TouchableOpacity
+                      key={genre}
+                      style={[
+                        styles.genreChip,
+                        selectedGenres.includes(genre) && styles.genreChipSelected
+                      ]}
+                      onPress={() => toggleGenre(genre)}
+                    >
+                      <Text style={[
+                        styles.genreText,
+                        selectedGenres.includes(genre) && styles.genreTextSelected
+                      ]}>
+                        {genre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              </View>
 
-                {/* Genres */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>Genres * (Select up to 3)</Text>
-                  <View style={styles.genreGrid}>
-                    {GENRES.map(genre => (
-                      <TouchableOpacity
-                        key={genre}
-                        style={[
-                          styles.genreChip,
-                          selectedGenres.includes(genre) && styles.genreChipSelected
-                        ]}
-                        onPress={() => toggleGenre(genre)}
-                        disabled={!selectedGenres.includes(genre) && selectedGenres.length >= 3}
-                      >
-                        <Text style={[
-                          styles.genreText,
-                          selectedGenres.includes(genre) && styles.genreTextSelected
-                        ]}>
-                          {genre}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+              {/* Budget */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Budget *</Text>
+                <View style={styles.optionGrid}>
+                  {BUDGET_OPTIONS.map(option => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.optionChip,
+                        budget === option && styles.optionChipSelected
+                      ]}
+                      onPress={() => setBudget(option)}
+                    >
+                      <Text style={[
+                        styles.optionText,
+                        budget === option && styles.optionTextSelected
+                      ]}>
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              </View>
 
-                {/* Budget */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>Budget *</Text>
-                  <View style={styles.optionGrid}>
-                    {BUDGET_OPTIONS.map(option => (
-                      <TouchableOpacity
-                        key={option}
-                        style={[
-                          styles.optionChip,
-                          budget === option && styles.optionChipSelected
-                        ]}
-                        onPress={() => setBudget(option)}
-                      >
-                        <Text style={[
-                          styles.optionText,
-                          budget === option && styles.optionTextSelected
-                        ]}>
-                          {option}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+              {/* Timeline */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Timeline *</Text>
+                <View style={styles.optionGrid}>
+                  {TIMELINE_OPTIONS.map(option => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.optionChip,
+                        timeline === option && styles.optionChipSelected
+                      ]}
+                      onPress={() => setTimeline(option)}
+                    >
+                      <Text style={[
+                        styles.optionText,
+                        timeline === option && styles.optionTextSelected
+                      ]}>
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              </View>
+            </ScrollView>
 
-                {/* Timeline */}
-                <View style={styles.section}>
-                  <Text style={styles.label}>Timeline *</Text>
-                  <View style={styles.optionGrid}>
-                    {TIMELINE_OPTIONS.map(option => (
-                      <TouchableOpacity
-                        key={option}
-                        style={[
-                          styles.optionChip,
-                          timeline === option && styles.optionChipSelected
-                        ]}
-                        onPress={() => setTimeline(option)}
-                      >
-                        <Text style={[
-                          styles.optionText,
-                          timeline === option && styles.optionTextSelected
-                        ]}>
-                          {option}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Actions */}
-                <View style={styles.actions}>
-                  <Button
-                    text="Cancel"
-                    onPress={handleClose}
-                    variant="outline"
-                    size="lg"
-                    style={{ flex: 1, marginRight: spacing.sm }}
-                  />
-                  <Button
-                    text="Create Project"
-                    onPress={handleSubmit}
-                    variant="gradient"
-                    size="lg"
-                    style={{ flex: 1, marginLeft: spacing.sm }}
-                  />
-                </View>
-              </ScrollView>
+            {/* Footer */}
+            <View style={styles.footer}>
+              <Button
+                text="Cancel"
+                onPress={handleClose}
+                variant="ghost"
+                size="lg"
+                style={{ flex: 1, marginRight: spacing.md }}
+              />
+              <Button
+                text="Create Project"
+                onPress={handleSubmit}
+                variant="gradient"
+                size="lg"
+                loading={loading}
+                disabled={loading}
+                style={{ flex: 2 }}
+              />
             </View>
           </LinearGradient>
         </Animated.View>
@@ -279,41 +300,41 @@ const styles = StyleSheet.create({
     backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   modal: {
     width: '100%',
-    maxWidth: 500,
     maxHeight: '90%',
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
     ...shadows.lg,
   },
   modalGradient: {
-    padding: 2,
-  },
-  modalContent: {
+    flex: 1,
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.xl - 2,
-    padding: spacing.lg,
-    maxHeight: '100%',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
+    fontSize: 20,
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
   },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  content: {
+    flex: 1,
+    padding: spacing.lg,
   },
   section: {
     marginBottom: spacing.xl,
@@ -322,7 +343,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   input: {
     backgroundColor: colors.backgroundAlt,
@@ -336,14 +357,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     height: 100,
-    textAlignVertical: 'top',
-  },
-  charCount: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    textAlign: 'right',
-    marginTop: spacing.xs,
+    paddingTop: spacing.md,
   },
   genreGrid: {
     flexDirection: 'row',
@@ -371,8 +385,6 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   optionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   optionChip: {
@@ -381,13 +393,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minWidth: 80,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
   optionChipSelected: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   optionText: {
     fontSize: 14,
@@ -397,8 +408,10 @@ const styles = StyleSheet.create({
   optionTextSelected: {
     color: colors.text,
   },
-  actions: {
+  footer: {
     flexDirection: 'row',
-    marginTop: spacing.lg,
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
 });

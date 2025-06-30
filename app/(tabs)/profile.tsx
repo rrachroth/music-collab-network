@@ -1,8 +1,9 @@
-import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
+import { pickImage, pickVideo, pickAudio } from '../../utils/mediaUtils';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -10,10 +11,7 @@ import Animated, {
   withSpring,
   withDelay,
 } from 'react-native-reanimated';
-import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 import Icon from '../../components/Icon';
-import Button from '../../components/Button';
-import { pickImage, pickVideo, pickAudio } from '../../utils/mediaUtils';
 import { 
   getCurrentUser, 
   updateCurrentUser, 
@@ -22,6 +20,8 @@ import {
   getApplications,
   User 
 } from '../../utils/storage';
+import { useState, useEffect, useCallback } from 'react';
+import Button from '../../components/Button';
 
 interface StatCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -47,12 +47,23 @@ interface HighlightCardProps {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState({ matches: 0, projects: 0, collaborations: 0 });
+  const [stats, setStats] = useState({
+    matches: 0,
+    projects: 0,
+    collaborations: 0,
+    rating: 0
+  });
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-
+  
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
 
   const loadProfile = useCallback(async () => {
     try {
@@ -64,25 +75,9 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('❌ Error loading profile:', error);
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Failed to load profile data');
     }
   }, []);
-
-  useEffect(() => {
-    loadProfile();
-    
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 800 });
-    slideUp.value = withSpring(0, { damping: 15 });
-  }, [loadProfile, fadeIn, slideUp]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
-    };
-  });
 
   const loadStats = async (currentUser: User) => {
     try {
@@ -91,22 +86,37 @@ export default function ProfileScreen() {
         getProjects(),
         getApplications()
       ]);
-      
-      const userMatches = matches.filter(m => 
-        m.userId === currentUser.id || m.matchedUserId === currentUser.id
+
+      const userMatches = matches.filter(match => 
+        match.userId === currentUser.id || match.matchedUserId === currentUser.id
       );
-      
-      const userProjects = projects.filter(p => p.createdBy === currentUser.id);
-      
+
+      const userProjects = projects.filter(project => 
+        project.authorId === currentUser.id
+      );
+
+      const userApplications = applications.filter(app => 
+        app.applicantId === currentUser.id
+      );
+
       setStats({
         matches: userMatches.length,
         projects: userProjects.length,
-        collaborations: currentUser.collaborations?.length || 0
+        collaborations: currentUser.collaborations.length,
+        rating: currentUser.rating
       });
     } catch (error) {
       console.error('❌ Error loading stats:', error);
     }
   };
+
+  useEffect(() => {
+    loadProfile();
+    
+    // Animate in
+    fadeIn.value = withTiming(1, { duration: 600 });
+    slideUp.value = withSpring(0, { damping: 15 });
+  }, [loadProfile, fadeIn, slideUp]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -121,7 +131,7 @@ export default function ProfileScreen() {
   const handleUploadHighlight = () => {
     Alert.alert(
       'Upload Highlight',
-      'Choose the type of media you want to upload',
+      'Choose media type to upload',
       [
         { text: 'Audio', onPress: () => uploadMedia('audio') },
         { text: 'Video', onPress: () => uploadMedia('video') },
@@ -145,9 +155,9 @@ export default function ProfileScreen() {
           result = await pickImage();
           break;
       }
-      
+
       if (result && user) {
-        const updatedHighlights = [...(user.highlights || []), result];
+        const updatedHighlights = [...user.highlights, result];
         const updatedUser = await updateCurrentUser({ highlights: updatedHighlights });
         if (updatedUser) {
           setUser(updatedUser);
@@ -156,7 +166,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('❌ Error uploading media:', error);
-      Alert.alert('Error', 'Failed to upload media. Please try again.');
+      Alert.alert('Error', 'Failed to upload media');
     }
   };
 
@@ -177,31 +187,12 @@ export default function ProfileScreen() {
   };
 
   const formatJoinDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long' 
-      });
-    } catch {
-      return 'Recently';
-    }
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    });
   };
-
-  if (loading) {
-    return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        <Icon name="person" size={80} />
-        <Text style={[commonStyles.caption, { marginTop: 16 }]}>
-          Loading profile...
-        </Text>
-      </View>
-    );
-  }
 
   if (!user) {
     return (
@@ -210,19 +201,7 @@ export default function ProfileScreen() {
           colors={colors.gradientBackground}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
-        <Icon name="person-add" size={80} />
-        <Text style={[commonStyles.title, { marginTop: 24 }]}>
-          No Profile Found
-        </Text>
-        <Text style={[commonStyles.text, { marginBottom: 32 }]}>
-          Let's create your profile to get started
-        </Text>
-        <Button
-          text="Create Profile"
-          onPress={() => router.push('/onboarding')}
-          variant="gradient"
-          size="lg"
-        />
+        <Text style={commonStyles.text}>Loading profile...</Text>
       </View>
     );
   }
@@ -235,7 +214,6 @@ export default function ProfileScreen() {
       />
       
       <ScrollView
-        style={commonStyles.wrapper}
         contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -250,51 +228,43 @@ export default function ProfileScreen() {
         <Animated.View style={animatedStyle}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.profileImageContainer}>
-              <LinearGradient
-                colors={colors.gradientPrimary}
-                style={styles.profileImage}
-              >
-                <Icon name="person" size={48} color={colors.text} />
-              </LinearGradient>
-              
-              {user.verified && (
-                <View style={styles.verifiedBadge}>
-                  <Icon name="checkmark-circle" size={20} color={colors.success} />
-                </View>
-              )}
-            </View>
-            
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user.name}</Text>
-              <Text style={styles.profileRole}>{user.role}</Text>
-              <Text style={styles.profileLocation}>
-                <Icon name="location" size={14} color={colors.textMuted} />
-                {' '}{user.location}
+            <View style={styles.headerContent}>
+              <Text style={[commonStyles.title, { marginBottom: 0 }]}>
+                {user.name}
               </Text>
-              <Text style={styles.joinDate}>
+              <Text style={[commonStyles.caption, { marginTop: spacing.xs }]}>
+                {user.role} • {user.location}
+              </Text>
+              <Text style={[commonStyles.caption, { opacity: 0.7 }]}>
                 Member since {formatJoinDate(user.joinDate)}
               </Text>
             </View>
             
-            <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
-              <Icon name="settings" size={24} color={colors.textMuted} />
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={handleSettings}
+            >
+              <Icon name="settings-outline" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
           {/* Bio */}
           {user.bio && (
-            <View style={styles.bioSection}>
-              <Text style={styles.bioText}>{user.bio}</Text>
+            <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
+              <Text style={[commonStyles.textLeft, { marginBottom: 0 }]}>
+                {user.bio}
+              </Text>
             </View>
           )}
 
           {/* Genres */}
-          <View style={styles.genresSection}>
-            <Text style={styles.sectionTitle}>Genres</Text>
-            <View style={styles.genresContainer}>
+          <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
+            <Text style={[commonStyles.heading, { marginBottom: spacing.md }]}>
+              Genres
+            </Text>
+            <View style={styles.genreContainer}>
               {user.genres.map((genre, index) => (
-                <View key={index} style={styles.genreChip}>
+                <View key={index} style={styles.genreTag}>
                   <Text style={styles.genreText}>{genre}</Text>
                 </View>
               ))}
@@ -302,46 +272,87 @@ export default function ProfileScreen() {
           </View>
 
           {/* Stats */}
-          <View style={styles.statsSection}>
-            <Text style={styles.sectionTitle}>Stats</Text>
-            <View style={styles.statsGrid}>
-              <StatCard
-                icon="heart"
-                number={stats.matches}
-                label="Matches"
-                onPress={handleViewMatches}
-                gradient={colors.gradientPrimary}
-              />
-              <StatCard
-                icon="folder"
-                number={stats.projects}
-                label="Projects"
-                onPress={handleViewProjects}
-                gradient={colors.gradientSecondary}
-              />
-              <StatCard
-                icon="people"
-                number={stats.collaborations}
-                label="Collabs"
-                onPress={handleViewCollaborations}
-                gradient={['#F59E0B', '#EF4444']}
-              />
-            </View>
+          <View style={styles.statsContainer}>
+            <StatCard
+              icon="heart"
+              number={stats.matches}
+              label="Matches"
+              onPress={handleViewMatches}
+              gradient={colors.gradientPrimary}
+            />
+            <StatCard
+              icon="folder"
+              number={stats.projects}
+              label="Projects"
+              onPress={handleViewProjects}
+              gradient={colors.gradientSecondary}
+            />
+          </View>
+
+          <View style={styles.statsContainer}>
+            <StatCard
+              icon="people"
+              number={stats.collaborations}
+              label="Collabs"
+              onPress={handleViewCollaborations}
+              gradient={['#10B981', '#059669']}
+            />
+            <StatCard
+              icon="star"
+              number={stats.rating}
+              label="Rating"
+              onPress={() => {}}
+              gradient={['#F59E0B', '#D97706']}
+            />
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActionsContainer}>
+            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
+              Quick Actions
+            </Text>
+            
+            <QuickActionCard
+              icon="create"
+              title="Edit Profile"
+              subtitle="Update your information"
+              onPress={handleEditProfile}
+              gradient={colors.gradientPrimary}
+            />
+            
+            <QuickActionCard
+              icon="cloud-upload"
+              title="Upload Highlight"
+              subtitle="Add audio, video, or image"
+              onPress={handleUploadHighlight}
+              gradient={colors.gradientSecondary}
+            />
           </View>
 
           {/* Highlights */}
-          <View style={styles.highlightsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Highlights</Text>
-              <Button
-                text="Add"
-                onPress={handleUploadHighlight}
-                variant="outline"
-                size="sm"
-              />
-            </View>
+          <View style={styles.highlightsContainer}>
+            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
+              Highlights ({user.highlights.length})
+            </Text>
             
-            {user.highlights && user.highlights.length > 0 ? (
+            {user.highlights.length === 0 ? (
+              <View style={[commonStyles.card, styles.emptyState]}>
+                <Icon name="musical-notes" size={48} color={colors.textMuted} />
+                <Text style={[commonStyles.text, { marginTop: spacing.md }]}>
+                  No highlights yet
+                </Text>
+                <Text style={[commonStyles.caption, { marginTop: spacing.xs }]}>
+                  Upload your best work to showcase your talent
+                </Text>
+                <Button
+                  text="Upload First Highlight"
+                  onPress={handleUploadHighlight}
+                  variant="primary"
+                  size="sm"
+                  style={{ marginTop: spacing.lg }}
+                />
+              </View>
+            ) : (
               <View style={styles.highlightsGrid}>
                 {user.highlights.map((highlight, index) => (
                   <HighlightCard
@@ -351,54 +362,8 @@ export default function ProfileScreen() {
                   />
                 ))}
               </View>
-            ) : (
-              <View style={styles.emptyHighlights}>
-                <Icon name="musical-notes" size={48} color={colors.textMuted} />
-                <Text style={styles.emptyText}>No highlights yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Upload audio, video, or images to showcase your work
-                </Text>
-              </View>
             )}
           </View>
-
-          {/* Quick Actions */}
-          <View style={styles.quickActionsSection}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.quickActionsGrid}>
-              <QuickActionCard
-                icon="create"
-                title="Edit Profile"
-                subtitle="Update your information"
-                onPress={handleEditProfile}
-                gradient={colors.gradientPrimary}
-              />
-              <QuickActionCard
-                icon="add-circle"
-                title="New Project"
-                subtitle="Start a collaboration"
-                onPress={() => router.push('/(tabs)/projects')}
-                gradient={colors.gradientSecondary}
-              />
-              <QuickActionCard
-                icon="search"
-                title="Discover"
-                subtitle="Find new artists"
-                onPress={() => router.push('/(tabs)/discover')}
-                gradient={['#F59E0B', '#EF4444']}
-              />
-              <QuickActionCard
-                icon="chatbubbles"
-                title="Messages"
-                subtitle="Chat with matches"
-                onPress={() => router.push('/(tabs)/matches')}
-                gradient={['#10B981', '#059669']}
-              />
-            </View>
-          </View>
-
-          {/* Bottom Spacing */}
-          <View style={{ height: spacing.xxl }} />
         </Animated.View>
       </ScrollView>
     </View>
@@ -407,30 +372,33 @@ export default function ProfileScreen() {
 
 function StatCard({ icon, number, label, onPress, gradient }: StatCardProps) {
   return (
-    <TouchableOpacity style={styles.statCard} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.statCard} onPress={onPress}>
       <LinearGradient
         colors={gradient}
-        style={styles.statGradient}
+        style={styles.statCardGradient}
       >
         <Icon name={icon} size={24} color={colors.text} />
+        <Text style={styles.statNumber}>{number}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
       </LinearGradient>
-      <Text style={styles.statNumber}>{number}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
 function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActionCardProps) {
   return (
-    <TouchableOpacity style={styles.quickActionCard} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.quickActionCard} onPress={onPress}>
       <LinearGradient
         colors={gradient}
         style={styles.quickActionGradient}
       >
-        <Icon name={icon} size={20} color={colors.text} />
+        <Icon name={icon} size={32} color={colors.text} />
       </LinearGradient>
-      <Text style={styles.quickActionTitle}>{title}</Text>
-      <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
+      <View style={styles.quickActionContent}>
+        <Text style={styles.quickActionTitle}>{title}</Text>
+        <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
+      </View>
+      <Icon name="chevron-forward" size={20} color={colors.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -439,36 +407,32 @@ function HighlightCard({ highlight, delay }: HighlightCardProps) {
   const cardOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.9);
 
-  useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
-    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay, cardOpacity, cardScale]);
-
-  const animatedStyle = useAnimatedStyle(() => {
+  const cardAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
     };
   });
 
+  useEffect(() => {
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
+  }, [delay, cardOpacity, cardScale]);
+
   return (
-    <Animated.View style={[styles.highlightCard, animatedStyle]}>
-      <LinearGradient
-        colors={colors.gradientPrimary}
-        style={styles.highlightIcon}
-      >
+    <Animated.View style={[styles.highlightCard, cardAnimatedStyle]}>
+      <View style={styles.highlightIcon}>
         <Icon 
           name={highlight.type === 'audio' ? 'musical-note' : highlight.type === 'video' ? 'videocam' : 'image'} 
-          size={20} 
-          color={colors.text} 
+          size={24} 
+          color={colors.primary} 
         />
-      </LinearGradient>
-      <Text style={styles.highlightTitle}>{highlight.title}</Text>
-      <Text style={styles.highlightDuration}>
-        {highlight.type === 'audio' || highlight.type === 'video' 
-          ? `${Math.floor(highlight.duration / 60)}:${(highlight.duration % 60).toString().padStart(2, '0')}`
-          : highlight.type
-        }
+      </View>
+      <Text style={styles.highlightTitle} numberOfLines={1}>
+        {highlight.title}
+      </Text>
+      <Text style={styles.highlightType}>
+        {highlight.type.toUpperCase()}
       </Text>
     </Animated.View>
   );
@@ -478,145 +442,103 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: spacing.xl,
   },
-  profileImageContainer: {
-    position: 'relative',
-    marginRight: spacing.md,
-  },
-  profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.md,
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 2,
-  },
-  profileInfo: {
+  headerContent: {
     flex: 1,
-    paddingTop: spacing.xs,
-  },
-  profileName: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  profileRole: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.primary,
-    marginBottom: spacing.xs,
-  },
-  profileLocation: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  joinDate: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
   },
   settingsButton: {
     padding: spacing.sm,
-  },
-  bioSection: {
+    borderRadius: borderRadius.sm,
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  bioText: {
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  genresSection: {
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Poppins_600SemiBold',
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  genresContainer: {
+  genreContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  genreChip: {
-    backgroundColor: colors.backgroundCard,
-    borderColor: colors.primary,
-    borderWidth: 1,
-    borderRadius: borderRadius.full,
+  genreTag: {
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
   },
   genreText: {
-    fontSize: 14,
+    color: colors.text,
+    fontSize: 12,
     fontFamily: 'Inter_500Medium',
-    color: colors.primary,
   },
-  statsSection: {
-    marginBottom: spacing.xl,
-  },
-  statsGrid: {
+  statsContainer: {
     flexDirection: 'row',
     gap: spacing.md,
+    marginBottom: spacing.md,
   },
   statCard: {
     flex: 1,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.sm,
   },
-  statGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  statCardGradient: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
+    ...shadows.md,
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 24,
     fontFamily: 'Poppins_700Bold',
     color: colors.text,
-    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
   },
   statLabel: {
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    color: colors.text,
+    opacity: 0.9,
+    marginTop: spacing.xs,
   },
-  highlightsSection: {
+  quickActionsContainer: {
+    marginTop: spacing.lg,
     marginBottom: spacing.xl,
   },
-  sectionHeader: {
+  quickActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    ...shadows.sm,
+  },
+  quickActionGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  quickActionContent: {
+    flex: 1,
+  },
+  quickActionTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  quickActionSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+  },
+  highlightsContainer: {
+    marginBottom: spacing.xl,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
   },
   highlightsGrid: {
     flexDirection: 'row',
@@ -626,89 +548,30 @@ const styles = StyleSheet.create({
   highlightCard: {
     width: '48%',
     backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
     ...shadows.sm,
   },
   highlightIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   highlightTitle: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginBottom: spacing.xs,
     textAlign: 'center',
-  },
-  highlightDuration: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-  },
-  emptyHighlights: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  emptyText: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.textMuted,
-    marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
-  emptySubtext: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  quickActionsSection: {
-    marginBottom: spacing.xl,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  quickActionCard: {
-    width: '48%',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.sm,
-  },
-  quickActionGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  quickActionTitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  quickActionSubtitle: {
+  highlightType: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,

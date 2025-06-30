@@ -33,8 +33,10 @@ interface MessageBubbleProps {
 }
 
 export default function ChatScreen() {
-  const insets = useSafeAreaInsets();
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
+  
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [otherUser, setOtherUser] = useState<User | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
@@ -42,65 +44,73 @@ export default function ChatScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  
-  const scrollViewRef = useRef<ScrollView>(null);
+
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
   const scrollY = useSharedValue(0);
 
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeIn.value,
+      transform: [{ translateY: slideUp.value }],
+    };
+  });
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
   const loadChatData = useCallback(async () => {
     try {
-      console.log('💬 Loading chat data...');
+      console.log('💬 Loading chat data for match:', matchId);
       setLoading(true);
-      
+
       if (!matchId) {
         Alert.alert('Error', 'Invalid chat ID');
         router.back();
         return;
       }
-      
-      const [user, matches, allUsers, chatMessages] = await Promise.all([
+
+      const [user, allMatches, allUsers, chatMessages] = await Promise.all([
         getCurrentUser(),
         getMatches(),
         getAllUsers(),
         getMessages(matchId),
       ]);
-      
+
       if (!user) {
-        Alert.alert('Error', 'Please complete your profile first.');
-        router.replace('/onboarding');
+        Alert.alert('Error', 'Please log in first');
+        router.back();
         return;
       }
-      
+
       setCurrentUser(user);
-      
-      const currentMatch = matches.find(m => m.id === matchId);
-      if (!currentMatch) {
+
+      const foundMatch = allMatches.find(m => m.id === matchId);
+      if (!foundMatch) {
         Alert.alert('Error', 'Match not found');
         router.back();
         return;
       }
+
+      setMatch(foundMatch);
+
+      const otherUserId = foundMatch.userId === user.id ? foundMatch.matchedUserId : foundMatch.userId;
+      const foundOtherUser = allUsers.find(u => u.id === otherUserId);
       
-      setMatch(currentMatch);
-      
-      const otherUserId = currentMatch.userId === user.id 
-        ? currentMatch.matchedUserId 
-        : currentMatch.userId;
-      
-      const otherUserData = allUsers.find(u => u.id === otherUserId);
-      if (!otherUserData) {
+      if (!foundOtherUser) {
         Alert.alert('Error', 'User not found');
         router.back();
         return;
       }
-      
-      setOtherUser(otherUserData);
-      setMessages(chatMessages.sort((a, b) => 
-        new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-      ));
-      
-      console.log(`✅ Loaded chat with ${otherUserData.name}`);
-      
+
+      setOtherUser(foundOtherUser);
+      setMessages(chatMessages.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()));
+
+      console.log(`✅ Loaded ${chatMessages.length} messages`);
+
     } catch (error) {
       console.error('❌ Error loading chat data:', error);
       Alert.alert('Error', 'Failed to load chat. Please try again.');
@@ -119,7 +129,7 @@ export default function ChatScreen() {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !currentUser || !otherUser || !match || sending) return;
-    
+
     try {
       setSending(true);
       
@@ -133,18 +143,18 @@ export default function ChatScreen() {
         sentAt: getCurrentTimestamp(),
         isRead: false,
       };
-      
+
       await addMessage(message);
       setMessages(prev => [...prev, message]);
       setNewMessage('');
-      
+
       // Scroll to bottom
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
-      
+
       console.log('💬 Message sent successfully');
-      
+
     } catch (error) {
       console.error('❌ Error sending message:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
@@ -153,19 +163,6 @@ export default function ChatScreen() {
     }
   };
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
-    };
-  });
-
   if (loading) {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
@@ -173,12 +170,12 @@ export default function ChatScreen() {
           colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
-        <Icon name="chatbubbles" size={80} color={colors.primary} />
+        <Icon name="chatbubble" size={80} color={colors.primary} />
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
           Loading Chat
         </Text>
         <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
-          Connecting you with your match
+          Getting your conversation ready
         </Text>
       </View>
     );
@@ -191,12 +188,16 @@ export default function ChatScreen() {
           colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
-        <Text style={commonStyles.title}>Chat Not Found</Text>
-        <Button 
-          text="Go Back" 
-          onPress={() => router.back()} 
-          variant="outline"
+        <Icon name="alert-circle" size={80} color={colors.error} />
+        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+          Chat Not Found
+        </Text>
+        <Button
+          text="Go Back"
+          onPress={() => router.back()}
+          variant="primary"
           size="lg"
+          style={{ marginTop: spacing.lg }}
         />
       </View>
     );
@@ -214,26 +215,19 @@ export default function ChatScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-          <Icon name="arrow-back" size={24} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         
         <View style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.avatarGradient}
-            >
-              <Text style={styles.avatarText}>
-                {otherUser.name.charAt(0)}
-              </Text>
-            </LinearGradient>
-            {otherUser.verified && (
-              <View style={styles.verifiedBadge}>
-                <Icon name="checkmark-circle" size={16} color={colors.success} />
-              </View>
-            )}
-          </View>
+          <LinearGradient
+            colors={colors.gradientSecondary}
+            style={styles.headerAvatar}
+          >
+            <Text style={styles.headerAvatarText}>
+              {otherUser.name.charAt(0)}
+            </Text>
+          </LinearGradient>
           
           <View style={styles.headerText}>
             <Text style={styles.headerName}>{otherUser.name}</Text>
@@ -242,7 +236,7 @@ export default function ChatScreen() {
         </View>
         
         <TouchableOpacity style={styles.headerButton}>
-          <Icon name="information-circle" size={24} />
+          <Icon name="information-circle" size={24} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -256,11 +250,16 @@ export default function ChatScreen() {
         scrollEventThrottle={16}
       >
         {messages.length === 0 ? (
-          <View style={styles.emptyChat}>
-            <Icon name="chatbubbles-outline" size={64} color={colors.textMuted} />
-            <Text style={styles.emptyChatTitle}>Start the Conversation</Text>
-            <Text style={styles.emptyChatText}>
-              Say hello to {otherUser.name} and start collaborating!
+          <View style={styles.emptyState}>
+            <LinearGradient
+              colors={colors.gradientPrimary}
+              style={styles.emptyIcon}
+            >
+              <Icon name="musical-notes" size={48} color={colors.text} />
+            </LinearGradient>
+            <Text style={styles.emptyTitle}>Start the Conversation!</Text>
+            <Text style={styles.emptyDescription}>
+              You and {otherUser.name} are now connected. Say hello and start collaborating!
             </Text>
           </View>
         ) : (
@@ -276,31 +275,34 @@ export default function ChatScreen() {
       </Animated.ScrollView>
 
       {/* Input */}
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom }]}>
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.textInput}
+            placeholder={`Message ${otherUser.name}...`}
+            placeholderTextColor={colors.textMuted}
             value={newMessage}
             onChangeText={setNewMessage}
-            placeholder="Type a message..."
-            placeholderTextColor={colors.textMuted}
             multiline
             maxLength={500}
           />
           
-          <TouchableOpacity 
-            style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              (!newMessage.trim() || sending) && styles.sendButtonDisabled
+            ]}
             onPress={sendMessage}
             disabled={!newMessage.trim() || sending}
           >
             <LinearGradient
-              colors={(!newMessage.trim() || sending) ? [colors.grey, colors.grey] : colors.gradientPrimary}
+              colors={newMessage.trim() && !sending ? colors.gradientPrimary : [colors.backgroundAlt, colors.backgroundAlt]}
               style={styles.sendButtonGradient}
             >
               <Icon 
                 name={sending ? "hourglass" : "send"} 
                 size={20} 
-                color={colors.text} 
+                color={newMessage.trim() && !sending ? colors.text : colors.textMuted} 
               />
             </LinearGradient>
           </TouchableOpacity>
@@ -324,9 +326,14 @@ function MessageBubble({ message, isOwn, otherUser }: MessageBubbleProps) {
     <View style={[styles.messageBubble, isOwn ? styles.ownMessage : styles.otherMessage]}>
       {!isOwn && (
         <View style={styles.messageAvatar}>
-          <Text style={styles.messageAvatarText}>
-            {otherUser.name.charAt(0)}
-          </Text>
+          <LinearGradient
+            colors={colors.gradientSecondary}
+            style={styles.messageAvatarGradient}
+          >
+            <Text style={styles.messageAvatarText}>
+              {otherUser.name.charAt(0)}
+            </Text>
+          </LinearGradient>
         </View>
       )}
       
@@ -350,43 +357,31 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: colors.backgroundCard,
   },
-  headerButton: {
+  backButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   headerInfo: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.md,
   },
   headerAvatar: {
-    position: 'relative',
-    marginRight: spacing.md,
-  },
-  avatarGradient: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.md,
   },
-  avatarText: {
+  headerAvatarText: {
     fontSize: 16,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: 8,
-    padding: 1,
   },
   headerText: {
     flex: 1,
@@ -401,27 +396,40 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
   },
+  headerButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   messagesContainer: {
     flex: 1,
   },
   messagesContent: {
     padding: spacing.lg,
-    paddingBottom: spacing.xl,
+    flexGrow: 1,
   },
-  emptyChat: {
+  emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing.xl,
   },
-  emptyChatTitle: {
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  emptyTitle: {
     fontSize: 20,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
-    marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
-  emptyChatText: {
+  emptyDescription: {
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
@@ -440,17 +448,18 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   messageAvatar: {
+    marginRight: spacing.sm,
+  },
+  messageAvatarGradient: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.sm,
   },
   messageAvatarText: {
-    fontSize: 14,
-    fontFamily: 'Poppins_700Bold',
+    fontSize: 12,
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
   },
   messageContent: {
@@ -493,40 +502,39 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   inputContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundCard,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: colors.backgroundAlt,
+    backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    maxHeight: 120,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
     color: colors.text,
-    maxHeight: 80,
+    maxHeight: 100,
     paddingVertical: spacing.sm,
   },
   sendButton: {
     marginLeft: spacing.sm,
-    borderRadius: 20,
-    overflow: 'hidden',
   },
   sendButtonDisabled: {
     opacity: 0.5,
   },
   sendButtonGradient: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
