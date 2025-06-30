@@ -1,8 +1,8 @@
-import { Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
-import { useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { colors, typography, spacing, borderRadius, shadows } from '../styles/commonStyles';
+import { Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import { useEffect } from 'react';
 
 interface ButtonProps {
   text: string;
@@ -30,7 +30,7 @@ export default function Button({
   iconPosition = 'left'
 }: ButtonProps) {
   const scale = useSharedValue(1);
-  const opacity = useSharedValue(disabled ? 0.5 : 1);
+  const opacity = useSharedValue(disabled ? 0.6 : 1);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -40,7 +40,7 @@ export default function Button({
   });
 
   useEffect(() => {
-    opacity.value = withTiming(disabled ? 0.5 : 1, { duration: 200 });
+    opacity.value = withTiming(disabled ? 0.6 : 1, { duration: 200 });
   }, [disabled, opacity]);
 
   const handlePressIn = () => {
@@ -95,7 +95,7 @@ export default function Button({
     return (
       <>
         {icon && iconPosition === 'left' && icon}
-        <Text style={[...getTextStyle(), textStyle]}>{text}</Text>
+        <Text style={[getTextStyle(), textStyle]}>{text}</Text>
         {icon && iconPosition === 'right' && icon}
       </>
     );
@@ -113,7 +113,7 @@ export default function Button({
         >
           <LinearGradient
             colors={colors.gradientPrimary}
-            style={[...getButtonStyle(), { backgroundColor: 'transparent' }]}
+            style={[getButtonStyle(), { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }]}
           >
             {renderContent()}
           </LinearGradient>
@@ -125,7 +125,7 @@ export default function Button({
   return (
     <Animated.View style={[animatedStyle, style]}>
       <TouchableOpacity
-        style={getButtonStyle()}
+        style={[getButtonStyle(), { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }]}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -140,15 +140,11 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    flexDirection: 'row',
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
     ...shadows.sm,
   },
-  
-  // Sizes
   sm: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -164,8 +160,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     minHeight: 52,
   },
-  
-  // Variants
   primary: {
     backgroundColor: colors.primary,
   },
@@ -181,10 +175,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   gradient: {
-    backgroundColor: 'transparent',
+    // Gradient styles are applied via LinearGradient
   },
-  
-  // Text styles
   text: {
     ...typography.button,
     textAlign: 'center',

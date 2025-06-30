@@ -1,16 +1,16 @@
-import { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
-import React from 'react';
-import { StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { User, Project } from '../utils/storage';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { StyleSheet } from 'react-native';
+import React from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import { User, Project } from '../utils/storage';
+import { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import Icon from './Icon';
 import Button from './Button';
 
@@ -41,7 +41,7 @@ const TIMELINE_OPTIONS = [
   '1 month',
   '2-3 months',
   '3+ months',
-  'No rush'
+  'Flexible'
 ];
 
 export default function CreateProjectModal({ visible, onClose, onSubmit, currentUser }: CreateProjectModalProps) {
@@ -88,27 +88,27 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert('Error', 'Please enter a project title');
+      Alert.alert('Missing Title', 'Please enter a project title');
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Error', 'Please enter a project description');
+      Alert.alert('Missing Description', 'Please enter a project description');
       return;
     }
 
     if (selectedGenres.length === 0) {
-      Alert.alert('Error', 'Please select at least one genre');
+      Alert.alert('Missing Genres', 'Please select at least one genre');
       return;
     }
 
     if (!budget) {
-      Alert.alert('Error', 'Please select a budget range');
+      Alert.alert('Missing Budget', 'Please select a budget range');
       return;
     }
 
     if (!timeline) {
-      Alert.alert('Error', 'Please select a timeline');
+      Alert.alert('Missing Timeline', 'Please select a timeline');
       return;
     }
 
@@ -156,7 +156,9 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
           >
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Create Project</Text>
+              <Text style={[commonStyles.heading, { marginBottom: 0 }]}>
+                Create Project
+              </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Icon name="close" size={24} color={colors.textMuted} />
               </TouchableOpacity>
@@ -170,7 +172,7 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
               <View style={styles.section}>
                 <Text style={styles.label}>Project Title *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[commonStyles.input, styles.input]}
                   placeholder="e.g., Looking for vocalist for R&B track"
                   placeholderTextColor={colors.textMuted}
                   value={title}
@@ -183,7 +185,7 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
               <View style={styles.section}>
                 <Text style={styles.label}>Description *</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[commonStyles.input, styles.textArea]}
                   placeholder="Describe your project, what you're looking for, and any specific requirements..."
                   placeholderTextColor={colors.textMuted}
                   value={description}
@@ -197,9 +199,9 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
 
               {/* Genres */}
               <View style={styles.section}>
-                <Text style={styles.label}>Genres *</Text>
+                <Text style={styles.label}>Genres * ({selectedGenres.length} selected)</Text>
                 <View style={styles.genreGrid}>
-                  {GENRES.map(genre => (
+                  {GENRES.map((genre) => (
                     <TouchableOpacity
                       key={genre}
                       style={[
@@ -222,8 +224,8 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
               {/* Budget */}
               <View style={styles.section}>
                 <Text style={styles.label}>Budget *</Text>
-                <View style={styles.optionGrid}>
-                  {BUDGET_OPTIONS.map(option => (
+                <View style={styles.optionsGrid}>
+                  {BUDGET_OPTIONS.map((option) => (
                     <TouchableOpacity
                       key={option}
                       style={[
@@ -246,8 +248,8 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
               {/* Timeline */}
               <View style={styles.section}>
                 <Text style={styles.label}>Timeline *</Text>
-                <View style={styles.optionGrid}>
-                  {TIMELINE_OPTIONS.map(option => (
+                <View style={styles.optionsGrid}>
+                  {TIMELINE_OPTIONS.map((option) => (
                     <TouchableOpacity
                       key={option}
                       style={[
@@ -274,14 +276,14 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
                 text="Cancel"
                 onPress={handleClose}
                 variant="ghost"
-                size="lg"
+                size="md"
                 style={{ flex: 1, marginRight: spacing.md }}
               />
               <Button
                 text="Create Project"
                 onPress={handleSubmit}
                 variant="gradient"
-                size="lg"
+                size="md"
                 loading={loading}
                 disabled={loading}
                 style={{ flex: 2 }}
@@ -300,10 +302,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    padding: spacing.lg,
   },
   modal: {
     width: '100%',
+    maxWidth: 500,
     maxHeight: '90%',
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
@@ -311,7 +314,6 @@ const styles = StyleSheet.create({
   },
   modalGradient: {
     flex: 1,
-    backgroundColor: colors.backgroundCard,
   },
   header: {
     flexDirection: 'row',
@@ -321,16 +323,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  title: {
-    fontSize: 20,
-    fontFamily: 'Poppins_600SemiBold',
-    color: colors.text,
-  },
   closeButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.backgroundCard,
   },
   content: {
     flex: 1,
@@ -346,18 +342,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   input: {
-    backgroundColor: colors.backgroundAlt,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    color: colors.text,
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
+    marginBottom: 0,
   },
   textArea: {
     height: 100,
     paddingTop: spacing.md,
+    marginBottom: 0,
   },
   genreGrid: {
     flexDirection: 'row',
@@ -365,10 +355,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   genreChip: {
-    backgroundColor: colors.backgroundAlt,
-    borderColor: colors.border,
+    backgroundColor: colors.backgroundCard,
     borderWidth: 1,
-    borderRadius: borderRadius.md,
+    borderColor: colors.border,
+    borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -384,16 +374,15 @@ const styles = StyleSheet.create({
   genreTextSelected: {
     color: colors.text,
   },
-  optionGrid: {
+  optionsGrid: {
     gap: spacing.sm,
   },
   optionChip: {
-    backgroundColor: colors.backgroundAlt,
-    borderColor: colors.border,
+    backgroundColor: colors.backgroundCard,
     borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    padding: spacing.md,
     alignItems: 'center',
   },
   optionChipSelected: {
