@@ -144,7 +144,7 @@ export default function HomeScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, [initializeApp, startPulseAnimation]);
+  }, [fadeIn, slideUp, initializeApp, startPulseAnimation]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

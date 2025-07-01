@@ -91,30 +91,6 @@ export default function DiscoverScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const calculateCompatibility = (user1: User, user2: User): number => {
-    const genreOverlap = user1.genres.filter(genre => user2.genres.includes(genre)).length;
-    const maxGenres = Math.max(user1.genres.length, user2.genres.length);
-    const genreScore = maxGenres > 0 ? genreOverlap / maxGenres : 0;
-    
-    // Role compatibility (different roles work better together)
-    const roleScore = user1.role !== user2.role ? 0.3 : 0.1;
-    
-    // Rating score
-    const ratingScore = (user1.rating + user2.rating) / 10;
-    
-    return Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
-  };
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  }, [loadData]);
-
   const resetCardPosition = useCallback(() => {
     translateX.value = withSpring(0);
     translateY.value = withSpring(0);
@@ -122,6 +98,11 @@ export default function DiscoverScreen() {
     scale.value = withSpring(1);
     opacity.value = withSpring(1);
   }, [translateX, translateY, rotate, scale, opacity]);
+
+  const nextProfile = useCallback(() => {
+    setCurrentIndex(prev => prev + 1);
+    resetCardPosition();
+  }, [resetCardPosition]);
 
   const handleSwipe = useCallback(async (direction: 'left' | 'right') => {
     if (!currentUser || currentIndex >= profiles.length) return;
@@ -156,12 +137,31 @@ export default function DiscoverScreen() {
     }
     
     nextProfile();
-  }, [currentUser, currentIndex, profiles]);
+  }, [currentUser, currentIndex, profiles, nextProfile]);
 
-  const nextProfile = useCallback(() => {
-    setCurrentIndex(prev => prev + 1);
-    resetCardPosition();
-  }, [resetCardPosition]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const calculateCompatibility = (user1: User, user2: User): number => {
+    const genreOverlap = user1.genres.filter(genre => user2.genres.includes(genre)).length;
+    const maxGenres = Math.max(user1.genres.length, user2.genres.length);
+    const genreScore = maxGenres > 0 ? genreOverlap / maxGenres : 0;
+    
+    // Role compatibility (different roles work better together)
+    const roleScore = user1.role !== user2.role ? 0.3 : 0.1;
+    
+    // Rating score
+    const ratingScore = (user1.rating + user2.rating) / 10;
+    
+    return Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
 
   const handleButtonSwipe = useCallback((direction: 'left' | 'right') => {
     const targetX = direction === 'right' ? CARD_WIDTH : -CARD_WIDTH;

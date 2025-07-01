@@ -80,7 +80,7 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
     }
   }
 
-  const initializePaymentSheet = async () => {
+  const initializePaymentSheet = React.useCallback(async () => {
     try {
       setLoading(true);
       
@@ -112,7 +112,7 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
     } finally {
       setLoading(false);
     }
-  };
+  }, [onError]);
 
   const handlePayment = async () => {
     try {
@@ -161,7 +161,7 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
 
   useEffect(() => {
     initializePaymentSheet();
-  }, []);
+  }, [initializePaymentSheet]);
 
   return (
     <View style={styles.container}>

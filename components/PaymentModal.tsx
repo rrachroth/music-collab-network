@@ -51,7 +51,7 @@ export default function PaymentModal({
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.9, { duration: 200 });
     }
-  }, [visible]);
+  }, [visible, modalOpacity, modalScale]);
 
   const handlePaymentSuccess = (paymentResult: any) => {
     console.log('✅ Payment successful:', paymentResult);
