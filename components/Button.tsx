@@ -41,7 +41,7 @@ export default function Button({
 
   useEffect(() => {
     opacity.value = withTiming(disabled ? 0.6 : 1, { duration: 200 });
-  }, [disabled]);
+  }, [disabled, opacity]);
 
   const handlePressIn = () => {
     if (!disabled && !loading) {

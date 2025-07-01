@@ -126,11 +126,11 @@ export default function ProjectsScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, []);
+  }, [loadProjects, fadeIn, slideUp]);
 
   useEffect(() => {
     filterProjects();
-  }, [projects, currentUser]);
+  }, [projects, currentUser, filterProjects]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -364,7 +364,7 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   const getStatusColor = () => {
     switch (project.status) {

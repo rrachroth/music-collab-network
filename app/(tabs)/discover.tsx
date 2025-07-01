@@ -93,7 +93,7 @@ export default function DiscoverScreen() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const calculateCompatibility = (user1: User, user2: User): number => {
     const genreOverlap = user1.genres.filter(genre => user2.genres.includes(genre)).length;

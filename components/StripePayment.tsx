@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Alert, StyleSheet } from 'react-native';
-import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { View, Text, Alert, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
 import Button from './Button';
 import Icon from './Icon';
+
+// Conditional imports for Stripe to avoid web import errors
+let StripeProvider: any = null;
+let useStripe: any = null;
+
+if (Platform.OS !== 'web') {
+  try {
+    const StripeModule = require('@stripe/stripe-react-native');
+    StripeProvider = StripeModule.StripeProvider;
+    useStripe = StripeModule.useStripe;
+  } catch (error) {
+    console.warn('Stripe React Native not available:', error);
+  }
+}
 
 interface StripePaymentProps {
   amount: number;
@@ -50,24 +63,47 @@ function PaymentMethodCard({ title, subtitle, icon, onPress, gradient }: Payment
 }
 
 function StripePaymentContent({ amount, description, onSuccess, onError, onCancel }: StripePaymentProps) {
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [loading, setLoading] = useState(false);
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
+  
+  // Only use Stripe hooks if available (not on web)
+  let initPaymentSheet: any = null;
+  let presentPaymentSheet: any = null;
+  
+  if (Platform.OS !== 'web' && useStripe) {
+    try {
+      const stripe = useStripe();
+      initPaymentSheet = stripe?.initPaymentSheet;
+      presentPaymentSheet = stripe?.presentPaymentSheet;
+    } catch (error) {
+      console.warn('Stripe hooks not available:', error);
+    }
+  }
 
   const initializePaymentSheet = async () => {
     try {
       setLoading(true);
       
-      // In a real app, you would call your backend to create a payment intent
-      // For now, we'll show a demo message
-      Alert.alert(
-        'Stripe Integration Ready! 💳',
-        'To complete the Stripe integration, you need to:\n\n1. Set up a Stripe account\n2. Configure your backend with Stripe Connect\n3. Add your publishable key\n\nFor now, this is a demo of the payment UI.',
-        [
-          { text: 'Got It', style: 'cancel' },
-          { text: 'Learn More', onPress: () => console.log('Stripe docs') }
-        ]
-      );
+      if (Platform.OS === 'web') {
+        Alert.alert(
+          'Web Payment Notice 🌐',
+          'Stripe payments are optimized for mobile devices. On web, this is a demo of the payment interface.\n\nTo process real payments:\n1. Use the mobile app\n2. Set up Stripe Connect backend\n3. Configure your publishable key',
+          [
+            { text: 'Got It', style: 'cancel' },
+            { text: 'Learn More', onPress: () => console.log('Stripe docs') }
+          ]
+        );
+      } else {
+        // Mobile payment setup
+        Alert.alert(
+          'Stripe Integration Ready! 💳',
+          'To complete the Stripe integration, you need to:\n\n1. Set up a Stripe account\n2. Configure your backend with Stripe Connect\n3. Add your publishable key\n\nFor now, this is a demo of the payment UI.',
+          [
+            { text: 'Got It', style: 'cancel' },
+            { text: 'Learn More', onPress: () => console.log('Stripe docs') }
+          ]
+        );
+      }
       
       setPaymentSheetEnabled(true);
     } catch (error) {
@@ -82,10 +118,18 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
     try {
       setLoading(true);
       
+      const platformMessage = Platform.OS === 'web' 
+        ? 'Web Demo Payment 🌐' 
+        : 'Mobile Demo Payment 📱';
+      
+      const platformDetails = Platform.OS === 'web'
+        ? 'This is a web demo. Real payments work on mobile devices with Stripe Connect integration.'
+        : 'In production, this would process through Stripe Connect with automatic revenue splitting.';
+      
       // Demo payment flow
       Alert.alert(
-        'Demo Payment 💰',
-        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\nIn production, this would process through Stripe Connect with automatic revenue splitting.`,
+        platformMessage,
+        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\n${platformDetails}`,
         [
           { 
             text: 'Cancel', 
@@ -99,7 +143,8 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
                 id: 'demo_payment_' + Date.now(),
                 amount,
                 description,
-                status: 'succeeded'
+                status: 'succeeded',
+                platform: Platform.OS
               });
             }
           }
@@ -127,7 +172,7 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
         <Icon name="card" size={48} color={colors.text} />
         <Text style={styles.headerTitle}>Secure Payment</Text>
         <Text style={styles.headerSubtitle}>
-          Powered by Stripe Connect
+          {Platform.OS === 'web' ? 'Demo Payment Interface' : 'Powered by Stripe Connect'}
         </Text>
       </LinearGradient>
 
@@ -169,18 +214,37 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
         </View>
 
         <View style={styles.securitySection}>
-          <View style={styles.securityItem}>
-            <Icon name="shield-checkmark" size={20} color={colors.success} />
-            <Text style={styles.securityText}>256-bit SSL encryption</Text>
-          </View>
-          <View style={styles.securityItem}>
-            <Icon name="lock-closed" size={20} color={colors.success} />
-            <Text style={styles.securityText}>PCI DSS compliant</Text>
-          </View>
-          <View style={styles.securityItem}>
-            <Icon name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.securityText}>Automatic revenue splitting</Text>
-          </View>
+          {Platform.OS === 'web' ? (
+            <>
+              <View style={styles.securityItem}>
+                <Icon name="information-circle" size={20} color={colors.primary} />
+                <Text style={styles.securityText}>Web demo interface</Text>
+              </View>
+              <View style={styles.securityItem}>
+                <Icon name="phone-portrait" size={20} color={colors.primary} />
+                <Text style={styles.securityText}>Real payments on mobile app</Text>
+              </View>
+              <View style={styles.securityItem}>
+                <Icon name="card" size={20} color={colors.primary} />
+                <Text style={styles.securityText}>Stripe Connect integration ready</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.securityItem}>
+                <Icon name="shield-checkmark" size={20} color={colors.success} />
+                <Text style={styles.securityText}>256-bit SSL encryption</Text>
+              </View>
+              <View style={styles.securityItem}>
+                <Icon name="lock-closed" size={20} color={colors.success} />
+                <Text style={styles.securityText}>PCI DSS compliant</Text>
+              </View>
+              <View style={styles.securityItem}>
+                <Icon name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={styles.securityText}>Automatic revenue splitting</Text>
+              </View>
+            </>
+          )}
         </View>
 
         <View style={styles.actions}>
@@ -207,6 +271,12 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
 }
 
 export default function StripePayment(props: StripePaymentProps) {
+  // On web, render without StripeProvider to avoid native module errors
+  if (Platform.OS === 'web' || !StripeProvider) {
+    return <StripePaymentContent {...props} />;
+  }
+  
+  // On mobile, use StripeProvider
   return (
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
       <StripePaymentContent {...props} />

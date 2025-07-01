@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, StyleSheet, Alert } from 'react-native';
+import { Modal, View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
@@ -117,7 +117,7 @@ export default function PaymentModal({
               </View>
               <Text style={styles.title}>Payment Required</Text>
               <Text style={styles.subtitle}>
-                Secure payment powered by Stripe
+                {Platform.OS === 'web' ? 'Demo payment interface' : 'Secure payment powered by Stripe'}
               </Text>
             </View>
 
@@ -167,7 +167,7 @@ export default function PaymentModal({
                 style={styles.cancelButton}
               />
               <Button
-                text="Pay with Stripe"
+                text={Platform.OS === 'web' ? 'Demo Payment' : 'Pay with Stripe'}
                 onPress={() => setShowStripePayment(true)}
                 variant="gradient"
                 size="lg"

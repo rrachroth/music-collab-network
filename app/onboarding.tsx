@@ -21,7 +21,7 @@ const ROLES = [
   { id: 'producer', name: 'Producer', icon: 'musical-notes' },
   { id: 'vocalist', name: 'Vocalist', icon: 'mic' },
   { id: 'songwriter', name: 'Songwriter', icon: 'create' },
-  { id: 'instrumentalist', name: 'Instrumentalist', icon: 'library' },
+  { id: 'instrumentalist', name: 'Instrumentalist', icon: 'musical-note' },
   { id: 'mixer', name: 'Mix Engineer', icon: 'settings' },
   { id: 'ar', name: 'A&R', icon: 'business' },
 ];
@@ -72,7 +72,7 @@ export default function OnboardingScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, [step]);
+  }, [step, fadeIn, slideUp, loadExistingUser]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {

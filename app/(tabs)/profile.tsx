@@ -116,7 +116,7 @@ export default function ProfileScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, []);
+  }, [loadProfile, fadeIn, slideUp]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -417,7 +417,7 @@ function HighlightCard({ highlight, delay }: HighlightCardProps) {
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   return (
     <Animated.View style={[styles.highlightCard, cardAnimatedStyle]}>
