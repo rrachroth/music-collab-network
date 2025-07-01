@@ -9,15 +9,12 @@ import Icon from './Icon';
 let StripeProvider: any = null;
 let useStripe: any = null;
 
-// Use dynamic import instead of require() to avoid lint error
+// Use dynamic import to avoid lint error and web compatibility issues
 if (Platform.OS !== 'web') {
   try {
-    import('@stripe/stripe-react-native').then((StripeModule) => {
-      StripeProvider = StripeModule.StripeProvider;
-      useStripe = StripeModule.useStripe;
-    }).catch((error) => {
-      console.warn('Stripe React Native not available:', error);
-    });
+    const StripeModule = require('@stripe/stripe-react-native');
+    StripeProvider = StripeModule.StripeProvider;
+    useStripe = StripeModule.useStripe;
   } catch (error) {
     console.warn('Stripe React Native not available:', error);
   }
@@ -66,12 +63,13 @@ function PaymentMethodCard({ title, subtitle, icon, onPress, gradient }: Payment
   );
 }
 
-function StripePaymentContent({ amount, description, onSuccess, onError, onCancel }: StripePaymentProps) {
+// Mobile-specific component that uses Stripe hooks
+function MobileStripePayment({ amount, description, onSuccess, onError, onCancel }: StripePaymentProps) {
   const [loading, setLoading] = useState(false);
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
   
-  // Always call hooks at the top level - fix for conditional hook call
-  const stripe = Platform.OS !== 'web' && useStripe ? useStripe() : null;
+  // Safe to call useStripe here since this component only renders on mobile
+  const stripe = useStripe ? useStripe() : null;
   
   // Extract methods from stripe if available
   const initPaymentSheet = stripe?.initPaymentSheet || null;
@@ -169,7 +167,7 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
         <Icon name="card" size={48} color={colors.text} />
         <Text style={styles.headerTitle}>Secure Payment</Text>
         <Text style={styles.headerSubtitle}>
-          {Platform.OS === 'web' ? 'Demo Payment Interface' : 'Powered by Stripe Connect'}
+          Powered by Stripe Connect
         </Text>
       </LinearGradient>
 
@@ -211,37 +209,18 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
         </View>
 
         <View style={styles.securitySection}>
-          {Platform.OS === 'web' ? (
-            <>
-              <View style={styles.securityItem}>
-                <Icon name="information-circle" size={20} color={colors.primary} />
-                <Text style={styles.securityText}>Web demo interface</Text>
-              </View>
-              <View style={styles.securityItem}>
-                <Icon name="phone-portrait" size={20} color={colors.primary} />
-                <Text style={styles.securityText}>Real payments on mobile app</Text>
-              </View>
-              <View style={styles.securityItem}>
-                <Icon name="card" size={20} color={colors.primary} />
-                <Text style={styles.securityText}>Stripe Connect integration ready</Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.securityItem}>
-                <Icon name="shield-checkmark" size={20} color={colors.success} />
-                <Text style={styles.securityText}>256-bit SSL encryption</Text>
-              </View>
-              <View style={styles.securityItem}>
-                <Icon name="lock-closed" size={20} color={colors.success} />
-                <Text style={styles.securityText}>PCI DSS compliant</Text>
-              </View>
-              <View style={styles.securityItem}>
-                <Icon name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={styles.securityText}>Automatic revenue splitting</Text>
-              </View>
-            </>
-          )}
+          <View style={styles.securityItem}>
+            <Icon name="shield-checkmark" size={20} color={colors.success} />
+            <Text style={styles.securityText}>256-bit SSL encryption</Text>
+          </View>
+          <View style={styles.securityItem}>
+            <Icon name="lock-closed" size={20} color={colors.success} />
+            <Text style={styles.securityText}>PCI DSS compliant</Text>
+          </View>
+          <View style={styles.securityItem}>
+            <Icon name="checkmark-circle" size={20} color={colors.success} />
+            <Text style={styles.securityText}>Automatic revenue splitting</Text>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -265,6 +244,143 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
       </View>
     </View>
   );
+}
+
+// Web-specific component that doesn't use Stripe hooks
+function WebStripePayment({ amount, description, onSuccess, onError, onCancel }: StripePaymentProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handlePayment = async () => {
+    try {
+      setLoading(true);
+      
+      // Demo payment flow for web
+      Alert.alert(
+        'Web Demo Payment 🌐',
+        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\nThis is a web demo. Real payments work on mobile devices with Stripe Connect integration.`,
+        [
+          { 
+            text: 'Cancel', 
+            style: 'cancel',
+            onPress: onCancel
+          },
+          { 
+            text: 'Simulate Success', 
+            onPress: () => {
+              onSuccess({ 
+                id: 'demo_payment_' + Date.now(),
+                amount,
+                description,
+                status: 'succeeded',
+                platform: 'web'
+              });
+            }
+          }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('Payment failed:', error);
+      onError('Payment failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={colors.gradientBackground}
+        style={styles.header}
+      >
+        <Icon name="card" size={48} color={colors.text} />
+        <Text style={styles.headerTitle}>Secure Payment</Text>
+        <Text style={styles.headerSubtitle}>
+          Demo Payment Interface
+        </Text>
+      </LinearGradient>
+
+      <View style={styles.content}>
+        <View style={styles.amountSection}>
+          <Text style={styles.amountLabel}>Total Amount</Text>
+          <Text style={styles.amountValue}>
+            ${(amount / 100).toFixed(2)}
+          </Text>
+          <Text style={styles.amountDescription}>{description}</Text>
+        </View>
+
+        <View style={styles.paymentMethodsSection}>
+          <Text style={styles.sectionTitle}>Payment Methods</Text>
+          
+          <PaymentMethodCard
+            title="Credit/Debit Card"
+            subtitle="Visa, Mastercard, American Express"
+            icon="card"
+            onPress={handlePayment}
+            gradient={colors.gradientPrimary}
+          />
+          
+          <PaymentMethodCard
+            title="Apple Pay"
+            subtitle="Touch ID or Face ID"
+            icon="phone-portrait"
+            onPress={handlePayment}
+            gradient={['#000000', '#333333']}
+          />
+          
+          <PaymentMethodCard
+            title="Google Pay"
+            subtitle="Quick and secure"
+            icon="wallet"
+            onPress={handlePayment}
+            gradient={['#4285F4', '#34A853']}
+          />
+        </View>
+
+        <View style={styles.securitySection}>
+          <View style={styles.securityItem}>
+            <Icon name="information-circle" size={20} color={colors.primary} />
+            <Text style={styles.securityText}>Web demo interface</Text>
+          </View>
+          <View style={styles.securityItem}>
+            <Icon name="phone-portrait" size={20} color={colors.primary} />
+            <Text style={styles.securityText}>Real payments on mobile app</Text>
+          </View>
+          <View style={styles.securityItem}>
+            <Icon name="card" size={20} color={colors.primary} />
+            <Text style={styles.securityText}>Stripe Connect integration ready</Text>
+          </View>
+        </View>
+
+        <View style={styles.actions}>
+          <Button
+            text="Cancel"
+            onPress={onCancel}
+            variant="outline"
+            size="lg"
+            style={styles.cancelButton}
+          />
+          <Button
+            text={loading ? "Processing..." : "Demo Payment"}
+            onPress={handlePayment}
+            variant="gradient"
+            size="lg"
+            loading={loading}
+            disabled={loading}
+            style={styles.payButton}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// Component that chooses between mobile and web implementations
+function StripePaymentContent(props: StripePaymentProps) {
+  if (Platform.OS === 'web') {
+    return <WebStripePayment {...props} />;
+  }
+  return <MobileStripePayment {...props} />;
 }
 
 export default function StripePayment(props: StripePaymentProps) {
