@@ -125,7 +125,7 @@ export default function ChatScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, [loadChatData, fadeIn, slideUp]);
+  }, []);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !currentUser || !otherUser || !match || sending) return;

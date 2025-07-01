@@ -137,7 +137,7 @@ export default function HomeScreen() {
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, [initializeApp, startPulseAnimation, fadeIn, slideUp]);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -164,10 +164,10 @@ export default function HomeScreen() {
   const handleMarketplace = () => {
     Alert.alert(
       'Marketplace & Education Hub 🎓',
-      'Phase 3 Feature: Book mentoring sessions, buy beats/hooks, and access educational content with 15% platform fee.',
+      'Book mentoring sessions, buy beats/hooks, and access educational content with 15% platform fee. Coming Soon!',
       [
-        { text: 'Coming Soon', style: 'cancel' },
-        { text: 'Learn More', onPress: () => console.log('Marketplace info') }
+        { text: 'Got It', style: 'cancel' },
+        { text: 'Join Waitlist', onPress: () => console.log('Marketplace waitlist') }
       ]
     );
   };
@@ -186,10 +186,10 @@ export default function HomeScreen() {
   const handleAIMatching = () => {
     Alert.alert(
       'AI Matching Engine 🤖',
-      'Phase 4 Feature: Advanced ML model using profile tags, audio embeddings, and past success metrics for smart suggestions.',
+      'Advanced ML model using profile tags, audio embeddings, and past success metrics for smart suggestions. Coming Soon!',
       [
-        { text: 'Coming Soon', style: 'cancel' },
-        { text: 'Enable Beta', onPress: () => console.log('AI matching beta') }
+        { text: 'Got It', style: 'cancel' },
+        { text: 'Join Beta', onPress: () => console.log('AI matching beta') }
       ]
     );
   };
@@ -197,9 +197,9 @@ export default function HomeScreen() {
   const handleDistribution = () => {
     Alert.alert(
       'Distribution Plugin 🎵',
-      'Phase 4 Feature: Push finished collaborations to Spotify/Apple via Distro API with automated royalty tracking.',
+      'Push finished collaborations to Spotify/Apple via Distro API with automated royalty tracking. Coming Soon!',
       [
-        { text: 'Coming Soon', style: 'cancel' },
+        { text: 'Got It', style: 'cancel' },
         { text: 'Join Waitlist', onPress: () => console.log('Distribution waitlist') }
       ]
     );
@@ -208,9 +208,9 @@ export default function HomeScreen() {
   const handleAnalytics = () => {
     Alert.alert(
       'Analytics Dashboard 📊',
-      'Phase 2 Feature: Track your performance, match success rate, and collaboration metrics.',
+      'Track your performance, match success rate, and collaboration metrics.',
       [
-        { text: 'Coming Soon', style: 'cancel' },
+        { text: 'Got It', style: 'cancel' },
         { text: 'Preview', onPress: () => console.log('Analytics preview') }
       ]
     );
@@ -219,9 +219,9 @@ export default function HomeScreen() {
   const handleARSaaS = () => {
     Alert.alert(
       'A&R SaaS Platform 🎯',
-      'Phase 4 Feature: Specialized tools for A&R professionals including bulk search, curated talent lists, and CSV export.',
+      'Specialized tools for A&R professionals including bulk search, curated talent lists, and CSV export. Coming Soon!',
       [
-        { text: 'Coming Soon', style: 'cancel' },
+        { text: 'Got It', style: 'cancel' },
         { text: 'Request Demo', onPress: () => console.log('A&R demo request') }
       ]
     );
@@ -325,10 +325,10 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Phase 1: Core Features */}
+          {/* Core Features */}
           <View style={styles.featuresSection}>
             <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Core Features (Phase 1) ✅
+              Core Features ✅
             </Text>
             
             <FeatureCard
@@ -359,10 +359,10 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Phase 2: Enhanced Features */}
+          {/* Enhanced Features */}
           <View style={styles.featuresSection}>
             <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Enhanced Features (Phase 2) 🚀
+              Enhanced Features 🚀
             </Text>
             
             <FeatureCard
@@ -393,15 +393,15 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Phase 3: Marketplace & Premium */}
+          {/* Marketplace & Premium */}
           <View style={styles.featuresSection}>
             <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Marketplace & Premium (Phase 3) 💎
+              Marketplace & Premium 💎
             </Text>
             
             <FeatureCard
               icon="storefront"
-              title="Marketplace & Education"
+              title="Marketplace & Education (Coming Soon)"
               description="Book sessions, buy beats, mentoring"
               gradient={['#EC4899', '#DB2777']}
               onPress={handleMarketplace}
@@ -410,7 +410,7 @@ export default function HomeScreen() {
             
             <FeatureCard
               icon="diamond"
-              title="Premium Tiers"
+              title="Premium Tiers (Coming Soon)"
               description="Creator+, Pro Studio, A&R Seat plans"
               gradient={['#F59E0B', '#D97706']}
               onPress={handlePremiumUpgrade}
@@ -418,15 +418,15 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Phase 4: AI & Scale */}
+          {/* AI & Scale Features */}
           <View style={styles.featuresSection}>
             <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              AI & Scale Features (Phase 4) 🤖
+              AI & Scale Features 🤖
             </Text>
             
             <FeatureCard
               icon="bulb"
-              title="AI Matching Engine"
+              title="AI Matching Engine (Coming Soon)"
               description="ML-powered smart collaboration suggestions"
               gradient={['#8B5CF6', '#7C3AED']}
               onPress={handleAIMatching}
@@ -435,7 +435,7 @@ export default function HomeScreen() {
             
             <FeatureCard
               icon="musical-notes"
-              title="Distribution Plugin"
+              title="Distribution Plugin (Coming Soon)"
               description="Push to Spotify/Apple with royalty tracking"
               gradient={['#10B981', '#059669']}
               onPress={handleDistribution}
@@ -444,7 +444,7 @@ export default function HomeScreen() {
             
             <FeatureCard
               icon="business"
-              title="A&R SaaS Platform"
+              title="A&R SaaS Platform (Coming Soon)"
               description="Professional tools for talent scouts"
               gradient={['#06B6D4', '#0891B2']}
               onPress={handleARSaaS}
@@ -491,7 +491,7 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
-  }, [delay, cardOpacity, cardScale]);
+  }, [delay]);
 
   return (
     <Animated.View style={cardAnimatedStyle}>

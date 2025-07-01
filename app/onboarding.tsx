@@ -21,7 +21,7 @@ const ROLES = [
   { id: 'producer', name: 'Producer', icon: 'musical-notes' },
   { id: 'vocalist', name: 'Vocalist', icon: 'mic' },
   { id: 'songwriter', name: 'Songwriter', icon: 'create' },
-  { id: 'instrumentalist', name: 'Instrumentalist', icon: 'guitar' },
+  { id: 'instrumentalist', name: 'Instrumentalist', icon: 'piano' },
   { id: 'mixer', name: 'Mix Engineer', icon: 'settings' },
   { id: 'ar', name: 'A&R', icon: 'business' },
 ];

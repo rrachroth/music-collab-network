@@ -70,7 +70,7 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.9, { duration: 200 });
     }
-  }, [visible, modalOpacity, modalScale]);
+  }, [visible]);
 
   const resetForm = () => {
     setTitle('');
