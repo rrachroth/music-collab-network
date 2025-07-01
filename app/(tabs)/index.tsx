@@ -18,6 +18,7 @@ import Icon from '../../components/Icon';
 import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../../utils/storage';
 import { useState, useEffect, useCallback } from 'react';
 import Button from '../../components/Button';
+import PaymentModal from '../../components/PaymentModal';
 
 interface FeatureCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -54,6 +55,12 @@ export default function HomeScreen() {
     userProjects: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState({
+    amount: 0,
+    description: '',
+    recipientName: '',
+  });
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -164,10 +171,42 @@ export default function HomeScreen() {
   const handleMarketplace = () => {
     Alert.alert(
       'Marketplace & Education Hub 🎓',
-      'Book mentoring sessions, buy beats/hooks, and access educational content with 15% platform fee. Coming Soon!',
+      'What would you like to do?',
       [
-        { text: 'Got It', style: 'cancel' },
-        { text: 'Join Waitlist', onPress: () => console.log('Marketplace waitlist') }
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Buy Beat ($25)', 
+          onPress: () => {
+            setPaymentDetails({
+              amount: 2500, // $25.00 in cents
+              description: 'Premium Hip-Hop Beat License',
+              recipientName: 'Producer Mike',
+            });
+            setPaymentModalVisible(true);
+          }
+        },
+        { 
+          text: 'Book Session ($50)', 
+          onPress: () => {
+            setPaymentDetails({
+              amount: 5000, // $50.00 in cents
+              description: '1-hour Mixing Session',
+              recipientName: 'Mix Engineer Sarah',
+            });
+            setPaymentModalVisible(true);
+          }
+        },
+        { 
+          text: 'Mentoring ($75)', 
+          onPress: () => {
+            setPaymentDetails({
+              amount: 7500, // $75.00 in cents
+              description: '1-hour Music Production Mentoring',
+              recipientName: 'Producer Alex',
+            });
+            setPaymentModalVisible(true);
+          }
+        }
       ]
     );
   };
@@ -175,10 +214,42 @@ export default function HomeScreen() {
   const handlePremiumUpgrade = () => {
     Alert.alert(
       'Premium Plans 💎',
-      'Choose your plan:\n\n• Creator+ ($9.99/mo): Unlimited swipes, advanced filters\n• Pro Studio ($19.99/mo): AI matching, contract templates\n• A&R Seat ($49.99/mo): Bulk search, talent lists',
+      'Choose your plan:',
       [
         { text: 'Maybe Later', style: 'cancel' },
-        { text: 'Upgrade Now', onPress: () => console.log('Premium upgrade') }
+        { 
+          text: 'Creator+ ($9.99/mo)', 
+          onPress: () => {
+            setPaymentDetails({
+              amount: 999, // $9.99 in cents
+              description: 'Creator+ Monthly Subscription',
+              recipientName: '',
+            });
+            setPaymentModalVisible(true);
+          }
+        },
+        { 
+          text: 'Pro Studio ($19.99/mo)', 
+          onPress: () => {
+            setPaymentDetails({
+              amount: 1999, // $19.99 in cents
+              description: 'Pro Studio Monthly Subscription',
+              recipientName: '',
+            });
+            setPaymentModalVisible(true);
+          }
+        },
+        { 
+          text: 'A&R Seat ($49.99/mo)', 
+          onPress: () => {
+            setPaymentDetails({
+              amount: 4999, // $49.99 in cents
+              description: 'A&R Seat Monthly Subscription',
+              recipientName: '',
+            });
+            setPaymentModalVisible(true);
+          }
+        }
       ]
     );
   };
@@ -225,6 +296,11 @@ export default function HomeScreen() {
         { text: 'Request Demo', onPress: () => console.log('A&R demo request') }
       ]
     );
+  };
+
+  const handlePaymentSuccess = (paymentResult: any) => {
+    console.log('✅ Payment successful:', paymentResult);
+    // Here you would typically update the user's subscription status or grant access to purchased content
   };
 
   if (!user) {
@@ -376,10 +452,17 @@ export default function HomeScreen() {
             
             <FeatureCard
               icon="card"
-              title="Revenue Splitting (Test)"
-              description="Stripe Connect test-mode payouts"
+              title="Revenue Splitting with Stripe"
+              description="Secure payments with automatic revenue distribution"
               gradient={['#8B5CF6', '#7C3AED']}
-              onPress={() => Alert.alert('Revenue Split', 'Test mode revenue splitting with Stripe Connect')}
+              onPress={() => {
+                setPaymentDetails({
+                  amount: 10000, // $100.00 in cents
+                  description: 'Demo Revenue Split Payment',
+                  recipientName: 'Collaborator Artist',
+                });
+                setPaymentModalVisible(true);
+              }}
               delay={100}
             />
             
@@ -402,7 +485,7 @@ export default function HomeScreen() {
             <FeatureCard
               icon="storefront"
               title="Marketplace & Education (Coming Soon)"
-              description="Book sessions, buy beats, mentoring"
+              description="Book sessions, buy beats, mentoring with Stripe payments"
               gradient={['#EC4899', '#DB2777']}
               onPress={handleMarketplace}
               delay={0}
@@ -473,6 +556,16 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
       </Animated.ScrollView>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        visible={paymentModalVisible}
+        onClose={() => setPaymentModalVisible(false)}
+        amount={paymentDetails.amount}
+        description={paymentDetails.description}
+        recipientName={paymentDetails.recipientName}
+        onSuccess={handlePaymentSuccess}
+      />
     </View>
   );
 }
