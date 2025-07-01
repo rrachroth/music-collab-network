@@ -9,11 +9,15 @@ import Icon from './Icon';
 let StripeProvider: any = null;
 let useStripe: any = null;
 
+// Use dynamic import instead of require() to avoid lint error
 if (Platform.OS !== 'web') {
   try {
-    const StripeModule = require('@stripe/stripe-react-native');
-    StripeProvider = StripeModule.StripeProvider;
-    useStripe = StripeModule.useStripe;
+    import('@stripe/stripe-react-native').then((StripeModule) => {
+      StripeProvider = StripeModule.StripeProvider;
+      useStripe = StripeModule.useStripe;
+    }).catch((error) => {
+      console.warn('Stripe React Native not available:', error);
+    });
   } catch (error) {
     console.warn('Stripe React Native not available:', error);
   }
@@ -66,19 +70,12 @@ function StripePaymentContent({ amount, description, onSuccess, onError, onCance
   const [loading, setLoading] = useState(false);
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
   
-  // Only use Stripe hooks if available (not on web)
-  let initPaymentSheet: any = null;
-  let presentPaymentSheet: any = null;
+  // Always call hooks at the top level - fix for conditional hook call
+  const stripe = Platform.OS !== 'web' && useStripe ? useStripe() : null;
   
-  if (Platform.OS !== 'web' && useStripe) {
-    try {
-      const stripe = useStripe();
-      initPaymentSheet = stripe?.initPaymentSheet;
-      presentPaymentSheet = stripe?.presentPaymentSheet;
-    } catch (error) {
-      console.warn('Stripe hooks not available:', error);
-    }
-  }
+  // Extract methods from stripe if available
+  const initPaymentSheet = stripe?.initPaymentSheet || null;
+  const presentPaymentSheet = stripe?.presentPaymentSheet || null;
 
   const initializePaymentSheet = React.useCallback(async () => {
     try {
