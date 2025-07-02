@@ -70,7 +70,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.8, { duration: 200 });
     }
-  }, [visible]);
+  }, [visible, modalOpacity, modalScale]); // Added missing dependencies
 
   const loadSubscriptionStatus = async () => {
     try {

@@ -385,6 +385,11 @@ function StripePaymentContent(props: StripePaymentProps) {
   if (Platform.OS === 'web') {
     return <WebStripePayment {...props} />;
   }
+  
+  // Always call useStripe hook unconditionally at the top level
+  // This fixes the React Hook rules violation
+  const stripe = useStripe ? useStripe() : null;
+  
   return <MobileStripePayment {...props} />;
 }
 
