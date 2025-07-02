@@ -14,6 +14,8 @@ import {
   Project,
   Application 
 } from '../../utils/storage';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import SubscriptionModal from '../../components/SubscriptionModal';
 import CreateProjectModal from '../../components/CreateProjectModal';
 import Animated, { 
   useSharedValue, 
@@ -48,6 +50,7 @@ export default function ProjectsScreen() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [filter, setFilter] = useState<'all' | 'my' | 'open'>('all');
   
   const fadeIn = useSharedValue(0);
@@ -138,7 +141,21 @@ export default function ProjectsScreen() {
     setRefreshing(false);
   }, [loadProjects]);
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
+    // Check project posting limits
+    const { canPost, reason } = await SubscriptionService.canPostProject();
+    if (!canPost) {
+      Alert.alert(
+        'Project Limit Reached 📋',
+        reason || 'You have reached your monthly project limit.',
+        [
+          { text: 'Maybe Later', style: 'cancel' },
+          { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
+        ]
+      );
+      return;
+    }
+    
     setShowCreateModal(true);
   };
 
@@ -164,6 +181,10 @@ export default function ProjectsScreen() {
       };
 
       await addProject(newProject);
+      
+      // Increment project count for free users
+      await SubscriptionService.incrementProjectCount();
+      
       setShowCreateModal(false);
       await loadProjects();
       
@@ -345,6 +366,16 @@ export default function ProjectsScreen() {
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleProjectCreated}
         currentUser={currentUser}
+      />
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited project postings and likes!');
+        }}
       />
     </View>
   );

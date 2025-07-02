@@ -16,6 +16,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
 import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../../utils/storage';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import { PaymentService } from '../../utils/paymentService';
+import SubscriptionModal from '../../components/SubscriptionModal';
+import PaymentInfoModal from '../../components/PaymentInfoModal';
 import { useState, useEffect, useCallback } from 'react';
 import Button from '../../components/Button';
 import PaymentModal from '../../components/PaymentModal';
@@ -56,6 +60,9 @@ export default function HomeScreen() {
   });
   const [refreshing, setRefreshing] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showPaymentInfoModal, setShowPaymentInfoModal] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
   const [paymentDetails, setPaymentDetails] = useState({
     amount: 0,
     description: '',
@@ -120,6 +127,10 @@ export default function HomeScreen() {
           userMatches: userMatches.length,
           userProjects: userProjects.length,
         });
+
+        // Load subscription status
+        const subStatus = await SubscriptionService.getSubscriptionStatus();
+        setSubscriptionStatus(subStatus);
       }
     } catch (error) {
       console.error('❌ Error initializing app:', error);
@@ -212,46 +223,7 @@ export default function HomeScreen() {
   };
 
   const handlePremiumUpgrade = () => {
-    Alert.alert(
-      'Premium Plans 💎',
-      'Choose your plan:',
-      [
-        { text: 'Maybe Later', style: 'cancel' },
-        { 
-          text: 'Creator+ ($9.99/mo)', 
-          onPress: () => {
-            setPaymentDetails({
-              amount: 999, // $9.99 in cents
-              description: 'Creator+ Monthly Subscription',
-              recipientName: '',
-            });
-            setPaymentModalVisible(true);
-          }
-        },
-        { 
-          text: 'Pro Studio ($19.99/mo)', 
-          onPress: () => {
-            setPaymentDetails({
-              amount: 1999, // $19.99 in cents
-              description: 'Pro Studio Monthly Subscription',
-              recipientName: '',
-            });
-            setPaymentModalVisible(true);
-          }
-        },
-        { 
-          text: 'A&R Seat ($49.99/mo)', 
-          onPress: () => {
-            setPaymentDetails({
-              amount: 4999, // $49.99 in cents
-              description: 'A&R Seat Monthly Subscription',
-              recipientName: '',
-            });
-            setPaymentModalVisible(true);
-          }
-        }
-      ]
-    );
+    setShowSubscriptionModal(true);
   };
 
   const handleAIMatching = () => {
@@ -357,6 +329,54 @@ export default function HomeScreen() {
         </Animated.View>
 
         <Animated.View style={animatedStyle}>
+          {/* Subscription Status */}
+          {subscriptionStatus && (
+            <View style={styles.subscriptionSection}>
+              <LinearGradient
+                colors={subscriptionStatus.isPremium ? ['#FFD700', '#FFA500'] : colors.gradientBackground}
+                style={styles.subscriptionCard}
+              >
+                <View style={styles.subscriptionHeader}>
+                  <Icon 
+                    name={subscriptionStatus.isPremium ? "diamond" : "person"} 
+                    size={24} 
+                    color={subscriptionStatus.isPremium ? "#000" : colors.primary} 
+                  />
+                  <Text style={[styles.subscriptionTitle, { color: subscriptionStatus.isPremium ? "#000" : colors.text }]}>
+                    {subscriptionStatus.plan} Plan
+                  </Text>
+                </View>
+                
+                {subscriptionStatus.usage && (
+                  <View style={styles.subscriptionUsage}>
+                    <Text style={[styles.subscriptionUsageText, { color: subscriptionStatus.isPremium ? "#000" : colors.text }]}>
+                      Projects: {subscriptionStatus.isPremium 
+                        ? 'Unlimited' 
+                        : `${subscriptionStatus.usage.projectsPostedThisMonth}/${subscriptionStatus.limits.projectsPerMonth} this month`
+                      }
+                    </Text>
+                    <Text style={[styles.subscriptionUsageText, { color: subscriptionStatus.isPremium ? "#000" : colors.text }]}>
+                      Likes: {subscriptionStatus.isPremium 
+                        ? 'Unlimited' 
+                        : `${subscriptionStatus.usage.likesUsedToday}/${subscriptionStatus.limits.likesPerDay} today`
+                      }
+                    </Text>
+                  </View>
+                )}
+                
+                {!subscriptionStatus.isPremium && (
+                  <Button
+                    text="Upgrade to Premium"
+                    onPress={handlePremiumUpgrade}
+                    variant="primary"
+                    size="sm"
+                    style={styles.upgradeButton}
+                  />
+                )}
+              </LinearGradient>
+            </View>
+          )}
+
           {/* Platform Stats */}
           <View style={styles.statsSection}>
             <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
@@ -455,14 +475,7 @@ export default function HomeScreen() {
               title="Revenue Splitting with Stripe"
               description="Secure payments with automatic revenue distribution"
               gradient={['#8B5CF6', '#7C3AED']}
-              onPress={() => {
-                setPaymentDetails({
-                  amount: 10000, // $100.00 in cents
-                  description: 'Demo Revenue Split Payment',
-                  recipientName: 'Collaborator Artist',
-                });
-                setPaymentModalVisible(true);
-              }}
+              onPress={() => setShowPaymentInfoModal(true)}
               delay={100}
             />
             
@@ -565,6 +578,23 @@ export default function HomeScreen() {
         description={paymentDetails.description}
         recipientName={paymentDetails.recipientName}
         onSuccess={handlePaymentSuccess}
+      />
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          initializeApp(); // Refresh subscription status
+          Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited project postings and likes!');
+        }}
+      />
+
+      {/* Payment Info Modal */}
+      <PaymentInfoModal
+        visible={showPaymentInfoModal}
+        onClose={() => setShowPaymentInfoModal(false)}
       />
     </View>
   );
@@ -777,5 +807,36 @@ const styles = StyleSheet.create({
   ctaButton: {
     backgroundColor: colors.text,
     minWidth: 200,
+  },
+  subscriptionSection: {
+    marginBottom: spacing.xl,
+  },
+  subscriptionCard: {
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    ...shadows.sm,
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  subscriptionTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+    marginLeft: spacing.sm,
+  },
+  subscriptionUsage: {
+    marginBottom: spacing.md,
+  },
+  subscriptionUsageText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    marginBottom: spacing.xs,
+  },
+  upgradeButton: {
+    alignSelf: 'flex-start',
   },
 });

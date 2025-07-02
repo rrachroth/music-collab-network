@@ -27,6 +27,8 @@ import {
   User, 
   Match 
 } from '../../utils/storage';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import SubscriptionModal from '../../components/SubscriptionModal';
 
 interface ProfileCardProps {
   profile: User;
@@ -44,6 +46,7 @@ export default function DiscoverScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -107,9 +110,26 @@ export default function DiscoverScreen() {
   const handleSwipe = useCallback(async (direction: 'left' | 'right') => {
     if (!currentUser || currentIndex >= profiles.length) return;
     
+    // Check like limits before allowing swipe
+    const { canLike, reason } = await SubscriptionService.canLike();
+    if (!canLike && direction === 'right') {
+      Alert.alert(
+        'Like Limit Reached 💔',
+        reason || 'You have reached your daily like limit.',
+        [
+          { text: 'Maybe Later', style: 'cancel' },
+          { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
+        ]
+      );
+      return;
+    }
+    
     const currentProfile = profiles[currentIndex];
     
     if (direction === 'right') {
+      // Increment like count for free users
+      await SubscriptionService.incrementLikeCount();
+      
       // Create match
       const match: Match = {
         id: generateId(),
@@ -390,6 +410,16 @@ export default function DiscoverScreen() {
           {currentIndex + 1} of {profiles.length}
         </Text>
       </View>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited likes and project postings!');
+        }}
+      />
     </View>
   );
 }
