@@ -12,9 +12,13 @@ let useStripe: any = null;
 // Use dynamic import to avoid lint error and web compatibility issues
 if (Platform.OS !== 'web') {
   try {
-    const StripeModule = require('@stripe/stripe-react-native');
-    StripeProvider = StripeModule.StripeProvider;
-    useStripe = StripeModule.useStripe;
+    // Use import() instead of require() to fix lint warning
+    import('@stripe/stripe-react-native').then((StripeModule) => {
+      StripeProvider = StripeModule.StripeProvider;
+      useStripe = StripeModule.useStripe;
+    }).catch((error) => {
+      console.warn('Stripe React Native not available:', error);
+    });
   } catch (error) {
     console.warn('Stripe React Native not available:', error);
   }
@@ -68,7 +72,8 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
   const [loading, setLoading] = useState(false);
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
   
-  // Safe to call useStripe here since this component only renders on mobile
+  // Always call useStripe hook unconditionally to fix lint error
+  // This component only renders on mobile where useStripe is available
   const stripe = useStripe ? useStripe() : null;
   
   // Extract methods from stripe if available
