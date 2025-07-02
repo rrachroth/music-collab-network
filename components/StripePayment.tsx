@@ -73,8 +73,7 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
   
   // Always call useStripe hook unconditionally to fix lint error
-  // This component only renders on mobile where useStripe is available
-  const stripe = useStripe ? useStripe() : null;
+  const stripe = useStripe();
   
   // Extract methods from stripe if available
   const initPaymentSheet = stripe?.initPaymentSheet || null;
@@ -380,29 +379,16 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
   );
 }
 
-// Component that chooses between mobile and web implementations
-function StripePaymentContent(props: StripePaymentProps) {
-  if (Platform.OS === 'web') {
-    return <WebStripePayment {...props} />;
-  }
-  
-  // Always call useStripe hook unconditionally at the top level
-  // This fixes the React Hook rules violation
-  const stripe = useStripe ? useStripe() : null;
-  
-  return <MobileStripePayment {...props} />;
-}
-
 export default function StripePayment(props: StripePaymentProps) {
   // On web, render without StripeProvider to avoid native module errors
   if (Platform.OS === 'web' || !StripeProvider) {
-    return <StripePaymentContent {...props} />;
+    return <WebStripePayment {...props} />;
   }
   
-  // On mobile, use StripeProvider
+  // On mobile, use StripeProvider and MobileStripePayment
   return (
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-      <StripePaymentContent {...props} />
+      <MobileStripePayment {...props} />
     </StripeProvider>
   );
 }
