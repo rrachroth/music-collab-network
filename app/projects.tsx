@@ -26,6 +26,8 @@ import {
   Application 
 } from '../utils/storage';
 import CreateProjectModal from '../components/CreateProjectModal';
+import ProjectApplicationsModal from '../components/ProjectApplicationsModal';
+import DirectMessagesModal from '../components/DirectMessagesModal';
 
 interface ProjectWithApplications extends Project {
   applicationCount: number;
@@ -42,6 +44,9 @@ export default function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false);
+  const [showDirectMessagesModal, setShowDirectMessagesModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectWithApplications | null>(null);
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -248,8 +253,29 @@ export default function ProjectsScreen() {
   };
 
   const handleViewProject = (project: ProjectWithApplications) => {
-    console.log('👁️ Viewing project:', project.title);
-    router.push(`/project/${project.id}`);
+    if (project.isOwner && project.applicationCount > 0) {
+      // If it's the owner's project and has applications, show applications modal
+      setSelectedProject(project);
+      setShowApplicationsModal(true);
+    } else {
+      // Otherwise show project details
+      Alert.alert(
+        project.title,
+        `${project.description}\n\nBudget: ${project.budget}\nTimeline: ${project.timeline}\nApplications: ${project.applicationCount}`,
+        [
+          { text: 'Close', style: 'cancel' },
+          ...(project.isOwner && project.applicationCount > 0 ? [
+            { text: 'View Applications', onPress: () => {
+              setSelectedProject(project);
+              setShowApplicationsModal(true);
+            }}
+          ] : []),
+          ...(!project.isOwner && !project.hasApplied && project.status === 'open' ? [
+            { text: 'Apply', onPress: () => handleApplyToProject(project) }
+          ] : [])
+        ]
+      );
+    }
   };
 
   const formatTimeAgo = (timestamp: string) => {
@@ -302,9 +328,17 @@ export default function ProjectsScreen() {
           Open Projects
         </Text>
         
-        <TouchableOpacity onPress={handleCreateProject} style={styles.headerButton}>
-          <Icon name="add" size={24} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            onPress={() => setShowDirectMessagesModal(true)} 
+            style={[styles.headerButton, { marginRight: spacing.sm }]}
+          >
+            <Icon name="chatbubbles" size={24} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleCreateProject} style={styles.headerButton}>
+            <Icon name="add" size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Animated.View style={[{ flex: 1 }, animatedStyle]}>
@@ -412,6 +446,10 @@ export default function ProjectsScreen() {
                 project={project}
                 onApply={() => handleApplyToProject(project)}
                 onView={() => handleViewProject(project)}
+                onViewApplications={() => {
+                  setSelectedProject(project);
+                  setShowApplicationsModal(true);
+                }}
                 formatTimeAgo={formatTimeAgo}
                 delay={index * 100}
               />
@@ -451,6 +489,24 @@ export default function ProjectsScreen() {
         onSubmit={handleProjectCreated}
         currentUser={currentUser}
       />
+
+      {/* Project Applications Modal */}
+      {selectedProject && (
+        <ProjectApplicationsModal
+          visible={showApplicationsModal}
+          onClose={() => {
+            setShowApplicationsModal(false);
+            setSelectedProject(null);
+          }}
+          project={selectedProject}
+        />
+      )}
+
+      {/* Direct Messages Modal */}
+      <DirectMessagesModal
+        visible={showDirectMessagesModal}
+        onClose={() => setShowDirectMessagesModal(false)}
+      />
     </View>
   );
 }
@@ -459,11 +515,12 @@ interface ProjectCardProps {
   project: ProjectWithApplications;
   onApply: () => void;
   onView: () => void;
+  onViewApplications?: () => void;
   formatTimeAgo: (timestamp: string) => string;
   delay: number;
 }
 
-function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: ProjectCardProps) {
+function ProjectCard({ project, onApply, onView, onViewApplications, formatTimeAgo, delay }: ProjectCardProps) {
   const cardScale = useSharedValue(0.9);
   const cardOpacity = useSharedValue(0);
 
@@ -610,6 +667,10 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   filterContainer: {
     paddingHorizontal: spacing.lg,

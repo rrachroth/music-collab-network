@@ -79,6 +79,20 @@ export interface Application {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
+export interface DirectMessage {
+  id: string;
+  projectId: string;
+  senderId: string;
+  receiverId: string;
+  senderName: string;
+  receiverName: string;
+  content: string;
+  type: 'text' | 'audio' | 'media';
+  sentAt: string;
+  isRead: boolean;
+  applicationId?: string; // Link to application if this is about a specific application
+}
+
 // Storage Keys
 const STORAGE_KEYS = {
   CURRENT_USER: 'current_user',
@@ -87,6 +101,7 @@ const STORAGE_KEYS = {
   MESSAGES: 'messages',
   PROJECTS: 'projects',
   APPLICATIONS: 'applications',
+  DIRECT_MESSAGES: 'direct_messages',
   USER_PREFERENCES: 'user_preferences',
 };
 
@@ -326,6 +341,130 @@ export const addApplication = async (application: Application): Promise<void> =>
     console.log('📝 Application added successfully');
   } catch (error) {
     console.error('❌ Error adding application:', error);
+    throw error;
+  }
+};
+
+// Direct Messages Management
+export const saveDirectMessages = async (messages: DirectMessage[]): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.DIRECT_MESSAGES, JSON.stringify(messages));
+  } catch (error) {
+    console.error('❌ Error saving direct messages:', error);
+    throw error;
+  }
+};
+
+export const getDirectMessages = async (projectId?: string, userId?: string): Promise<DirectMessage[]> => {
+  try {
+    const messagesData = await AsyncStorage.getItem(STORAGE_KEYS.DIRECT_MESSAGES);
+    if (messagesData) {
+      let allMessages = JSON.parse(messagesData);
+      
+      if (projectId && userId) {
+        // Get messages for a specific project where user is either sender or receiver
+        allMessages = allMessages.filter((msg: DirectMessage) => 
+          msg.projectId === projectId && 
+          (msg.senderId === userId || msg.receiverId === userId)
+        );
+      } else if (projectId) {
+        // Get all messages for a specific project
+        allMessages = allMessages.filter((msg: DirectMessage) => msg.projectId === projectId);
+      } else if (userId) {
+        // Get all messages where user is either sender or receiver
+        allMessages = allMessages.filter((msg: DirectMessage) => 
+          msg.senderId === userId || msg.receiverId === userId
+        );
+      }
+      
+      return allMessages.sort((a: DirectMessage, b: DirectMessage) => 
+        new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
+      );
+    }
+    return [];
+  } catch (error) {
+    console.error('❌ Error loading direct messages:', error);
+    return [];
+  }
+};
+
+export const addDirectMessage = async (message: DirectMessage): Promise<void> => {
+  try {
+    const messages = await getDirectMessages();
+    const updatedMessages = [...messages, message];
+    await saveDirectMessages(updatedMessages);
+    console.log('💬 Direct message added successfully');
+  } catch (error) {
+    console.error('❌ Error adding direct message:', error);
+    throw error;
+  }
+};
+
+export const getDirectMessageConversations = async (userId: string): Promise<{
+  projectId: string;
+  projectTitle: string;
+  otherUserId: string;
+  otherUserName: string;
+  lastMessage: DirectMessage;
+  unreadCount: number;
+}[]> => {
+  try {
+    const messages = await getDirectMessages(undefined, userId);
+    const projects = await getProjects();
+    const conversations: { [key: string]: any } = {};
+    
+    messages.forEach(message => {
+      const otherUserId = message.senderId === userId ? message.receiverId : message.senderId;
+      const conversationKey = `${message.projectId}_${otherUserId}`;
+      
+      if (!conversations[conversationKey] || 
+          new Date(message.sentAt) > new Date(conversations[conversationKey].lastMessage.sentAt)) {
+        const project = projects.find(p => p.id === message.projectId);
+        conversations[conversationKey] = {
+          projectId: message.projectId,
+          projectTitle: project?.title || 'Unknown Project',
+          otherUserId,
+          otherUserName: message.senderId === userId ? message.receiverName : message.senderName,
+          lastMessage: message,
+          unreadCount: 0
+        };
+      }
+    });
+    
+    // Calculate unread counts
+    Object.keys(conversations).forEach(key => {
+      const conv = conversations[key];
+      conv.unreadCount = messages.filter(msg => 
+        msg.projectId === conv.projectId &&
+        msg.senderId === conv.otherUserId &&
+        msg.receiverId === userId &&
+        !msg.isRead
+      ).length;
+    });
+    
+    return Object.values(conversations).sort((a, b) => 
+      new Date(b.lastMessage.sentAt).getTime() - new Date(a.lastMessage.sentAt).getTime()
+    );
+  } catch (error) {
+    console.error('❌ Error loading direct message conversations:', error);
+    return [];
+  }
+};
+
+export const markDirectMessagesAsRead = async (projectId: string, otherUserId: string, currentUserId: string): Promise<void> => {
+  try {
+    const messages = await getDirectMessages();
+    const updatedMessages = messages.map(msg => {
+      if (msg.projectId === projectId && 
+          msg.senderId === otherUserId && 
+          msg.receiverId === currentUserId) {
+        return { ...msg, isRead: true };
+      }
+      return msg;
+    });
+    await saveDirectMessages(updatedMessages);
+  } catch (error) {
+    console.error('❌ Error marking messages as read:', error);
     throw error;
   }
 };

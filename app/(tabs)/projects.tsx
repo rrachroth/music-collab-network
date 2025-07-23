@@ -17,6 +17,8 @@ import {
 import { SubscriptionService } from '../../utils/subscriptionService';
 import SubscriptionModal from '../../components/SubscriptionModal';
 import CreateProjectModal from '../../components/CreateProjectModal';
+import ProjectApplicationsModal from '../../components/ProjectApplicationsModal';
+import DirectMessagesModal from '../../components/DirectMessagesModal';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -39,6 +41,7 @@ interface ProjectCardProps {
   project: ProjectWithApplications;
   onApply: () => void;
   onView: () => void;
+  onViewApplications?: () => void;
   formatTimeAgo: (timestamp: string) => string;
   delay: number;
 }
@@ -51,6 +54,9 @@ export default function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false);
+  const [showDirectMessagesModal, setShowDirectMessagesModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectWithApplications | null>(null);
   const [filter, setFilter] = useState<'all' | 'my' | 'open'>('all');
   
   const fadeIn = useSharedValue(0);
@@ -232,19 +238,29 @@ export default function ProjectsScreen() {
   };
 
   const handleViewProject = (project: ProjectWithApplications) => {
-    Alert.alert(
-      project.title,
-      `${project.description}\n\nBudget: ${project.budget}\nTimeline: ${project.timeline}\nApplications: ${project.applicationCount}`,
-      [
-        { text: 'Close', style: 'cancel' },
-        ...(project.isOwner ? [
-          { text: 'View Applications', onPress: () => console.log('View applications') }
-        ] : []),
-        ...(!project.isOwner && !project.hasApplied && project.status === 'open' ? [
-          { text: 'Apply', onPress: () => handleApplyToProject(project) }
-        ] : [])
-      ]
-    );
+    if (project.isOwner && project.applicationCount > 0) {
+      // If it's the owner's project and has applications, show applications modal
+      setSelectedProject(project);
+      setShowApplicationsModal(true);
+    } else {
+      // Otherwise show project details
+      Alert.alert(
+        project.title,
+        `${project.description}\n\nBudget: ${project.budget}\nTimeline: ${project.timeline}\nApplications: ${project.applicationCount}`,
+        [
+          { text: 'Close', style: 'cancel' },
+          ...(project.isOwner && project.applicationCount > 0 ? [
+            { text: 'View Applications', onPress: () => {
+              setSelectedProject(project);
+              setShowApplicationsModal(true);
+            }}
+          ] : []),
+          ...(!project.isOwner && !project.hasApplied && project.status === 'open' ? [
+            { text: 'Apply', onPress: () => handleApplyToProject(project) }
+          ] : [])
+        ]
+      );
+    }
   };
 
   const formatTimeAgo = (timestamp: string): string => {
@@ -274,13 +290,23 @@ export default function ProjectsScreen() {
         <Text style={[commonStyles.title, { marginBottom: 0 }]}>
           Projects
         </Text>
-        <Button
-          text="Create"
-          onPress={handleCreateProject}
-          variant="primary"
-          size="sm"
-          icon={<Icon name="add" size={20} color={colors.text} />}
-        />
+        <View style={styles.headerActions}>
+          <Button
+            text="Messages"
+            onPress={() => setShowDirectMessagesModal(true)}
+            variant="outline"
+            size="sm"
+            icon={<Icon name="chatbubbles" size={16} color={colors.primary} />}
+            style={{ marginRight: spacing.sm }}
+          />
+          <Button
+            text="Create"
+            onPress={handleCreateProject}
+            variant="primary"
+            size="sm"
+            icon={<Icon name="add" size={20} color={colors.text} />}
+          />
+        </View>
       </View>
 
       {/* Filter Tabs */}
@@ -353,6 +379,10 @@ export default function ProjectsScreen() {
                 project={project}
                 onApply={() => handleApplyToProject(project)}
                 onView={() => handleViewProject(project)}
+                onViewApplications={() => {
+                  setSelectedProject(project);
+                  setShowApplicationsModal(true);
+                }}
                 formatTimeAgo={formatTimeAgo}
                 delay={index * 100}
               />
@@ -377,11 +407,29 @@ export default function ProjectsScreen() {
           Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited project postings and likes!');
         }}
       />
+
+      {/* Project Applications Modal */}
+      {selectedProject && (
+        <ProjectApplicationsModal
+          visible={showApplicationsModal}
+          onClose={() => {
+            setShowApplicationsModal(false);
+            setSelectedProject(null);
+          }}
+          project={selectedProject}
+        />
+      )}
+
+      {/* Direct Messages Modal */}
+      <DirectMessagesModal
+        visible={showDirectMessagesModal}
+        onClose={() => setShowDirectMessagesModal(false)}
+      />
     </View>
   );
 }
 
-function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: ProjectCardProps) {
+function ProjectCard({ project, onApply, onView, onViewApplications, formatTimeAgo, delay }: ProjectCardProps) {
   const cardOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.9);
 
@@ -475,6 +523,20 @@ function ProjectCard({ project, onApply, onView, formatTimeAgo, delay }: Project
             <Text style={styles.appliedText}>Applied</Text>
           </View>
         )}
+
+        {project.isOwner && project.applicationCount > 0 && onViewApplications && (
+          <Button
+            text={`View ${project.applicationCount} Application${project.applicationCount !== 1 ? 's' : ''}`}
+            onPress={(e) => {
+              e.stopPropagation();
+              onViewApplications();
+            }}
+            variant="outline"
+            size="sm"
+            style={{ marginTop: spacing.md }}
+            icon={<Icon name="people" size={16} color={colors.primary} />}
+          />
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -489,6 +551,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   filterContainer: {
     flexDirection: 'row',
