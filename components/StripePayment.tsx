@@ -40,8 +40,8 @@ interface PaymentMethodProps {
   gradient: string[];
 }
 
-// This would normally come from your backend
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_your_stripe_publishable_key_here';
+// 🔥 REPLACE THIS WITH YOUR ACTUAL STRIPE PUBLISHABLE KEY
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_YOUR_ACTUAL_PUBLISHABLE_KEY_HERE';
 
 function PaymentMethodCard({ title, subtitle, icon, onPress, gradient }: PaymentMethodProps) {
   return (
@@ -128,7 +128,7 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
       // Demo payment flow
       Alert.alert(
         platformMessage,
-        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\n${platformDetails}`,
+        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\n${platformDetails}\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
         [
           { 
             text: 'Cancel', 
@@ -143,7 +143,9 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
                 amount,
                 description,
                 status: 'succeeded',
-                platform: Platform.OS
+                platform: Platform.OS,
+                platformFee: Math.round(amount * 0.10),
+                recipientAmount: Math.round(amount * 0.90)
               });
             }
           }
@@ -182,6 +184,22 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
             ${(amount / 100).toFixed(2)}
           </Text>
           <Text style={styles.amountDescription}>{description}</Text>
+          
+          {/* Revenue Split Display */}
+          <View style={styles.revenueSplit}>
+            <View style={styles.splitItem}>
+              <Text style={styles.splitLabel}>Platform Fee (10%):</Text>
+              <Text style={[styles.splitValue, { color: colors.primary }]}>
+                ${((amount * 0.10) / 100).toFixed(2)}
+              </Text>
+            </View>
+            <View style={styles.splitItem}>
+              <Text style={styles.splitLabel}>Recipient Gets:</Text>
+              <Text style={[styles.splitValue, { color: colors.success }]}>
+                ${((amount * 0.90) / 100).toFixed(2)}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.paymentMethodsSection}>
@@ -261,7 +279,7 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
       // Demo payment flow for web
       Alert.alert(
         'Web Demo Payment 🌐',
-        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\nThis is a web demo. Real payments work on mobile devices with Stripe Connect integration.`,
+        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\nThis is a web demo. Real payments work on mobile devices with Stripe Connect integration.\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
         [
           { 
             text: 'Cancel', 
@@ -276,7 +294,9 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
                 amount,
                 description,
                 status: 'succeeded',
-                platform: 'web'
+                platform: 'web',
+                platformFee: Math.round(amount * 0.10),
+                recipientAmount: Math.round(amount * 0.90)
               });
             }
           }
@@ -311,6 +331,22 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
             ${(amount / 100).toFixed(2)}
           </Text>
           <Text style={styles.amountDescription}>{description}</Text>
+          
+          {/* Revenue Split Display */}
+          <View style={styles.revenueSplit}>
+            <View style={styles.splitItem}>
+              <Text style={styles.splitLabel}>Platform Fee (10%):</Text>
+              <Text style={[styles.splitValue, { color: colors.primary }]}>
+                ${((amount * 0.10) / 100).toFixed(2)}
+              </Text>
+            </View>
+            <View style={styles.splitItem}>
+              <Text style={styles.splitLabel}>Recipient Gets:</Text>
+              <Text style={[styles.splitValue, { color: colors.success }]}>
+                ${((amount * 0.90) / 100).toFixed(2)}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.paymentMethodsSection}>
@@ -448,6 +484,29 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: colors.text,
     textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  revenueSplit: {
+    width: '100%',
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  splitItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  splitLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textSecondary,
+  },
+  splitValue: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
   },
   paymentMethodsSection: {
     marginBottom: spacing.xl,
