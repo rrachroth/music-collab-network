@@ -1,6 +1,9 @@
-import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Text, View, ScrollView, TouchableOpacity, Alert, Dimensions, RefreshControl, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -9,20 +12,16 @@ import Animated, {
   withDelay,
   interpolate,
   useAnimatedScrollHandler,
-  withSequence,
-  withRepeat,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import Icon from '../../components/Icon';
-import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../../utils/storage';
-import { SubscriptionService } from '../../utils/subscriptionService';
-import { PaymentService } from '../../utils/paymentService';
+import Button from '../../components/Button';
 import SubscriptionModal from '../../components/SubscriptionModal';
 import PaymentInfoModal from '../../components/PaymentInfoModal';
-import { useState, useEffect, useCallback } from 'react';
-import Button from '../../components/Button';
 import PaymentModal from '../../components/PaymentModal';
+import { getCurrentUser, initializeSampleData, User, getAllUsers, getMatches, getProjects } from '../../utils/storage';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 
 interface FeatureCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -45,8 +44,6 @@ interface QuickActionCardProps {
   onPress: () => void;
   gradient: string[];
 }
-
-const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -72,7 +69,6 @@ export default function HomeScreen() {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
   const scrollY = useSharedValue(0);
-  const pulseScale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -137,25 +133,13 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const startPulseAnimation = useCallback(() => {
-    pulseScale.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 1000 }),
-        withTiming(1, { duration: 1000 })
-      ),
-      -1,
-      true
-    );
-  }, [pulseScale]);
-
   useEffect(() => {
     initializeApp();
-    startPulseAnimation();
     
     // Animate in
     fadeIn.value = withTiming(1, { duration: 600 });
     slideUp.value = withSpring(0, { damping: 15 });
-  }, [fadeIn, slideUp, initializeApp, startPulseAnimation]);
+  }, [fadeIn, slideUp, initializeApp]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -189,7 +173,7 @@ export default function HomeScreen() {
           text: 'Buy Beat ($25)', 
           onPress: () => {
             setPaymentDetails({
-              amount: 2500, // $25.00 in cents
+              amount: 2500,
               description: 'Premium Hip-Hop Beat License',
               recipientName: 'Producer Mike',
             });
@@ -200,7 +184,7 @@ export default function HomeScreen() {
           text: 'Book Session ($50)', 
           onPress: () => {
             setPaymentDetails({
-              amount: 5000, // $50.00 in cents
+              amount: 5000,
               description: '1-hour Mixing Session',
               recipientName: 'Mix Engineer Sarah',
             });
@@ -211,7 +195,7 @@ export default function HomeScreen() {
           text: 'Mentoring ($75)', 
           onPress: () => {
             setPaymentDetails({
-              amount: 7500, // $75.00 in cents
+              amount: 7500,
               description: '1-hour Music Production Mentoring',
               recipientName: 'Producer Alex',
             });
@@ -226,53 +210,8 @@ export default function HomeScreen() {
     setShowSubscriptionModal(true);
   };
 
-  const handleAIMatching = () => {
-    Alert.alert(
-      'AI Matching Engine 🤖',
-      'Advanced ML model using profile tags, audio embeddings, and past success metrics for smart suggestions. Coming Soon!',
-      [
-        { text: 'Got It', style: 'cancel' },
-        { text: 'Join Beta', onPress: () => console.log('AI matching beta') }
-      ]
-    );
-  };
-
-  const handleDistribution = () => {
-    Alert.alert(
-      'Distribution Plugin 🎵',
-      'Push finished collaborations to Spotify/Apple via Distro API with automated royalty tracking. Coming Soon!',
-      [
-        { text: 'Got It', style: 'cancel' },
-        { text: 'Join Waitlist', onPress: () => console.log('Distribution waitlist') }
-      ]
-    );
-  };
-
-  const handleAnalytics = () => {
-    Alert.alert(
-      'Analytics Dashboard 📊',
-      'Track your performance, match success rate, and collaboration metrics.',
-      [
-        { text: 'Got It', style: 'cancel' },
-        { text: 'Preview', onPress: () => console.log('Analytics preview') }
-      ]
-    );
-  };
-
-  const handleARSaaS = () => {
-    Alert.alert(
-      'A&R SaaS Platform 🎯',
-      'Specialized tools for A&R professionals including bulk search, curated talent lists, and CSV export. Coming Soon!',
-      [
-        { text: 'Got It', style: 'cancel' },
-        { text: 'Request Demo', onPress: () => console.log('A&R demo request') }
-      ]
-    );
-  };
-
   const handlePaymentSuccess = (paymentResult: any) => {
     console.log('✅ Payment successful:', paymentResult);
-    // Here you would typically update the user's subscription status or grant access to purchased content
   };
 
   if (!user) {
@@ -280,7 +219,7 @@ export default function HomeScreen() {
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
           colors={colors.gradientBackground}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          style={StyleSheet.absoluteFill}
         />
         <Text style={commonStyles.text}>Loading...</Text>
       </View>
@@ -288,14 +227,15 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <LinearGradient
         colors={colors.gradientBackground}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        style={StyleSheet.absoluteFill}
       />
       
-      <Animated.ScrollView
-        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing.lg }]}
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
@@ -310,18 +250,18 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <Animated.View style={[styles.header, headerAnimatedStyle]}>
-          <View>
-            <Text style={[commonStyles.title, { marginBottom: 0, textAlign: 'left' }]}>
+          <View style={styles.headerContent}>
+            <Text style={styles.welcomeTitle}>
               Welcome back, {user.name}! 👋
             </Text>
-            <Text style={[commonStyles.caption, { textAlign: 'left', marginTop: spacing.xs }]}>
+            <Text style={styles.welcomeSubtitle}>
               Ready to create amazing music together?
             </Text>
           </View>
-          <TouchableOpacity onPress={handleProfile}>
+          <TouchableOpacity onPress={handleProfile} style={styles.profileButton}>
             <LinearGradient
               colors={colors.gradientPrimary}
-              style={styles.profileButton}
+              style={styles.profileButtonGradient}
             >
               <Icon name="person" size={24} color={colors.text} />
             </LinearGradient>
@@ -378,10 +318,8 @@ export default function HomeScreen() {
           )}
 
           {/* Platform Stats */}
-          <View style={styles.statsSection}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Platform Overview
-            </Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Platform Overview</Text>
             <View style={styles.statsGrid}>
               <StatCard number={stats.totalUsers.toString()} label="Active Artists" />
               <StatCard number={stats.totalMatches.toString()} label="Total Matches" />
@@ -391,10 +329,8 @@ export default function HomeScreen() {
           </View>
 
           {/* Quick Actions */}
-          <View style={styles.quickActionsSection}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Quick Actions
-            </Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
             
             <QuickActionCard
               icon="search"
@@ -422,10 +358,8 @@ export default function HomeScreen() {
           </View>
 
           {/* Core Features */}
-          <View style={styles.featuresSection}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Core Features ✅
-            </Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Core Features ✅</Text>
             
             <FeatureCard
               icon="people"
@@ -456,10 +390,8 @@ export default function HomeScreen() {
           </View>
 
           {/* Enhanced Features */}
-          <View style={styles.featuresSection}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Enhanced Features 🚀
-            </Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Enhanced Features 🚀</Text>
             
             <FeatureCard
               icon="megaphone"
@@ -472,78 +404,19 @@ export default function HomeScreen() {
             
             <FeatureCard
               icon="card"
-              title="Revenue Splitting with Stripe"
-              description="Secure payments with automatic revenue distribution"
+              title="Revenue Splitting"
+              description="Secure payments with automatic distribution"
               gradient={['#8B5CF6', '#7C3AED']}
               onPress={() => setShowPaymentInfoModal(true)}
               delay={100}
             />
             
             <FeatureCard
-              icon="analytics"
-              title="Analytics Dashboard"
-              description="Track your collaboration metrics"
-              gradient={['#06B6D4', '#0891B2']}
-              onPress={handleAnalytics}
-              delay={200}
-            />
-          </View>
-
-          {/* Marketplace & Premium */}
-          <View style={styles.featuresSection}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Marketplace & Premium 💎
-            </Text>
-            
-            <FeatureCard
               icon="storefront"
-              title="Marketplace & Education (Coming Soon)"
-              description="Book sessions, buy beats, mentoring with Stripe payments"
+              title="Marketplace"
+              description="Book sessions, buy beats, mentoring"
               gradient={['#EC4899', '#DB2777']}
               onPress={handleMarketplace}
-              delay={0}
-            />
-            
-            <FeatureCard
-              icon="diamond"
-              title="Premium Tiers (Coming Soon)"
-              description="Creator+, Pro Studio, A&R Seat plans"
-              gradient={['#F59E0B', '#D97706']}
-              onPress={handlePremiumUpgrade}
-              delay={100}
-            />
-          </View>
-
-          {/* AI & Scale Features */}
-          <View style={styles.featuresSection}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              AI & Scale Features 🤖
-            </Text>
-            
-            <FeatureCard
-              icon="bulb"
-              title="AI Matching Engine (Coming Soon)"
-              description="ML-powered smart collaboration suggestions"
-              gradient={['#8B5CF6', '#7C3AED']}
-              onPress={handleAIMatching}
-              delay={0}
-            />
-            
-            <FeatureCard
-              icon="musical-notes"
-              title="Distribution Plugin (Coming Soon)"
-              description="Push to Spotify/Apple with royalty tracking"
-              gradient={['#10B981', '#059669']}
-              onPress={handleDistribution}
-              delay={100}
-            />
-            
-            <FeatureCard
-              icon="business"
-              title="A&R SaaS Platform (Coming Soon)"
-              description="Professional tools for talent scouts"
-              gradient={['#06B6D4', '#0891B2']}
-              onPress={handleARSaaS}
               delay={200}
             />
           </View>
@@ -568,9 +441,9 @@ export default function HomeScreen() {
             </LinearGradient>
           </View>
         </Animated.View>
-      </Animated.ScrollView>
+      </ScrollView>
 
-      {/* Payment Modal */}
+      {/* Modals */}
       <PaymentModal
         visible={paymentModalVisible}
         onClose={() => setPaymentModalVisible(false)}
@@ -580,18 +453,16 @@ export default function HomeScreen() {
         onSuccess={handlePaymentSuccess}
       />
 
-      {/* Subscription Modal */}
       <SubscriptionModal
         visible={showSubscriptionModal}
         onClose={() => setShowSubscriptionModal(false)}
         onSuccess={() => {
           setShowSubscriptionModal(false);
-          initializeApp(); // Refresh subscription status
+          initializeApp();
           Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited project postings and likes!');
         }}
       />
 
-      {/* Payment Info Modal */}
       <PaymentInfoModal
         visible={showPaymentInfoModal}
         onClose={() => setShowPaymentInfoModal(false)}
@@ -663,13 +534,41 @@ function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActi
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.xl,
   },
+  headerContent: {
+    flex: 1,
+  },
+  welcomeTitle: {
+    fontSize: 28,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+  },
   profileButton: {
+    marginLeft: spacing.md,
+  },
+  profileButtonGradient: {
     width: 48,
     height: 48,
     borderRadius: borderRadius.md,
@@ -677,8 +576,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadows.md,
   },
-  statsSection: {
+  section: {
     marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -706,9 +611,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     color: colors.textMuted,
     textAlign: 'center',
-  },
-  quickActionsSection: {
-    marginBottom: spacing.xl,
   },
   quickActionCard: {
     flexDirection: 'row',
@@ -742,9 +644,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
-  },
-  featuresSection: {
-    marginBottom: spacing.xl,
   },
   featureCard: {
     flexDirection: 'row',
