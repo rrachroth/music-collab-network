@@ -10,8 +10,6 @@ import Animated, {
   withTiming, 
   withSpring,
   withDelay,
-  interpolate,
-  useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 
 import Icon from '../../components/Icon';
@@ -68,28 +66,11 @@ export default function HomeScreen() {
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
-  const scrollY = useSharedValue(0);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
       opacity: fadeIn.value,
       transform: [{ translateY: slideUp.value }],
-    };
-  });
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
-
-  const headerAnimatedStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(scrollY.value, [0, 100], [1, 0.8]);
-    const translateY = interpolate(scrollY.value, [0, 100], [0, -10]);
-    
-    return {
-      opacity,
-      transform: [{ translateY }],
     };
   });
 
@@ -235,10 +216,8 @@ export default function HomeScreen() {
       
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing.lg }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing.md }]}
         showsVerticalScrollIndicator={false}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -249,7 +228,7 @@ export default function HomeScreen() {
         }
       >
         {/* Header */}
-        <Animated.View style={[styles.header, headerAnimatedStyle]}>
+        <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.welcomeTitle}>
               Welcome back, {user.name}! 👋
@@ -266,7 +245,7 @@ export default function HomeScreen() {
               <Icon name="person" size={24} color={colors.text} />
             </LinearGradient>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
 
         <Animated.View style={animatedStyle}>
           {/* Subscription Status */}
@@ -542,6 +521,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
   },
@@ -555,7 +535,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: 'Poppins_700Bold',
     color: colors.text,
     marginBottom: spacing.xs,
