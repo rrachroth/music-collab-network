@@ -1,13 +1,11 @@
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
-import { getCurrentUser, initializeSampleData } from '../utils/storage';
-import SupabaseService from '../utils/supabaseService';
-import AuthService from '../utils/authService';
+import { getCurrentUser } from '../utils/storage';
 import { commonStyles, colors, spacing, borderRadius } from '../styles/commonStyles';
 import Animated, {
   useSharedValue,
@@ -17,10 +15,9 @@ import Animated, {
   withDelay,
 } from 'react-native-reanimated';
 
-const WelcomeScreen: React.FC = () => {
+const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'error'>('checking');
 
   // Animation values
   const fadeIn = useSharedValue(0);
@@ -33,8 +30,8 @@ const WelcomeScreen: React.FC = () => {
     slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
     logoScale.value = withDelay(300, withSpring(1, { damping: 15, stiffness: 100 }));
 
-    // Initialize app
-    initializeApp();
+    // Check if user is already logged in
+    checkUserStatus();
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -46,82 +43,29 @@ const WelcomeScreen: React.FC = () => {
     transform: [{ scale: logoScale.value }],
   }));
 
-  const initializeApp = async () => {
+  const checkUserStatus = async () => {
     try {
-      console.log('🚀 Initializing MusicLinked app...');
+      console.log('🏠 Checking user status...');
       
-      // Test backend connection
-      const isConnected = await SupabaseService.testConnection();
-      setBackendStatus(isConnected ? 'connected' : 'error');
-
-      // Check if user is already authenticated
-      const authUser = await AuthService.getCurrentAuthUser();
+      const currentUser = await getCurrentUser();
       
-      if (authUser && authUser.emailConfirmed) {
-        console.log('👤 User is authenticated, checking profile...');
-        
-        if (authUser.profile) {
-          console.log('✅ User has profile, redirecting to main app');
-          router.replace('/(tabs)');
-          return;
-        } else {
-          console.log('⚠️ User needs onboarding');
-          router.replace('/onboarding');
-          return;
-        }
+      if (currentUser?.isOnboarded) {
+        console.log('✅ User is onboarded, redirecting to main app');
+        router.replace('/(tabs)');
+        return;
       }
 
-      // Initialize sample data for development (only if no auth user)
-      if (!authUser) {
-        await initializeSampleData();
-        
-        // Check local storage for existing user
-        const currentUser = await getCurrentUser();
-        
-        if (currentUser?.isOnboarded) {
-          console.log('👤 Local user found, redirecting to main app');
-          router.replace('/(tabs)');
-          return;
-        }
-      }
-
-      console.log('👋 New user, showing welcome screen');
+      console.log('👋 New user, showing landing page');
       setIsLoading(false);
     } catch (error) {
-      console.error('❌ App initialization error:', error);
-      setBackendStatus('error');
+      console.error('❌ Error checking user status:', error);
       setIsLoading(false);
     }
   };
 
   const handleGetStarted = () => {
-    if (backendStatus === 'error') {
-      Alert.alert(
-        'Backend Setup Required',
-        'The backend connection failed. Would you like to run the setup wizard?',
-        [
-          {
-            text: 'Setup Backend',
-            onPress: () => router.push('/backend-setup'),
-          },
-          {
-            text: 'Continue Anyway',
-            onPress: () => router.push('/onboarding'),
-            style: 'destructive',
-          },
-        ]
-      );
-    } else {
-      router.push('/onboarding');
-    }
-  };
-
-  const handleLogin = () => {
+    console.log('🚀 Get Started pressed');
     router.push('/auth/login');
-  };
-
-  const handleBackendSetup = () => {
-    router.push('/backend-setup');
   };
 
   if (isLoading) {
@@ -135,13 +79,7 @@ const WelcomeScreen: React.FC = () => {
           <Animated.View style={logoAnimatedStyle}>
             <Text style={styles.logo}>🎵</Text>
           </Animated.View>
-          <Text style={styles.loadingText}>Initializing MusicLinked...</Text>
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusText}>
-              Backend: {backendStatus === 'checking' ? 'Checking...' : 
-                       backendStatus === 'connected' ? '✅ Connected' : '❌ Error'}
-            </Text>
-          </View>
+          <Text style={styles.loadingText}>Loading NextDrop...</Text>
         </View>
       </View>
     );
@@ -157,7 +95,7 @@ const WelcomeScreen: React.FC = () => {
       <Animated.View style={[styles.content, animatedStyle]}>
         <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
           <Text style={styles.logo}>🎵</Text>
-          <Text style={styles.title}>MusicLinked</Text>
+          <Text style={styles.title}>NextDrop</Text>
           <Text style={styles.subtitle}>
             The professional network for musicians, producers, and music industry collaborators
           </Text>
@@ -178,31 +116,11 @@ const WelcomeScreen: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.statusContainer}>
-          <Text style={styles.statusText}>
-            Backend Status: {backendStatus === 'connected' ? '✅ Connected' : '❌ Error'}
-          </Text>
-        </View>
-
         <View style={styles.buttonContainer}>
           <Button
             title="Get Started"
             onPress={handleGetStarted}
             style={styles.primaryButton}
-          />
-          
-          <Button
-            title="Sign In"
-            onPress={handleLogin}
-            variant="outline"
-            style={styles.secondaryButton}
-          />
-          
-          <Button
-            title="Backend Setup"
-            onPress={handleBackendSetup}
-            variant="outline"
-            style={styles.tertiaryButton}
           />
         </View>
       </Animated.View>
@@ -235,7 +153,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 32,
+    fontSize: 42,
     fontWeight: 'bold',
     color: colors.white,
     marginBottom: spacing.md,
@@ -269,17 +187,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     flex: 1,
   },
-  statusContainer: {
-    marginBottom: spacing.xl,
-    padding: spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: borderRadius.md,
-  },
-  statusText: {
-    fontSize: 14,
-    color: colors.white,
-    textAlign: 'center',
-  },
   loadingText: {
     fontSize: 18,
     color: colors.white,
@@ -293,17 +200,6 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginBottom: spacing.lg,
   },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderColor: colors.white,
-    borderWidth: 2,
-    marginBottom: spacing.md,
-  },
-  tertiaryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderColor: 'transparent',
-    borderWidth: 0,
-  },
 });
 
-export default WelcomeScreen;
+export default HomeScreen;

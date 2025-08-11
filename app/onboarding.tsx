@@ -124,7 +124,6 @@ export default function OnboardingScreen() {
     if (step > 1) {
       setStep(step - 1);
     } else {
-      // Instead of router.back(), go to home or show confirmation
       Alert.alert(
         'Exit Setup?',
         'Are you sure you want to exit profile setup? Your progress will be lost.',
@@ -133,7 +132,7 @@ export default function OnboardingScreen() {
           { 
             text: 'Exit', 
             style: 'destructive',
-            onPress: () => router.replace('/(tabs)')
+            onPress: () => router.replace('/auth/login')
           }
         ]
       );
@@ -207,11 +206,11 @@ export default function OnboardingScreen() {
     switch (step) {
       case 1:
         return (
-          <Animated.View style={[commonStyles.section, animatedStyle]}>
-            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+          <Animated.View style={[styles.section, animatedStyle]}>
+            <Text style={styles.stepTitle}>
               What's your role in music?
             </Text>
-            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+            <Text style={styles.stepSubtitle}>
               Select your primary role to help us connect you with the right collaborators
             </Text>
             
@@ -230,11 +229,11 @@ export default function OnboardingScreen() {
       
       case 2:
         return (
-          <Animated.View style={[commonStyles.section, animatedStyle]}>
-            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+          <Animated.View style={[styles.section, animatedStyle]}>
+            <Text style={styles.stepTitle}>
               What genres do you work with?
             </Text>
-            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+            <Text style={styles.stepSubtitle}>
               Choose all genres that match your style (you can change this later)
             </Text>
             
@@ -253,48 +252,48 @@ export default function OnboardingScreen() {
       
       case 3:
         return (
-          <Animated.View style={[commonStyles.section, animatedStyle]}>
-            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+          <Animated.View style={[styles.section, animatedStyle]}>
+            <Text style={styles.stepTitle}>
               Tell us about yourself
             </Text>
-            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+            <Text style={styles.stepSubtitle}>
               This information will be displayed on your profile
             </Text>
             
             <View style={styles.inputContainer}>
-              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
+              <Text style={styles.inputLabel}>
                 Name or Artist Name *
               </Text>
               <TextInput
-                style={[commonStyles.input, styles.input]}
+                style={styles.input}
                 placeholder="Enter your name..."
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={colors.textSecondary}
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
                 maxLength={50}
               />
               
-              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
+              <Text style={styles.inputLabel}>
                 Location *
               </Text>
               <TextInput
-                style={[commonStyles.input, styles.input]}
+                style={styles.input}
                 placeholder="City, State/Country"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={colors.textSecondary}
                 value={location}
                 onChangeText={setLocation}
                 autoCapitalize="words"
                 maxLength={100}
               />
               
-              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
+              <Text style={styles.inputLabel}>
                 Bio (Optional)
               </Text>
               <TextInput
-                style={[commonStyles.input, styles.textArea]}
+                style={[styles.input, styles.textArea]}
                 placeholder="Tell us about your musical journey..."
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={colors.textSecondary}
                 value={bio}
                 onChangeText={setBio}
                 multiline
@@ -308,20 +307,20 @@ export default function OnboardingScreen() {
       
       case 4:
         return (
-          <Animated.View style={[commonStyles.section, animatedStyle]}>
+          <Animated.View style={[styles.section, animatedStyle]}>
             <View style={styles.summaryContainer}>
               <LinearGradient
-                colors={colors.gradientPrimary}
+                colors={['#667eea', '#764ba2']}
                 style={styles.summaryIcon}
               >
-                <Icon name="checkmark-circle" size={60} color={colors.text} />
+                <Icon name="checkmark-circle" size={60} color={colors.white} />
               </LinearGradient>
               
-              <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
+              <Text style={styles.stepTitle}>
                 You're all set!
               </Text>
               
-              <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
+              <Text style={styles.stepSubtitle}>
                 Here's what we've set up for your profile:
               </Text>
               
@@ -333,7 +332,7 @@ export default function OnboardingScreen() {
                 {bio && <SummaryItem icon="document-text" label="Bio" value={bio} />}
               </View>
               
-              <Text style={[commonStyles.caption, { marginTop: spacing.lg, textAlign: 'center', opacity: 0.8 }]}>
+              <Text style={styles.summaryNote}>
                 You can always update your profile later in settings
               </Text>
             </View>
@@ -346,7 +345,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -354,19 +353,18 @@ export default function OnboardingScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          text="Back"
-          onPress={handleBack}
-          variant="ghost"
-          size="sm"
+        <TouchableOpacity
           style={styles.backButton}
-        />
+          onPress={handleBack}
+        >
+          <Icon name="arrow-back" size={24} color={colors.white} />
+        </TouchableOpacity>
         
-        <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
+        <Text style={styles.headerTitle}>
           Setup Profile
         </Text>
         
-        <Text style={[commonStyles.caption, { minWidth: 40, textAlign: 'right' }]}>
+        <Text style={styles.stepCounter}>
           {step}/4
         </Text>
       </View>
@@ -379,7 +377,7 @@ export default function OnboardingScreen() {
       </View>
 
       <ScrollView 
-        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {renderStep()}
@@ -388,12 +386,11 @@ export default function OnboardingScreen() {
       {/* Footer */}
       <View style={styles.footer}>
         <Button
-          text={step === 4 ? 'Complete Profile' : 'Continue'}
+          title={step === 4 ? 'Complete Profile' : 'Continue'}
           onPress={handleNext}
-          variant="gradient"
-          size="lg"
           loading={loading}
           disabled={loading || isCompleting}
+          style={styles.continueButton}
         />
       </View>
     </View>
@@ -411,8 +408,7 @@ function RoleCard({ role, selected, onPress }: RoleCardProps) {
     <TouchableOpacity 
       style={[
         styles.roleCard,
-        styles.roleButton,
-        selected && styles.roleButtonSelected
+        selected && styles.roleCardSelected
       ]}
       onPress={onPress}
       activeOpacity={0.8}
@@ -421,7 +417,7 @@ function RoleCard({ role, selected, onPress }: RoleCardProps) {
         <Icon 
           name={role.icon as any} 
           size={32} 
-          style={{ color: selected ? colors.text : colors.textMuted }}
+          color={selected ? colors.white : colors.textSecondary}
         />
         <Text style={[
           styles.roleText,
@@ -442,14 +438,21 @@ interface GenreChipProps {
 
 function GenreChip({ genre, selected, onPress }: GenreChipProps) {
   return (
-    <Button
-      text={genre}
+    <TouchableOpacity
+      style={[
+        styles.genreChip,
+        selected && styles.genreChipSelected
+      ]}
       onPress={onPress}
-      variant={selected ? "primary" : "outline"}
-      size="sm"
-      style={[styles.genreChip, selected && styles.genreChipSelected]}
-      textStyle={[styles.genreText, selected && styles.genreTextSelected]}
-    />
+      activeOpacity={0.8}
+    >
+      <Text style={[
+        styles.genreText,
+        selected && styles.genreTextSelected
+      ]}>
+        {genre}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -472,17 +475,39 @@ function SummaryItem({ icon, label, value }: SummaryItemProps) {
 }
 
 const styles = {
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   header: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
-    minWidth: 60,
-    justifyContent: 'flex-start' as const,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: colors.white,
+    textAlign: 'center' as const,
+    marginHorizontal: spacing.md,
+  },
+  stepCounter: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    minWidth: 40,
+    textAlign: 'right' as const,
   },
   progressContainer: {
     paddingHorizontal: spacing.lg,
@@ -490,7 +515,7 @@ const styles = {
   },
   progressBar: {
     height: 4,
-    backgroundColor: colors.backgroundAlt,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 2,
     overflow: 'hidden' as const,
   },
@@ -498,6 +523,28 @@ const styles = {
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: 2,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: spacing.lg,
+  },
+  section: {
+    flex: 1,
+    justifyContent: 'center' as const,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: 'bold' as const,
+    color: colors.white,
+    textAlign: 'center' as const,
+    marginBottom: spacing.md,
+  },
+  stepSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center' as const,
+    marginBottom: spacing.xl,
+    lineHeight: 24,
   },
   optionsGrid: {
     flexDirection: 'row' as const,
@@ -507,22 +554,17 @@ const styles = {
   },
   roleCard: {
     width: '48%',
-    marginBottom: spacing.md,
-  },
-  roleCardSelected: {
-    transform: [{ scale: 1.02 }],
-  },
-  roleButton: {
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: borderRadius.md,
     padding: spacing.lg,
     minHeight: 100,
+    marginBottom: spacing.md,
   },
-  roleButtonSelected: {
+  roleCardSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.backgroundAlt,
+    backgroundColor: 'rgba(102, 126, 234, 0.2)',
   },
   roleContent: {
     alignItems: 'center' as const,
@@ -530,13 +572,13 @@ const styles = {
   },
   roleText: {
     fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    fontWeight: '500' as const,
+    color: colors.textSecondary,
     textAlign: 'center' as const,
   },
   roleTextSelected: {
-    color: colors.text,
-    fontFamily: 'Inter_600SemiBold',
+    color: colors.white,
+    fontWeight: '600' as const,
   },
   genreGrid: {
     flexDirection: 'row' as const,
@@ -544,27 +586,49 @@ const styles = {
     gap: spacing.sm,
   },
   genreChip: {
-    minWidth: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.sm,
   },
   genreChipSelected: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   genreText: {
     fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500' as const,
   },
   genreTextSelected: {
-    color: colors.text,
+    color: colors.white,
+    fontWeight: '600' as const,
   },
   inputContainer: {
     width: '100%',
   },
+  inputLabel: {
+    fontSize: 16,
+    color: colors.white,
+    marginBottom: spacing.sm,
+    fontWeight: '500' as const,
+  },
   input: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    fontSize: 16,
+    color: colors.white,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   textArea: {
     height: 100,
-    paddingTop: spacing.md,
+    textAlignVertical: 'top' as const,
   },
   summaryContainer: {
     alignItems: 'center' as const,
@@ -580,18 +644,19 @@ const styles = {
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: spacing.lg,
   },
   summaryItem: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   summaryItemText: {
     marginLeft: spacing.md,
@@ -599,20 +664,29 @@ const styles = {
   },
   summaryLabel: {
     fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginBottom: spacing.xs,
+    fontWeight: '500' as const,
   },
   summaryValue: {
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
+    color: colors.white,
+    fontWeight: '600' as const,
     flexWrap: 'wrap' as const,
+  },
+  summaryNote: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center' as const,
+    opacity: 0.8,
   },
   footer: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  continueButton: {
+    width: '100%',
   },
 };

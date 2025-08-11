@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import {
   View,
@@ -18,7 +17,7 @@ import { router } from 'expo-router';
 import Icon from '../../components/Icon';
 import Button from '../../components/Button';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import AuthService from '../../utils/authService';
+import { getCurrentUser } from '../../utils/storage';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -28,11 +27,8 @@ import Animated, {
 
 const LoginScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -50,68 +46,42 @@ const LoginScreen: React.FC = () => {
     transform: [{ translateY: slideUp.value }],
   }));
 
-  const handleSubmit = async () => {
+  const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields.');
+      Alert.alert('Error', 'Please fill in all fields.');
       return;
-    }
-
-    if (!isLogin) {
-      if (!name) {
-        Alert.alert('Error', 'Please enter your name.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        Alert.alert('Error', 'Passwords do not match.');
-        return;
-      }
-      if (password.length < 6) {
-        Alert.alert('Error', 'Password must be at least 6 characters long.');
-        return;
-      }
     }
 
     setIsLoading(true);
 
     try {
-      if (isLogin) {
-        const result = await AuthService.signIn(email, password);
-        
-        if (result.success) {
-          if (result.needsOnboarding) {
-            router.replace('/onboarding');
-          } else {
-            router.replace('/(tabs)');
-          }
-        }
+      console.log('🔐 Attempting sign in...');
+      
+      // For demo purposes, we'll simulate a successful login
+      // In a real app, you would authenticate with your backend
+      
+      // Check if user exists and is onboarded
+      const currentUser = await getCurrentUser();
+      
+      if (currentUser?.isOnboarded) {
+        console.log('✅ User signed in successfully');
+        router.replace('/(tabs)');
       } else {
-        const result = await AuthService.signUp(email, password, {
-          name,
-          role: 'producer', // Default role, can be changed in onboarding
-          genres: [],
-          location: '',
-          bio: '',
-        });
-        
-        if (result.success) {
-          // User will need to verify email before proceeding
-          router.replace('/onboarding');
-        }
+        console.log('⚠️ User needs onboarding');
+        router.replace('/onboarding');
       }
+      
     } catch (error) {
-      console.error('❌ Auth error:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      console.error('❌ Sign in error:', error);
+      Alert.alert('Error', 'Invalid email or password. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin);
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setName('');
+  const handleCreateNewAccount = () => {
+    console.log('📝 Create new account pressed');
+    router.push('/onboarding');
   };
 
   return (
@@ -139,9 +109,7 @@ const LoginScreen: React.FC = () => {
               >
                 <Icon name="arrow-back" size={24} color={colors.white} />
               </TouchableOpacity>
-              <Text style={styles.title}>
-                {isLogin ? 'Welcome Back' : 'Create Account'}
-              </Text>
+              <Text style={styles.title}>Sign In</Text>
               <View style={styles.placeholder} />
             </View>
 
@@ -153,20 +121,6 @@ const LoginScreen: React.FC = () => {
 
             {/* Form */}
             <View style={styles.formContainer}>
-              {!isLogin && (
-                <View style={styles.inputContainer}>
-                  <Icon name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Full Name"
-                    placeholderTextColor={colors.textSecondary}
-                    value={name}
-                    onChangeText={setName}
-                    autoCapitalize="words"
-                  />
-                </View>
-              )}
-
               <View style={styles.inputContainer}>
                 <Icon name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
@@ -204,37 +158,20 @@ const LoginScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
-              {!isLogin && (
-                <View style={styles.inputContainer}>
-                  <Icon name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Confirm Password"
-                    placeholderTextColor={colors.textSecondary}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                </View>
-              )}
-
               <Button
-                title={isLoading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
-                onPress={handleSubmit}
+                title={isLoading ? 'Signing In...' : 'Sign In'}
+                onPress={handleSignIn}
                 disabled={isLoading}
                 style={styles.submitButton}
               />
 
               <TouchableOpacity
-                style={styles.toggleButton}
-                onPress={toggleMode}
+                style={styles.createAccountButton}
+                onPress={handleCreateNewAccount}
               >
-                <Text style={styles.toggleText}>
-                  {isLogin ? "Don't have an account? " : "Already have an account? "}
-                  <Text style={styles.toggleLink}>
-                    {isLogin ? 'Sign Up' : 'Sign In'}
-                  </Text>
+                <Text style={styles.createAccountText}>
+                  Don't have an account? 
+                  <Text style={styles.createAccountLink}> Create New Account</Text>
                 </Text>
               </TouchableOpacity>
             </View>
@@ -326,14 +263,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.xl,
   },
-  toggleButton: {
+  createAccountButton: {
     alignItems: 'center',
+    padding: spacing.md,
   },
-  toggleText: {
+  createAccountText: {
     fontSize: 16,
     color: colors.white,
   },
-  toggleLink: {
+  createAccountLink: {
     fontWeight: '600',
     textDecorationLine: 'underline',
   },

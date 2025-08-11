@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -183,10 +182,8 @@ export default function HomeScreen() {
                 Start discovering amazing artists and create music together
               </Text>
               <Button
-                text="Start Discovering"
+                title="Start Discovering"
                 onPress={handleDiscover}
-                variant="secondary"
-                size="lg"
                 style={styles.ctaButton}
               />
             </LinearGradient>
@@ -255,14 +252,13 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: {
     fontSize: 28,
-    fontFamily: 'Poppins_700Bold',
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
   welcomeSubtitle: {
     fontSize: 16,
-    fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 24,
@@ -272,7 +268,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontFamily: 'Poppins_600SemiBold',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: spacing.lg,
     textAlign: 'center',
@@ -301,13 +297,12 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   featureDescription: {
     fontSize: 14,
-    fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     lineHeight: 20,
   },
@@ -322,14 +317,13 @@ const styles = StyleSheet.create({
   },
   ctaTitle: {
     fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
+    fontWeight: 'bold',
     color: colors.text,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
   ctaSubtitle: {
     fontSize: 16,
-    fontFamily: 'Inter_400Regular',
     color: colors.text,
     textAlign: 'center',
     opacity: 0.9,
