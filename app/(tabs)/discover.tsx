@@ -1,3 +1,4 @@
+
 import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
@@ -24,11 +25,10 @@ import {
   addMatch, 
   generateId, 
   getCurrentTimestamp,
+  initializeSampleData,
   User, 
   Match 
 } from '../../utils/storage';
-import { SubscriptionService } from '../../utils/subscriptionService';
-import SubscriptionModal from '../../components/SubscriptionModal';
 
 interface ProfileCardProps {
   profile: User;
@@ -40,13 +40,15 @@ const CARD_HEIGHT = Dimensions.get('window').height * 0.7;
 const SWIPE_THRESHOLD = 120;
 
 export default function DiscoverScreen() {
+  console.log('🔍 DiscoverScreen rendering...');
+  
   const insets = useSafeAreaInsets();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profiles, setProfiles] = useState<User[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -58,19 +60,28 @@ export default function DiscoverScreen() {
     try {
       console.log('🔍 Loading discover data...');
       setLoading(true);
+      setError(null);
+      
+      // Initialize sample data if needed
+      await initializeSampleData();
       
       const user = await getCurrentUser();
       if (!user) {
-        Alert.alert('Error', 'Please complete your profile first.', [
+        console.log('❌ No current user found, redirecting to onboarding');
+        Alert.alert('Profile Required', 'Please complete your profile first.', [
           { text: 'Setup Profile', onPress: () => router.replace('/onboarding') }
         ]);
         return;
       }
       
+      console.log('👤 Current user:', user.name);
       setCurrentUser(user);
       
       const allUsers = await getAllUsers();
+      console.log('👥 All users loaded:', allUsers.length);
+      
       const existingMatches = await getMatches();
+      console.log('💕 Existing matches:', existingMatches.length);
       
       // Filter out current user and already matched users
       const matchedUserIds = existingMatches
@@ -81,20 +92,20 @@ export default function DiscoverScreen() {
         profile.id !== user.id && !matchedUserIds.includes(profile.id)
       );
       
+      console.log('🎯 Available profiles:', availableProfiles.length);
       setProfiles(availableProfiles);
       setCurrentIndex(0);
       
-      console.log(`✅ Loaded ${availableProfiles.length} profiles`);
-      
     } catch (error) {
       console.error('❌ Error loading discover data:', error);
-      Alert.alert('Error', 'Failed to load profiles. Please try again.');
+      setError('Failed to load profiles. Please try again.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   const resetCardPosition = useCallback(() => {
+    console.log('🔄 Resetting card position');
     translateX.value = withSpring(0);
     translateY.value = withSpring(0);
     rotate.value = withSpring(0);
@@ -103,43 +114,33 @@ export default function DiscoverScreen() {
   }, [translateX, translateY, rotate, scale, opacity]);
 
   const nextProfile = useCallback(() => {
+    console.log('➡️ Moving to next profile');
     setCurrentIndex(prev => prev + 1);
     resetCardPosition();
   }, [resetCardPosition]);
 
   const handleSwipe = useCallback(async (direction: 'left' | 'right') => {
-    if (!currentUser || currentIndex >= profiles.length) return;
-    
-    // Check like limits before allowing swipe
-    const { canLike, reason } = await SubscriptionService.canLike();
-    if (!canLike && direction === 'right') {
-      Alert.alert(
-        'Like Limit Reached 💔',
-        reason || 'You have reached your daily like limit.',
-        [
-          { text: 'Maybe Later', style: 'cancel' },
-          { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
-        ]
-      );
-      return;
-    }
-    
-    const currentProfile = profiles[currentIndex];
-    
-    if (direction === 'right') {
-      // Increment like count for free users
-      await SubscriptionService.incrementLikeCount();
+    try {
+      console.log(`👆 Handling swipe: ${direction}`);
       
-      // Create match
-      const match: Match = {
-        id: generateId(),
-        userId: currentUser.id,
-        matchedUserId: currentProfile.id,
-        matchedAt: getCurrentTimestamp(),
-        isRead: false,
-      };
+      if (!currentUser || currentIndex >= profiles.length) {
+        console.log('❌ No current user or no more profiles');
+        return;
+      }
       
-      try {
+      const currentProfile = profiles[currentIndex];
+      console.log(`🎯 Current profile: ${currentProfile.name}`);
+      
+      if (direction === 'right') {
+        // Create match
+        const match: Match = {
+          id: generateId(),
+          userId: currentUser.id,
+          matchedUserId: currentProfile.id,
+          matchedAt: getCurrentTimestamp(),
+          isRead: false,
+        };
+        
         await addMatch(match);
         console.log(`💕 Matched with ${currentProfile.name}`);
         
@@ -151,39 +152,50 @@ export default function DiscoverScreen() {
             { text: 'Start Chat', onPress: () => router.push('/matches') }
           ]
         );
-      } catch (error) {
-        console.error('❌ Error creating match:', error);
+      } else {
+        console.log(`👎 Passed on ${currentProfile.name}`);
       }
+      
+      nextProfile();
+    } catch (error) {
+      console.error('❌ Error handling swipe:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
     }
-    
-    nextProfile();
   }, [currentUser, currentIndex, profiles, nextProfile]);
 
   useEffect(() => {
+    console.log('🔄 useEffect: Loading data');
     loadData();
   }, [loadData]);
 
-  const calculateCompatibility = (user1: User, user2: User): number => {
-    const genreOverlap = user1.genres.filter(genre => user2.genres.includes(genre)).length;
-    const maxGenres = Math.max(user1.genres.length, user2.genres.length);
-    const genreScore = maxGenres > 0 ? genreOverlap / maxGenres : 0;
-    
-    // Role compatibility (different roles work better together)
-    const roleScore = user1.role !== user2.role ? 0.3 : 0.1;
-    
-    // Rating score
-    const ratingScore = (user1.rating + user2.rating) / 10;
-    
-    return Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
-  };
+  const calculateCompatibility = useCallback((user1: User, user2: User): number => {
+    try {
+      const genreOverlap = user1.genres.filter(genre => user2.genres.includes(genre)).length;
+      const maxGenres = Math.max(user1.genres.length, user2.genres.length);
+      const genreScore = maxGenres > 0 ? genreOverlap / maxGenres : 0;
+      
+      // Role compatibility (different roles work better together)
+      const roleScore = user1.role !== user2.role ? 0.3 : 0.1;
+      
+      // Rating score
+      const ratingScore = (user1.rating + user2.rating) / 10;
+      
+      return Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
+    } catch (error) {
+      console.error('❌ Error calculating compatibility:', error);
+      return 50; // Default compatibility
+    }
+  }, []);
 
   const onRefresh = useCallback(async () => {
+    console.log('🔄 Refreshing data');
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   }, [loadData]);
 
   const handleButtonSwipe = useCallback((direction: 'left' | 'right') => {
+    console.log(`🔘 Button swipe: ${direction}`);
     const targetX = direction === 'right' ? CARD_WIDTH : -CARD_WIDTH;
     
     translateX.value = withTiming(targetX, { duration: 300 });
@@ -200,6 +212,7 @@ export default function DiscoverScreen() {
       const profile = profiles[currentIndex];
       console.log(`👤 Viewing profile: ${profile.name}`);
       // TODO: Navigate to profile view
+      Alert.alert('Profile View', `Viewing ${profile.name}'s profile`);
     }
   }, [currentIndex, profiles]);
 
@@ -272,6 +285,30 @@ export default function DiscoverScreen() {
     );
   }
 
+  if (error) {
+    return (
+      <View style={[commonStyles.container, commonStyles.centerContent]}>
+        <LinearGradient
+          colors={colors.gradientBackground}
+          style={StyleSheet.absoluteFill}
+        />
+        <Icon name="alert-circle" size={80} color={colors.error} />
+        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+          Oops! Something went wrong
+        </Text>
+        <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl, textAlign: 'center' }]}>
+          {error}
+        </Text>
+        <Button
+          text="Try Again"
+          onPress={onRefresh}
+          variant="gradient"
+          size="lg"
+        />
+      </View>
+    );
+  }
+
   if (currentIndex >= profiles.length) {
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
@@ -283,7 +320,7 @@ export default function DiscoverScreen() {
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
           You&apos;re All Caught Up!
         </Text>
-        <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl }]}>
+        <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl, textAlign: 'center' }]}>
           No more profiles to discover right now. Check back later for new musicians!
         </Text>
         <Button
@@ -316,7 +353,7 @@ export default function DiscoverScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-          <Icon name="arrow-back" size={24} />
+          <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         
         <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
@@ -324,7 +361,7 @@ export default function DiscoverScreen() {
         </Text>
         
         <TouchableOpacity onPress={handleViewProfile} style={styles.headerButton}>
-          <Icon name="information-circle" size={24} />
+          <Icon name="information-circle" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -410,21 +447,30 @@ export default function DiscoverScreen() {
           {currentIndex + 1} of {profiles.length}
         </Text>
       </View>
-
-      {/* Subscription Modal */}
-      <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
-        onSuccess={() => {
-          setShowSubscriptionModal(false);
-          Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited likes and project postings!');
-        }}
-      />
     </View>
   );
 }
 
 function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
+  console.log('🎴 Rendering ProfileCard for:', profile?.name);
+  
+  if (!profile) {
+    return (
+      <View style={styles.profileCard}>
+        <LinearGradient
+          colors={colors.gradientPrimary}
+          style={styles.profileGradient}
+        >
+          <View style={styles.profileContent}>
+            <Text style={[commonStyles.text, { textAlign: 'center' }]}>
+              No profile data
+            </Text>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
   return (
     <TouchableOpacity style={styles.profileCard} onPress={onViewProfile} activeOpacity={0.95}>
       <LinearGradient
@@ -439,7 +485,7 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
               style={styles.profileImageGradient}
             >
               <Text style={styles.profileInitial}>
-                {profile.name.charAt(0)}
+                {profile.name?.charAt(0) || '?'}
               </Text>
             </LinearGradient>
             
@@ -452,9 +498,9 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
 
           {/* Profile Info */}
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileRole}>{profile.role}</Text>
-            <Text style={styles.profileLocation}>{profile.location}</Text>
+            <Text style={styles.profileName}>{profile.name || 'Unknown'}</Text>
+            <Text style={styles.profileRole}>{profile.role || 'Musician'}</Text>
+            <Text style={styles.profileLocation}>{profile.location || 'Unknown Location'}</Text>
             
             {profile.rating > 0 && (
               <View style={styles.ratingContainer}>
@@ -467,7 +513,7 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
           {/* Bio */}
           <View style={styles.bioContainer}>
             <Text style={styles.bioText} numberOfLines={3}>
-              {profile.bio}
+              {profile.bio || 'No bio available'}
             </Text>
           </View>
 
@@ -475,12 +521,12 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
           <View style={styles.genresContainer}>
             <Text style={styles.genresTitle}>Genres</Text>
             <View style={styles.genresList}>
-              {profile.genres.slice(0, 3).map(genre => (
+              {(profile.genres || []).slice(0, 3).map(genre => (
                 <View key={genre} style={styles.genreChip}>
                   <Text style={styles.genreText}>{genre}</Text>
                 </View>
               ))}
-              {profile.genres.length > 3 && (
+              {(profile.genres || []).length > 3 && (
                 <View style={styles.genreChip}>
                   <Text style={styles.genreText}>+{profile.genres.length - 3}</Text>
                 </View>
@@ -491,10 +537,10 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
           {/* Highlights */}
           <View style={styles.highlightsContainer}>
             <Text style={styles.highlightsTitle}>
-              Highlights ({profile.highlights.length})
+              Highlights ({(profile.highlights || []).length})
             </Text>
             <View style={styles.highlightsList}>
-              {profile.highlights.slice(0, 3).map(highlight => (
+              {(profile.highlights || []).slice(0, 3).map(highlight => (
                 <View key={highlight.id} style={styles.highlightItem}>
                   <Icon 
                     name={highlight.type === 'audio' ? 'musical-note' : highlight.type === 'video' ? 'videocam' : 'image'} 
@@ -504,6 +550,11 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
                   <Text style={styles.highlightText}>{highlight.title}</Text>
                 </View>
               ))}
+              {(profile.highlights || []).length === 0 && (
+                <Text style={[commonStyles.caption, { textAlign: 'center' }]}>
+                  No highlights yet
+                </Text>
+              )}
             </View>
           </View>
         </View>
