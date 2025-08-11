@@ -1,3 +1,4 @@
+
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -24,7 +25,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    console.log('🚀 Muse App Initializing');
+    console.log('🚀 NextDrop App Initializing');
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
