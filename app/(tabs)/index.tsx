@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -121,7 +122,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.welcomeTitle}>
-              Welcome to MusicLinked
+              Welcome to NextDrop
             </Text>
             <Text style={styles.welcomeSubtitle}>
               Connect, collaborate, and create amazing music together

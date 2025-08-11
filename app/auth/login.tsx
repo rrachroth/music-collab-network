@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import {
   View,
@@ -147,7 +148,7 @@ const LoginScreen: React.FC = () => {
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>🎵</Text>
-              <Text style={styles.appName}>MusicLinked</Text>
+              <Text style={styles.appName}>NextDrop</Text>
             </View>
 
             {/* Form */}

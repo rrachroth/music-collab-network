@@ -1,3 +1,4 @@
+
 import { Text, View, ScrollView, TextInput, Alert, Dimensions, TouchableOpacity } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
@@ -172,7 +173,7 @@ export default function OnboardingScreen() {
       
       // Show success message and navigate
       Alert.alert(
-        'Welcome to Muse! 🎉',
+        'Welcome to NextDrop! 🎉',
         `Your profile has been created successfully, ${name}! Let's start discovering amazing artists and collaborating on music.`,
         [
           {
