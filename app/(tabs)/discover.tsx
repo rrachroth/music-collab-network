@@ -129,6 +129,11 @@ export default function DiscoverScreen() {
       }
       
       const currentProfile = profiles[currentIndex];
+      if (!currentProfile) {
+        console.log('❌ No current profile found');
+        return;
+      }
+      
       console.log(`🎯 Current profile: ${currentProfile.name}`);
       
       if (direction === 'right') {
@@ -149,7 +154,7 @@ export default function DiscoverScreen() {
           `You and ${currentProfile.name} are now connected! Start chatting to begin your collaboration.`,
           [
             { text: 'Keep Swiping', style: 'cancel' },
-            { text: 'Start Chat', onPress: () => router.push('/matches') }
+            { text: 'Start Chat', onPress: () => router.push('/(tabs)/matches') }
           ]
         );
       } else {
@@ -170,6 +175,10 @@ export default function DiscoverScreen() {
 
   const calculateCompatibility = useCallback((user1: User, user2: User): number => {
     try {
+      if (!user1 || !user2 || !user1.genres || !user2.genres) {
+        return 50; // Default compatibility
+      }
+      
       const genreOverlap = user1.genres.filter(genre => user2.genres.includes(genre)).length;
       const maxGenres = Math.max(user1.genres.length, user2.genres.length);
       const genreScore = maxGenres > 0 ? genreOverlap / maxGenres : 0;
@@ -178,7 +187,7 @@ export default function DiscoverScreen() {
       const roleScore = user1.role !== user2.role ? 0.3 : 0.1;
       
       // Rating score
-      const ratingScore = (user1.rating + user2.rating) / 10;
+      const ratingScore = ((user1.rating || 0) + (user2.rating || 0)) / 10;
       
       return Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
     } catch (error) {
@@ -208,10 +217,9 @@ export default function DiscoverScreen() {
   }, [translateX, rotate, opacity, handleSwipe]);
 
   const handleViewProfile = useCallback(() => {
-    if (currentIndex < profiles.length) {
+    if (currentIndex < profiles.length && profiles[currentIndex]) {
       const profile = profiles[currentIndex];
       console.log(`👤 Viewing profile: ${profile.name}`);
-      // TODO: Navigate to profile view
       Alert.alert('Profile View', `Viewing ${profile.name}'s profile`);
     }
   }, [currentIndex, profiles]);
@@ -300,7 +308,7 @@ export default function DiscoverScreen() {
           {error}
         </Text>
         <Button
-          text="Try Again"
+          title="Try Again"
           onPress={onRefresh}
           variant="gradient"
           size="lg"
@@ -324,15 +332,15 @@ export default function DiscoverScreen() {
           No more profiles to discover right now. Check back later for new musicians!
         </Text>
         <Button
-          text="Refresh"
+          title="Refresh"
           onPress={onRefresh}
           variant="gradient"
           size="lg"
           style={{ marginBottom: spacing.md }}
         />
         <Button
-          text="View Matches"
-          onPress={() => router.push('/matches')}
+          title="View Matches"
+          onPress={() => router.push('/(tabs)/matches')}
           variant="outline"
           size="lg"
         />
@@ -341,6 +349,24 @@ export default function DiscoverScreen() {
   }
 
   const currentProfile = profiles[currentIndex];
+  if (!currentProfile) {
+    return (
+      <View style={[commonStyles.container, commonStyles.centerContent]}>
+        <LinearGradient
+          colors={colors.gradientBackground}
+          style={StyleSheet.absoluteFill}
+        />
+        <Text style={commonStyles.text}>No profile available</Text>
+        <Button
+          title="Refresh"
+          onPress={onRefresh}
+          variant="gradient"
+          size="lg"
+        />
+      </View>
+    );
+  }
+
   const compatibility = currentUser ? calculateCompatibility(currentUser, currentProfile) : 0;
 
   return (
@@ -374,7 +400,7 @@ export default function DiscoverScreen() {
         </PanGestureHandler>
         
         {/* Next card preview */}
-        {currentIndex + 1 < profiles.length && (
+        {currentIndex + 1 < profiles.length && profiles[currentIndex + 1] && (
           <View style={[styles.card, styles.nextCard]}>
             <ProfileCard profile={profiles[currentIndex + 1]} />
           </View>
@@ -502,10 +528,10 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
             <Text style={styles.profileRole}>{profile.role || 'Musician'}</Text>
             <Text style={styles.profileLocation}>{profile.location || 'Unknown Location'}</Text>
             
-            {profile.rating > 0 && (
+            {(profile.rating || 0) > 0 && (
               <View style={styles.ratingContainer}>
                 <Icon name="star" size={16} color={colors.warning} />
-                <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
+                <Text style={styles.ratingText}>{(profile.rating || 0).toFixed(1)}</Text>
               </View>
             )}
           </View>

@@ -29,6 +29,8 @@ interface FeatureCardProps {
 }
 
 export default function HomeScreen() {
+  console.log('🏠 NextDrop Home Screen rendering...');
+  
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,7 +102,8 @@ export default function HomeScreen() {
           colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
-        <Text style={commonStyles.text}>Loading NextDrop...</Text>
+        <Icon name="musical-note" size={80} color={colors.primary} />
+        <Text style={[commonStyles.text, { marginTop: spacing.lg }]}>Loading NextDrop...</Text>
       </View>
     );
   }
@@ -118,14 +121,14 @@ export default function HomeScreen() {
           styles.scrollContent, 
           { 
             paddingTop: insets.top + spacing.md,
-            minHeight: screenHeight + 200 // Ensure content is taller than screen
+            paddingBottom: insets.bottom + spacing.xl * 2,
           }
         ]}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         bounces={true}
         alwaysBounceVertical={true}
-        nestedScrollEnabled={true}
+        nestedScrollEnabled={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -336,7 +339,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl * 3, // Extra padding for better scrolling
   },
   header: {
     alignItems: 'center',

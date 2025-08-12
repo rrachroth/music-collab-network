@@ -25,6 +25,8 @@ const HomeScreen: React.FC = () => {
   const logoScale = useSharedValue(0.8);
 
   useEffect(() => {
+    console.log('🏠 NextDrop Landing Page Loading...');
+    
     // Start animations
     fadeIn.value = withTiming(1, { duration: 1000 });
     slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });

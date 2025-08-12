@@ -2,7 +2,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { commonStyles } from '../styles/commonStyles';
 import { useEffect } from 'react';
