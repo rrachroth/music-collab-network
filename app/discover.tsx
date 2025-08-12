@@ -1,32 +1,17 @@
-import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshControl, StyleSheet } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
+// This file is deprecated - using app/(tabs)/discover.tsx instead
+// Redirecting to the tabs version to avoid conflicts
+
+import { useEffect } from 'react';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring,
-  withTiming,
-  runOnJS,
-  interpolate,
-  useAnimatedGestureHandler,
-  withSequence,
-} from 'react-native-reanimated';
-import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import Button from '../components/Button';
-import Icon from '../components/Icon';
-import { 
-  getCurrentUser, 
-  getAllUsers, 
-  getMatches, 
-  addMatch, 
-  generateId, 
-  getCurrentTimestamp,
-  User, 
-  Match 
-} from '../utils/storage';
+
+export default function DiscoverRedirect() {
+  useEffect(() => {
+    console.log('🔄 Redirecting from standalone discover to tabs discover');
+    router.replace('/(tabs)/discover');
+  }, []);
+
+  return null;
+}
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 40;

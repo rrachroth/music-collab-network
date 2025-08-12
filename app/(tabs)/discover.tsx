@@ -1,6 +1,6 @@
 
 import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshControl, StyleSheet } from 'react-native';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +18,7 @@ import Animated, {
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 import Button from '../../components/Button';
 import Icon from '../../components/Icon';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { 
   getCurrentUser, 
   getAllUsers, 
@@ -50,6 +51,10 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Use refs to track component mount state and prevent memory leaks
+  const isMountedRef = useRef(true);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -59,20 +64,51 @@ export default function DiscoverScreen() {
 
   // Memoize current profile to prevent unnecessary re-renders
   const currentProfile = useMemo(() => {
-    if (currentIndex >= 0 && currentIndex < profiles.length) {
-      return profiles[currentIndex];
+    try {
+      if (currentIndex >= 0 && currentIndex < profiles.length) {
+        const profile = profiles[currentIndex];
+        console.log(`🎯 Current profile: ${profile?.name || 'Unknown'} (${currentIndex}/${profiles.length})`);
+        return profile;
+      }
+      console.log(`🎯 No current profile: index ${currentIndex}, profiles ${profiles.length}`);
+      return null;
+    } catch (error) {
+      console.error('❌ Error in currentProfile memo:', error);
+      return null;
     }
-    return null;
   }, [profiles, currentIndex]);
 
   const loadData = useCallback(async () => {
+    if (!isMountedRef.current) {
+      console.log('🔍 Component unmounted, skipping loadData');
+      return;
+    }
+
     try {
       console.log('🔍 Loading discover data...');
-      setLoading(true);
-      setError(null);
+      if (isMountedRef.current) {
+        setLoading(true);
+        setError(null);
+      }
+      
+      // Clear any existing timeout
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      
+      // Set a timeout to prevent infinite loading
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          console.log('⏰ Loading timeout reached');
+          setLoading(false);
+          setError('Loading took too long. Please try again.');
+        }
+      }, 15000);
       
       // Add delay for mobile AsyncStorage operations
       await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!isMountedRef.current) return;
       
       // Initialize sample data if needed (with error handling)
       try {
@@ -83,12 +119,14 @@ export default function DiscoverScreen() {
         // Continue anyway, might have existing data
       }
       
+      if (!isMountedRef.current) return;
+      
       // Get current user with retry logic
       let user: User | null = null;
       let retryCount = 0;
       const maxRetries = 3;
       
-      while (!user && retryCount < maxRetries) {
+      while (!user && retryCount < maxRetries && isMountedRef.current) {
         try {
           user = await getCurrentUser();
           if (user) break;
@@ -106,36 +144,46 @@ export default function DiscoverScreen() {
         }
       }
       
+      if (!isMountedRef.current) return;
+      
       if (!user) {
         console.log('❌ No current user found after retries, redirecting to onboarding');
-        Alert.alert(
-          'Profile Required', 
-          'Please complete your profile first.',
-          [
-            { 
-              text: 'Setup Profile', 
-              onPress: () => {
-                try {
-                  router.replace('/onboarding');
-                } catch (navError) {
-                  console.error('❌ Navigation error:', navError);
-                  router.push('/onboarding');
+        if (isMountedRef.current) {
+          Alert.alert(
+            'Profile Required', 
+            'Please complete your profile first.',
+            [
+              { 
+                text: 'Setup Profile', 
+                onPress: () => {
+                  try {
+                    router.replace('/onboarding');
+                  } catch (navError) {
+                    console.error('❌ Navigation error:', navError);
+                    router.push('/onboarding');
+                  }
                 }
               }
-            }
-          ]
-        );
+            ]
+          );
+        }
         return;
       }
       
       console.log('👤 Current user loaded:', user.name || 'Unknown');
-      setCurrentUser(user);
+      if (isMountedRef.current) {
+        setCurrentUser(user);
+      }
+      
+      if (!isMountedRef.current) return;
       
       // Load all users with error handling
       let allUsers: User[] = [];
       try {
         allUsers = await getAllUsers();
         console.log('👥 All users loaded:', allUsers.length);
+        
+        if (!isMountedRef.current) return;
         
         // Validate users data
         allUsers = allUsers.filter(u => 
@@ -152,11 +200,15 @@ export default function DiscoverScreen() {
         allUsers = [];
       }
       
+      if (!isMountedRef.current) return;
+      
       // Load existing matches with error handling
       let existingMatches: Match[] = [];
       try {
         existingMatches = await getMatches();
         console.log('💕 Existing matches loaded:', existingMatches.length);
+        
+        if (!isMountedRef.current) return;
         
         // Validate matches data
         existingMatches = existingMatches.filter(m => 
@@ -172,6 +224,8 @@ export default function DiscoverScreen() {
         console.error('❌ Error loading matches:', matchesError);
         existingMatches = [];
       }
+      
+      if (!isMountedRef.current) return;
       
       // Filter out current user and already matched users
       const matchedUserIds = existingMatches
@@ -194,17 +248,28 @@ export default function DiscoverScreen() {
       );
       
       console.log('🎯 Available profiles after filtering:', availableProfiles.length);
-      setProfiles(availableProfiles);
-      setCurrentIndex(0);
-      setIsInitialized(true);
+      
+      if (isMountedRef.current) {
+        setProfiles(availableProfiles);
+        setCurrentIndex(0);
+        setIsInitialized(true);
+      }
       
     } catch (error) {
       console.error('❌ Error loading discover data:', error);
-      setError(`Failed to load profiles: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setProfiles([]);
-      setCurrentIndex(0);
+      if (isMountedRef.current) {
+        setError(`Failed to load profiles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setProfiles([]);
+        setCurrentIndex(0);
+      }
     } finally {
-      setLoading(false);
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -236,6 +301,11 @@ export default function DiscoverScreen() {
   }, [resetCardPosition, profiles.length]);
 
   const handleSwipe = useCallback(async (direction: 'left' | 'right') => {
+    if (!isMountedRef.current) {
+      console.log('🔍 Component unmounted, skipping swipe');
+      return;
+    }
+
     try {
       console.log(`👆 Handling swipe: ${direction}`);
       
@@ -279,33 +349,39 @@ export default function DiscoverScreen() {
           console.log(`✅ Successfully matched with ${currentProfile.name}`);
           
           // Show match alert with error handling
-          setTimeout(() => {
-            try {
-              Alert.alert(
-                'It\'s a Match! 🎉',
-                `You and ${currentProfile.name} are now connected! Start chatting to begin your collaboration.`,
-                [
-                  { text: 'Keep Swiping', style: 'cancel' },
-                  { 
-                    text: 'Start Chat', 
-                    onPress: () => {
-                      try {
-                        router.push('/(tabs)/matches');
-                      } catch (navError) {
-                        console.error('❌ Navigation error:', navError);
+          if (isMountedRef.current) {
+            setTimeout(() => {
+              if (isMountedRef.current) {
+                try {
+                  Alert.alert(
+                    'It\'s a Match! 🎉',
+                    `You and ${currentProfile.name} are now connected! Start chatting to begin your collaboration.`,
+                    [
+                      { text: 'Keep Swiping', style: 'cancel' },
+                      { 
+                        text: 'Start Chat', 
+                        onPress: () => {
+                          try {
+                            router.push('/(tabs)/matches');
+                          } catch (navError) {
+                            console.error('❌ Navigation error:', navError);
+                          }
+                        }
                       }
-                    }
-                  }
-                ]
-              );
-            } catch (alertError) {
-              console.error('❌ Error showing match alert:', alertError);
-            }
-          }, 100);
+                    ]
+                  );
+                } catch (alertError) {
+                  console.error('❌ Error showing match alert:', alertError);
+                }
+              }
+            }, 100);
+          }
           
         } catch (matchError) {
           console.error('❌ Error creating match:', matchError);
-          Alert.alert('Error', 'Failed to create match. Please try again.');
+          if (isMountedRef.current) {
+            Alert.alert('Error', 'Failed to create match. Please try again.');
+          }
           return;
         }
       } else {
@@ -313,26 +389,29 @@ export default function DiscoverScreen() {
       }
       
       // Move to next profile
-      nextProfile();
+      if (isMountedRef.current) {
+        nextProfile();
+      }
       
     } catch (error) {
       console.error('❌ Error handling swipe:', error);
-      Alert.alert('Error', 'Something went wrong with the swipe. Please try again.');
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Something went wrong with the swipe. Please try again.');
+      }
     }
   }, [currentUser, currentProfile, currentIndex, profiles.length, nextProfile]);
 
   useEffect(() => {
     console.log('🔄 useEffect: Initial data load');
-    let isMounted = true;
     
     const loadDataSafely = async () => {
       try {
-        if (isMounted) {
+        if (isMountedRef.current) {
           await loadData();
         }
       } catch (error) {
         console.error('❌ Error in useEffect loadData:', error);
-        if (isMounted) {
+        if (isMountedRef.current) {
           setError('Failed to initialize app. Please restart.');
           setLoading(false);
         }
@@ -342,9 +421,14 @@ export default function DiscoverScreen() {
     loadDataSafely();
     
     return () => {
-      isMounted = false;
+      console.log('🔄 DiscoverScreen cleanup');
+      isMountedRef.current = false;
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
     };
-  }, []);
+  }, [loadData]);
 
   const calculateCompatibility = useCallback((user1: User, user2: User): number => {
     try {
@@ -453,6 +537,7 @@ export default function DiscoverScreen() {
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
+      'worklet';
       try {
         scale.value = withSpring(0.95);
       } catch (error) {
@@ -460,6 +545,7 @@ export default function DiscoverScreen() {
       }
     },
     onActive: (event) => {
+      'worklet';
       try {
         translateX.value = event.translationX;
         translateY.value = event.translationY;
@@ -474,6 +560,7 @@ export default function DiscoverScreen() {
       }
     },
     onEnd: (event) => {
+      'worklet';
       try {
         scale.value = withSpring(1);
         
@@ -502,6 +589,7 @@ export default function DiscoverScreen() {
   });
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
+    'worklet';
     try {
       return {
         transform: [
@@ -521,24 +609,367 @@ export default function DiscoverScreen() {
   // Loading state
   if (loading) {
     return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={StyleSheet.absoluteFill}
-        />
-        <Icon name="search" size={80} color={colors.primary} />
-        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Finding Musicians
-        </Text>
-        <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
-          Discovering amazing talent for you
-        </Text>
-      </View>
+      <ErrorBoundary>
+        <View style={[commonStyles.container, commonStyles.centerContent]}>
+          <LinearGradient
+            colors={colors.gradientBackground}
+            style={StyleSheet.absoluteFill}
+          />
+          <Icon name="search" size={80} color={colors.primary} />
+          <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+            Finding Musicians
+          </Text>
+          <Text style={[commonStyles.caption, { marginTop: spacing.sm }]}>
+            Discovering amazing talent for you
+          </Text>
+          <Button
+            title="Cancel"
+            onPress={() => {
+              try {
+                console.log('🔄 User cancelled loading');
+                setLoading(false);
+                setError('Loading cancelled by user');
+              } catch (cancelError) {
+                console.error('❌ Error cancelling:', cancelError);
+              }
+            }}
+            variant="outline"
+            size="sm"
+            style={{ marginTop: spacing.xl }}
+          />
+        </View>
+      </ErrorBoundary>
     );
   }
 
   // Error state
   if (error) {
+    return (
+      <ErrorBoundary>
+        <View style={[commonStyles.container, commonStyles.centerContent]}>
+          <LinearGradient
+            colors={colors.gradientBackground}
+            style={StyleSheet.absoluteFill}
+          />
+          <Icon name="alert-circle" size={80} color={colors.error} />
+          <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+            Oops! Something went wrong
+          </Text>
+          <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl, textAlign: 'center', paddingHorizontal: spacing.lg }]}>
+            {error}
+          </Text>
+          <Button
+            title="Try Again"
+            onPress={onRefresh}
+            variant="gradient"
+            size="lg"
+            style={{ marginBottom: spacing.md }}
+          />
+          <Button
+            title="Clear Data & Retry"
+            onPress={async () => {
+              try {
+                console.log('🧹 Clearing data and retrying');
+                setError(null);
+                setProfiles([]);
+                setCurrentIndex(0);
+                setIsInitialized(false);
+                await loadData();
+              } catch (clearError) {
+                console.error('❌ Error clearing data:', clearError);
+                setError('Failed to clear data. Please restart the app.');
+              }
+            }}
+            variant="outline"
+            size="md"
+          />
+        </View>
+      </ErrorBoundary>
+    );
+  }
+
+  // No more profiles state
+  if (isInitialized && (currentIndex >= profiles.length || profiles.length === 0)) {
+    return (
+      <ErrorBoundary>
+        <View style={[commonStyles.container, commonStyles.centerContent]}>
+          <LinearGradient
+            colors={colors.gradientBackground}
+            style={StyleSheet.absoluteFill}
+          />
+          <Icon name="checkmark-circle" size={80} color={colors.success} />
+          <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
+            You&apos;re All Caught Up!
+          </Text>
+          <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl, textAlign: 'center', paddingHorizontal: spacing.lg }]}>
+            {profiles.length === 0 
+              ? 'No profiles available right now. Check back later for new musicians!'
+              : 'No more profiles to discover right now. Check back later for new musicians!'
+            }
+          </Text>
+          <Button
+            title="Refresh"
+            onPress={onRefresh}
+            variant="gradient"
+            size="lg"
+            style={{ marginBottom: spacing.md }}
+          />
+          <Button
+            title="View Matches"
+            onPress={() => {
+              try {
+                router.push('/(tabs)/matches');
+              } catch (navError) {
+                console.error('❌ Navigation error:', navError);
+              }
+            }}
+            variant="outline"
+            size="lg"
+          />
+          <Button
+            title="Debug Info"
+            onPress={() => {
+              try {
+                console.log('🔍 DEBUG - No Profiles State:');
+                console.log('- Profiles length:', profiles.length);
+                console.log('- Current index:', currentIndex);
+                console.log('- Is initialized:', isInitialized);
+                console.log('- Current user:', currentUser?.name || 'None');
+                Alert.alert('Debug', `Profiles: ${profiles.length}, Index: ${currentIndex}, User: ${currentUser?.name || 'None'}`);
+              } catch (debugError) {
+                console.error('❌ Debug error:', debugError);
+              }
+            }}
+            variant="outline"
+            size="sm"
+            style={{ marginTop: spacing.md }}
+          />
+        </View>
+      </ErrorBoundary>
+    );
+  }
+
+  // No current profile (shouldn't happen but safety check)
+  if (!currentProfile && isInitialized && !loading && !error) {
+    return (
+      <ErrorBoundary>
+        <View style={[commonStyles.container, commonStyles.centerContent]}>
+          <LinearGradient
+            colors={colors.gradientBackground}
+            style={StyleSheet.absoluteFill}
+          />
+          <Icon name="refresh" size={80} color={colors.textMuted} />
+          <Text style={[commonStyles.text, { marginTop: spacing.lg, marginBottom: spacing.xl, textAlign: 'center' }]}>
+            No profile to display
+          </Text>
+          <Text style={[commonStyles.caption, { marginBottom: spacing.xl, textAlign: 'center', paddingHorizontal: spacing.lg }]}>
+            Index: {currentIndex}, Profiles: {profiles.length}
+          </Text>
+          <Button
+            title="Refresh"
+            onPress={onRefresh}
+            variant="gradient"
+            size="lg"
+            style={{ marginBottom: spacing.md }}
+          />
+          <Button
+            title="Reset"
+            onPress={() => {
+              try {
+                console.log('🔄 Resetting discover state');
+                setCurrentIndex(0);
+                setProfiles([]);
+                setIsInitialized(false);
+                loadData();
+              } catch (resetError) {
+                console.error('❌ Error resetting:', resetError);
+              }
+            }}
+            variant="outline"
+            size="md"
+          />
+        </View>
+      </ErrorBoundary>
+    );
+  }
+
+  // Calculate compatibility safely
+  const compatibility = useMemo(() => {
+    try {
+      if (currentUser && currentProfile) {
+        return calculateCompatibility(currentUser, currentProfile);
+      }
+      return 50;
+    } catch (error) {
+      console.error('❌ Error calculating compatibility:', error);
+      return 50;
+    }
+  }, [currentUser, currentProfile, calculateCompatibility]);
+
+  // Main render with comprehensive error handling
+  try {
+    return (
+      <ErrorBoundary>
+        <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+          <LinearGradient
+            colors={colors.gradientBackground}
+            style={StyleSheet.absoluteFill}
+          />
+          
+          {/* Header */}
+          <ErrorBoundary>
+            <View style={styles.header}>
+              <TouchableOpacity 
+                onPress={() => {
+                  try {
+                    router.back();
+                  } catch (navError) {
+                    console.error('❌ Navigation error:', navError);
+                  }
+                }} 
+                style={styles.headerButton}
+              >
+                <Icon name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              
+              <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
+                Discover
+              </Text>
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  try {
+                    console.log('🔍 DEBUG INFO:');
+                    console.log('- Current User:', currentUser?.name || 'None');
+                    console.log('- Profiles:', profiles.length);
+                    console.log('- Current Index:', currentIndex);
+                    console.log('- Current Profile:', currentProfile?.name || 'None');
+                    console.log('- Loading:', loading);
+                    console.log('- Error:', error);
+                    console.log('- Initialized:', isInitialized);
+                    
+                    Alert.alert(
+                      'Debug Info',
+                      `User: ${currentUser?.name || 'None'}\n` +
+                      `Profiles: ${profiles.length}\n` +
+                      `Index: ${currentIndex}\n` +
+                      `Current: ${currentProfile?.name || 'None'}\n` +
+                      `Loading: ${loading}\n` +
+                      `Error: ${error || 'None'}\n` +
+                      `Initialized: ${isInitialized}`
+                    );
+                  } catch (debugError) {
+                    console.error('❌ Debug error:', debugError);
+                  }
+                }} 
+                style={styles.headerButton}
+              >
+                <Icon name="bug" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </ErrorBoundary>
+
+          {/* Card Stack */}
+          <ErrorBoundary>
+            <View style={styles.cardContainer}>
+              {currentProfile && (
+                <PanGestureHandler onGestureEvent={gestureHandler}>
+                  <Animated.View style={[styles.card, cardAnimatedStyle]}>
+                    <ErrorBoundary>
+                      <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
+                    </ErrorBoundary>
+                  </Animated.View>
+                </PanGestureHandler>
+              )}
+              
+              {/* Next card preview */}
+              {currentIndex + 1 < profiles.length && profiles[currentIndex + 1] && (
+                <View style={[styles.card, styles.nextCard]}>
+                  <ErrorBoundary>
+                    <ProfileCard profile={profiles[currentIndex + 1]} />
+                  </ErrorBoundary>
+                </View>
+              )}
+            </View>
+          </ErrorBoundary>
+
+          {/* Compatibility Badge */}
+          <ErrorBoundary>
+            <View style={[styles.compatibilityBadge, { top: insets.top + 80 }]}>
+              <LinearGradient
+                colors={colors.gradientPrimary}
+                style={styles.compatibilityGradient}
+              >
+                <Text style={styles.compatibilityText}>{Math.round(compatibility)}% Match</Text>
+              </LinearGradient>
+            </View>
+          </ErrorBoundary>
+
+          {/* Action Buttons */}
+          <ErrorBoundary>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.passButton]} 
+                onPress={() => handleButtonSwipe('left')}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#EF4444', '#DC2626']}
+                  style={styles.actionButtonGradient}
+                >
+                  <Icon name="close" size={32} color={colors.text} />
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.superLikeButton]} 
+                onPress={handleSuperLike}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={colors.gradientSecondary}
+                  style={styles.actionButtonGradient}
+                >
+                  <Icon name="star" size={28} color={colors.text} />
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.likeButton]} 
+                onPress={() => handleButtonSwipe('right')}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={colors.gradientPrimary}
+                  style={styles.actionButtonGradient}
+                >
+                  <Icon name="heart" size={32} color={colors.text} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </ErrorBoundary>
+
+          {/* Progress Indicator */}
+          <ErrorBoundary>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { width: `${profiles.length > 0 ? ((currentIndex + 1) / profiles.length) * 100 : 0}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {profiles.length > 0 ? `${currentIndex + 1} of ${profiles.length}` : '0 of 0'}
+              </Text>
+            </View>
+          </ErrorBoundary>
+        </View>
+      </ErrorBoundary>
+    );
+  } catch (renderError) {
+    console.error('❌ Critical render error in DiscoverScreen:', renderError);
     return (
       <View style={[commonStyles.container, commonStyles.centerContent]}>
         <LinearGradient
@@ -547,231 +978,58 @@ export default function DiscoverScreen() {
         />
         <Icon name="alert-circle" size={80} color={colors.error} />
         <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          Oops! Something went wrong
+          Critical Error
         </Text>
         <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl, textAlign: 'center', paddingHorizontal: spacing.lg }]}>
-          {error}
+          The discover screen encountered a critical error. Please restart the app.
         </Text>
         <Button
-          title="Try Again"
-          onPress={onRefresh}
-          variant="gradient"
-          size="lg"
-        />
-      </View>
-    );
-  }
-
-  // No more profiles state
-  if (isInitialized && (currentIndex >= profiles.length || profiles.length === 0)) {
-    return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={StyleSheet.absoluteFill}
-        />
-        <Icon name="checkmark-circle" size={80} color={colors.success} />
-        <Text style={[commonStyles.title, { marginTop: spacing.lg }]}>
-          You&apos;re All Caught Up!
-        </Text>
-        <Text style={[commonStyles.text, { marginTop: spacing.sm, marginBottom: spacing.xl, textAlign: 'center', paddingHorizontal: spacing.lg }]}>
-          {profiles.length === 0 
-            ? 'No profiles available right now. Check back later for new musicians!'
-            : 'No more profiles to discover right now. Check back later for new musicians!'
-          }
-        </Text>
-        <Button
-          title="Refresh"
-          onPress={onRefresh}
-          variant="gradient"
-          size="lg"
-          style={{ marginBottom: spacing.md }}
-        />
-        <Button
-          title="View Matches"
+          title="Restart App"
           onPress={() => {
             try {
-              router.push('/(tabs)/matches');
+              router.replace('/');
             } catch (navError) {
               console.error('❌ Navigation error:', navError);
             }
           }}
-          variant="outline"
-          size="lg"
-        />
-      </View>
-    );
-  }
-
-  // No current profile (shouldn't happen but safety check)
-  if (!currentProfile) {
-    return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={StyleSheet.absoluteFill}
-        />
-        <Icon name="refresh" size={80} color={colors.textMuted} />
-        <Text style={[commonStyles.text, { marginTop: spacing.lg, marginBottom: spacing.xl }]}>
-          Loading profile...
-        </Text>
-        <Button
-          title="Refresh"
-          onPress={onRefresh}
           variant="gradient"
           size="lg"
         />
       </View>
     );
   }
-
-  const compatibility = currentUser ? calculateCompatibility(currentUser, currentProfile) : 50;
-
-  return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={colors.gradientBackground}
-        style={StyleSheet.absoluteFill}
-      />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => {
-            try {
-              router.back();
-            } catch (navError) {
-              console.error('❌ Navigation error:', navError);
-            }
-          }} 
-          style={styles.headerButton}
-        >
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        
-        <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
-          Discover
-        </Text>
-        
-        <TouchableOpacity onPress={handleViewProfile} style={styles.headerButton}>
-          <Icon name="information-circle" size={24} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Card Stack */}
-      <View style={styles.cardContainer}>
-        <PanGestureHandler onGestureEvent={gestureHandler}>
-          <Animated.View style={[styles.card, cardAnimatedStyle]}>
-            <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
-          </Animated.View>
-        </PanGestureHandler>
-        
-        {/* Next card preview */}
-        {currentIndex + 1 < profiles.length && profiles[currentIndex + 1] && (
-          <View style={[styles.card, styles.nextCard]}>
-            <ProfileCard profile={profiles[currentIndex + 1]} />
-          </View>
-        )}
-      </View>
-
-      {/* Compatibility Badge */}
-      <View style={[styles.compatibilityBadge, { top: insets.top + 80 }]}>
-        <LinearGradient
-          colors={colors.gradientPrimary}
-          style={styles.compatibilityGradient}
-        >
-          <Text style={styles.compatibilityText}>{Math.round(compatibility)}% Match</Text>
-        </LinearGradient>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.passButton]} 
-          onPress={() => handleButtonSwipe('left')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#EF4444', '#DC2626']}
-            style={styles.actionButtonGradient}
-          >
-            <Icon name="close" size={32} color={colors.text} />
-          </LinearGradient>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.superLikeButton]} 
-          onPress={handleSuperLike}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={colors.gradientSecondary}
-            style={styles.actionButtonGradient}
-          >
-            <Icon name="star" size={28} color={colors.text} />
-          </LinearGradient>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.likeButton]} 
-          onPress={() => handleButtonSwipe('right')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={colors.gradientPrimary}
-            style={styles.actionButtonGradient}
-          >
-            <Icon name="heart" size={32} color={colors.text} />
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${profiles.length > 0 ? ((currentIndex + 1) / profiles.length) * 100 : 0}%` }
-            ]} 
-          />
-        </View>
-        <Text style={styles.progressText}>
-          {profiles.length > 0 ? `${currentIndex + 1} of ${profiles.length}` : '0 of 0'}
-        </Text>
-      </View>
-    </View>
-  );
 }
 
 function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
-  console.log('🎴 Rendering ProfileCard for:', profile?.name || 'Unknown');
-  
-  if (!profile) {
-    return (
-      <View style={styles.profileCard}>
-        <LinearGradient
-          colors={colors.gradientPrimary}
-          style={styles.profileGradient}
-        >
-          <View style={styles.profileContent}>
-            <Text style={[commonStyles.text, { textAlign: 'center' }]}>
-              No profile data
-            </Text>
-          </View>
-        </LinearGradient>
-      </View>
-    );
-  }
+  try {
+    console.log('🎴 Rendering ProfileCard for:', profile?.name || 'Unknown');
+    
+    if (!profile) {
+      return (
+        <View style={styles.profileCard}>
+          <LinearGradient
+            colors={colors.gradientPrimary}
+            style={styles.profileGradient}
+          >
+            <View style={styles.profileContent}>
+              <Text style={[commonStyles.text, { textAlign: 'center' }]}>
+                No profile data
+              </Text>
+            </View>
+          </LinearGradient>
+        </View>
+      );
+    }
 
-  const profileName = profile.name || 'Unknown';
-  const profileRole = profile.role || 'Musician';
-  const profileLocation = profile.location || 'Unknown Location';
-  const profileBio = profile.bio || 'No bio available';
-  const profileGenres = Array.isArray(profile.genres) ? profile.genres : [];
-  const profileHighlights = Array.isArray(profile.highlights) ? profile.highlights : [];
-  const profileRating = typeof profile.rating === 'number' ? profile.rating : 0;
-  const profileVerified = Boolean(profile.verified);
+    // Safely extract profile data with fallbacks
+    const profileName = (profile.name && typeof profile.name === 'string') ? profile.name : 'Unknown';
+    const profileRole = (profile.role && typeof profile.role === 'string') ? profile.role : 'Musician';
+    const profileLocation = (profile.location && typeof profile.location === 'string') ? profile.location : 'Unknown Location';
+    const profileBio = (profile.bio && typeof profile.bio === 'string') ? profile.bio : 'No bio available';
+    const profileGenres = Array.isArray(profile.genres) ? profile.genres.filter(g => g && typeof g === 'string') : [];
+    const profileHighlights = Array.isArray(profile.highlights) ? profile.highlights.filter(h => h && typeof h === 'object' && h.id) : [];
+    const profileRating = (typeof profile.rating === 'number' && !isNaN(profile.rating)) ? profile.rating : 0;
+    const profileVerified = Boolean(profile.verified);
 
   return (
     <TouchableOpacity 
@@ -851,21 +1109,30 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
               Highlights ({profileHighlights.length})
             </Text>
             <View style={styles.highlightsList}>
-              {profileHighlights.slice(0, 3).map((highlight, index) => (
-                <View key={`${highlight.id || index}`} style={styles.highlightItem}>
-                  <Icon 
-                    name={
-                      highlight.type === 'audio' ? 'musical-note' : 
-                      highlight.type === 'video' ? 'videocam' : 'image'
-                    } 
-                    size={16} 
-                    color={colors.textMuted} 
-                  />
-                  <Text style={styles.highlightText} numberOfLines={1}>
-                    {highlight.title || 'Untitled'}
-                  </Text>
-                </View>
-              ))}
+              {profileHighlights.slice(0, 3).map((highlight, index) => {
+                try {
+                  const highlightType = highlight.type || 'image';
+                  const highlightTitle = (highlight.title && typeof highlight.title === 'string') ? highlight.title : 'Untitled';
+                  const iconName = highlightType === 'audio' ? 'musical-note' : 
+                                 highlightType === 'video' ? 'videocam' : 'image';
+                  
+                  return (
+                    <View key={`${highlight.id || index}`} style={styles.highlightItem}>
+                      <Icon 
+                        name={iconName} 
+                        size={16} 
+                        color={colors.textMuted} 
+                      />
+                      <Text style={styles.highlightText} numberOfLines={1}>
+                        {highlightTitle}
+                      </Text>
+                    </View>
+                  );
+                } catch (highlightError) {
+                  console.error('❌ Error rendering highlight:', highlightError);
+                  return null;
+                }
+              })}
               {profileHighlights.length === 0 && (
                 <Text style={[commonStyles.caption, { textAlign: 'center', color: colors.textMuted }]}>
                   No highlights yet
@@ -877,6 +1144,23 @@ function ProfileCard({ profile, onViewProfile }: ProfileCardProps) {
       </LinearGradient>
     </TouchableOpacity>
   );
+  } catch (error) {
+    console.error('❌ Error in ProfileCard:', error);
+    return (
+      <View style={styles.profileCard}>
+        <LinearGradient
+          colors={colors.gradientPrimary}
+          style={styles.profileGradient}
+        >
+          <View style={styles.profileContent}>
+            <Text style={[commonStyles.text, { textAlign: 'center' }]}>
+              Error loading profile
+            </Text>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({

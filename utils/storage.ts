@@ -154,29 +154,45 @@ const safeJSONStringify = (data: any): string => {
   }
 };
 
-// Safe AsyncStorage operations
-const safeAsyncStorageGet = async (key: string, fallback: any = null) => {
-  try {
-    console.log(`📱 Getting from AsyncStorage: ${key}`);
-    const data = await AsyncStorage.getItem(key);
-    const result = safeJSONParse(data, fallback);
-    console.log(`✅ Retrieved from AsyncStorage: ${key}`, typeof result, Array.isArray(result) ? `array(${result.length})` : 'object');
-    return result;
-  } catch (error) {
-    console.error(`❌ Error getting from AsyncStorage (${key}):`, error);
-    return fallback;
+// Safe AsyncStorage operations with retry logic
+const safeAsyncStorageGet = async (key: string, fallback: any = null, retries: number = 3) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`📱 Getting from AsyncStorage: ${key} (attempt ${attempt})`);
+      const data = await AsyncStorage.getItem(key);
+      const result = safeJSONParse(data, fallback);
+      console.log(`✅ Retrieved from AsyncStorage: ${key}`, typeof result, Array.isArray(result) ? `array(${result.length})` : 'object');
+      return result;
+    } catch (error) {
+      console.error(`❌ Error getting from AsyncStorage (${key}) attempt ${attempt}:`, error);
+      if (attempt === retries) {
+        console.error(`❌ All ${retries} attempts failed for ${key}, returning fallback`);
+        return fallback;
+      }
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+    }
   }
+  return fallback;
 };
 
-const safeAsyncStorageSet = async (key: string, data: any) => {
-  try {
-    console.log(`📱 Setting to AsyncStorage: ${key}`, typeof data, Array.isArray(data) ? `array(${data.length})` : 'object');
-    const jsonString = safeJSONStringify(data);
-    await AsyncStorage.setItem(key, jsonString);
-    console.log(`✅ Saved to AsyncStorage: ${key}`);
-  } catch (error) {
-    console.error(`❌ Error setting to AsyncStorage (${key}):`, error);
-    throw error;
+const safeAsyncStorageSet = async (key: string, data: any, retries: number = 3) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`📱 Setting to AsyncStorage: ${key} (attempt ${attempt})`, typeof data, Array.isArray(data) ? `array(${data.length})` : 'object');
+      const jsonString = safeJSONStringify(data);
+      await AsyncStorage.setItem(key, jsonString);
+      console.log(`✅ Saved to AsyncStorage: ${key}`);
+      return;
+    } catch (error) {
+      console.error(`❌ Error setting to AsyncStorage (${key}) attempt ${attempt}:`, error);
+      if (attempt === retries) {
+        console.error(`❌ All ${retries} attempts failed for ${key}`);
+        throw error;
+      }
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+    }
   }
 };
 

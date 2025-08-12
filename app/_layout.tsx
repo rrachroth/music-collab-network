@@ -8,6 +8,8 @@ import { useEffect } from 'react';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as SplashScreen from 'expo-splash-screen';
+import { setupErrorLogging } from '../utils/errorLogger';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -25,6 +27,15 @@ export default function RootLayout() {
 
   useEffect(() => {
     console.log('🚀 NextDrop App Initializing');
+    
+    // Set up error logging first
+    try {
+      setupErrorLogging();
+      console.log('✅ Error logging initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize error logging:', error);
+    }
+    
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
@@ -35,21 +46,23 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <LinearGradient
-        colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
-        style={commonStyles.wrapper}
-      >
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-            animationDuration: 400,
-            animationTypeForReplace: 'push',
-          }}
-        />
-      </LinearGradient>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <LinearGradient
+          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+          style={commonStyles.wrapper}
+        >
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              animationDuration: 400,
+              animationTypeForReplace: 'push',
+            }}
+          />
+        </LinearGradient>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
