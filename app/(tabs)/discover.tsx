@@ -1,5 +1,5 @@
 
-import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshControl, StyleSheet } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshControl, StyleSheet, Platform } from 'react-native';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styl
 import Button from '../../components/Button';
 import Icon from '../../components/Icon';
 import ErrorBoundary from '../../components/ErrorBoundary';
+import { setupErrorLogging } from '../../utils/errorLogger';
 import { 
   getCurrentUser, 
   getAllUsers, 
@@ -43,6 +44,23 @@ const SWIPE_THRESHOLD = 120;
 export default function DiscoverScreen() {
   console.log('🔍 DiscoverScreen rendering...');
   
+  // Setup error logging for this component
+  useEffect(() => {
+    try {
+      setupErrorLogging();
+      console.log('✅ Error logging setup complete for DiscoverScreen');
+    } catch (error) {
+      console.error('❌ Failed to setup error logging:', error);
+    }
+  }, []);
+
+  // Add a test log to verify the component is working
+  useEffect(() => {
+    console.log('🎯 DiscoverScreen mounted successfully - ready for testing!');
+    console.log('📱 Platform:', Platform.OS);
+    console.log('🌐 Web compatibility mode:', Platform.OS === 'web' ? 'ENABLED' : 'DISABLED');
+  }, []);
+  
   const insets = useSafeAreaInsets();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profiles, setProfiles] = useState<User[]>([]);
@@ -62,7 +80,11 @@ export default function DiscoverScreen() {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
-  // Memoize current profile to prevent unnecessary re-renders - ALWAYS call useMemo
+  // Calculate compatibility function - defined before useMemo
+
+
+  // ALWAYS call all hooks at the top level - never conditionally
+  // Memoize current profile to prevent unnecessary re-renders
   const currentProfile = useMemo(() => {
     try {
       if (currentIndex >= 0 && currentIndex < profiles.length) {
@@ -77,6 +99,8 @@ export default function DiscoverScreen() {
       return null;
     }
   }, [profiles, currentIndex]);
+
+
 
   const loadData = useCallback(async () => {
     if (!isMountedRef.current) {
@@ -430,43 +454,7 @@ export default function DiscoverScreen() {
     };
   }, [loadData]);
 
-  const calculateCompatibility = useCallback((user1: User, user2: User): number => {
-    try {
-      if (!user1 || !user2) {
-        console.log('⚠️ Missing users for compatibility calculation');
-        return 50;
-      }
-      
-      const user1Genres = Array.isArray(user1.genres) ? user1.genres : [];
-      const user2Genres = Array.isArray(user2.genres) ? user2.genres : [];
-      
-      if (user1Genres.length === 0 && user2Genres.length === 0) {
-        return 50;
-      }
-      
-      const genreOverlap = user1Genres.filter(genre => 
-        genre && typeof genre === 'string' && user2Genres.includes(genre)
-      ).length;
-      
-      const maxGenres = Math.max(user1Genres.length, user2Genres.length);
-      const genreScore = maxGenres > 0 ? genreOverlap / maxGenres : 0;
-      
-      // Role compatibility (different roles work better together)
-      const roleScore = (user1.role && user2.role && user1.role !== user2.role) ? 0.3 : 0.1;
-      
-      // Rating score with null checks
-      const user1Rating = typeof user1.rating === 'number' ? user1.rating : 0;
-      const user2Rating = typeof user2.rating === 'number' ? user2.rating : 0;
-      const ratingScore = (user1Rating + user2Rating) / 10;
-      
-      const compatibility = Math.min((genreScore * 0.5 + roleScore + ratingScore * 0.2) * 100, 99);
-      return Math.max(compatibility, 10); // Minimum 10% compatibility
-      
-    } catch (error) {
-      console.error('❌ Error calculating compatibility:', error);
-      return 50;
-    }
-  }, []);
+
 
   const onRefresh = useCallback(async () => {
     try {
@@ -535,11 +523,14 @@ export default function DiscoverScreen() {
     }
   }, [handleButtonSwipe]);
 
+  // Gesture handler with web compatibility
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
       'worklet';
       try {
-        scale.value = withSpring(0.95);
+        if (Platform.OS !== 'web') {
+          scale.value = withSpring(0.95);
+        }
       } catch (error) {
         console.error('❌ Error in gesture start:', error);
       }
@@ -547,14 +538,16 @@ export default function DiscoverScreen() {
     onActive: (event) => {
       'worklet';
       try {
-        translateX.value = event.translationX;
-        translateY.value = event.translationY;
-        rotate.value = interpolate(event.translationX, [-CARD_WIDTH, CARD_WIDTH], [-30, 30]);
-        opacity.value = interpolate(
-          Math.abs(event.translationX),
-          [0, SWIPE_THRESHOLD],
-          [1, 0.8]
-        );
+        if (Platform.OS !== 'web') {
+          translateX.value = event.translationX;
+          translateY.value = event.translationY;
+          rotate.value = interpolate(event.translationX, [-CARD_WIDTH, CARD_WIDTH], [-30, 30]);
+          opacity.value = interpolate(
+            Math.abs(event.translationX),
+            [0, SWIPE_THRESHOLD],
+            [1, 0.8]
+          );
+        }
       } catch (error) {
         console.error('❌ Error in gesture active:', error);
       }
@@ -562,25 +555,27 @@ export default function DiscoverScreen() {
     onEnd: (event) => {
       'worklet';
       try {
-        scale.value = withSpring(1);
-        
-        if (Math.abs(event.translationX) > SWIPE_THRESHOLD) {
-          const direction = event.translationX > 0 ? 'right' : 'left';
-          const targetX = direction === 'right' ? CARD_WIDTH * 2 : -CARD_WIDTH * 2;
+        if (Platform.OS !== 'web') {
+          scale.value = withSpring(1);
           
-          translateX.value = withTiming(targetX, { duration: 300 });
-          rotate.value = withTiming(direction === 'right' ? 30 : -30, { duration: 300 });
-          opacity.value = withTiming(0, { duration: 300 });
-          
-          setTimeout(() => {
-            try {
-              runOnJS(handleSwipe)(direction);
-            } catch (error) {
-              console.error('❌ Error in gesture end timeout:', error);
-            }
-          }, 300);
-        } else {
-          runOnJS(resetCardPosition)();
+          if (Math.abs(event.translationX) > SWIPE_THRESHOLD) {
+            const direction = event.translationX > 0 ? 'right' : 'left';
+            const targetX = direction === 'right' ? CARD_WIDTH * 2 : -CARD_WIDTH * 2;
+            
+            translateX.value = withTiming(targetX, { duration: 300 });
+            rotate.value = withTiming(direction === 'right' ? 30 : -30, { duration: 300 });
+            opacity.value = withTiming(0, { duration: 300 });
+            
+            setTimeout(() => {
+              try {
+                runOnJS(handleSwipe)(direction);
+              } catch (error) {
+                console.error('❌ Error in gesture end timeout:', error);
+              }
+            }, 300);
+          } else {
+            runOnJS(resetCardPosition)();
+          }
         }
       } catch (error) {
         console.error('❌ Error in gesture end:', error);
@@ -591,6 +586,13 @@ export default function DiscoverScreen() {
   const cardAnimatedStyle = useAnimatedStyle(() => {
     'worklet';
     try {
+      if (Platform.OS === 'web') {
+        // Simplified animation for web
+        return {
+          opacity: opacity.value,
+        };
+      }
+      
       return {
         transform: [
           { translateX: translateX.value },
@@ -602,22 +604,13 @@ export default function DiscoverScreen() {
       };
     } catch (error) {
       console.error('❌ Error in card animated style:', error);
-      return {};
+      return {
+        opacity: 1,
+      };
     }
   });
 
-  // Calculate compatibility safely - ALWAYS call useMemo
-  const compatibility = useMemo(() => {
-    try {
-      if (currentUser && currentProfile) {
-        return calculateCompatibility(currentUser, currentProfile);
-      }
-      return 50;
-    } catch (error) {
-      console.error('❌ Error calculating compatibility:', error);
-      return 50;
-    }
-  }, [currentUser, currentProfile, calculateCompatibility]);
+
 
   // Loading state
   if (loading) {
@@ -873,13 +866,30 @@ export default function DiscoverScreen() {
           <ErrorBoundary>
             <View style={styles.cardContainer}>
               {currentProfile && (
-                <PanGestureHandler onGestureEvent={gestureHandler}>
-                  <Animated.View style={[styles.card, cardAnimatedStyle]}>
-                    <ErrorBoundary>
-                      <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
-                    </ErrorBoundary>
-                  </Animated.View>
-                </PanGestureHandler>
+                <>
+                  {Platform.OS === 'web' ? (
+                    // Web fallback - no gesture handling
+                    <Animated.View style={[styles.card, cardAnimatedStyle]}>
+                      <ErrorBoundary>
+                        <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
+                      </ErrorBoundary>
+                      <View style={styles.webGestureOverlay}>
+                        <Text style={styles.webGestureText}>
+                          Use buttons below to swipe
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  ) : (
+                    // Native gesture handling
+                    <PanGestureHandler onGestureEvent={gestureHandler}>
+                      <Animated.View style={[styles.card, cardAnimatedStyle]}>
+                        <ErrorBoundary>
+                          <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
+                        </ErrorBoundary>
+                      </Animated.View>
+                    </PanGestureHandler>
+                  )}
+                </>
               )}
               
               {/* Next card preview */}
@@ -1391,5 +1401,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: colors.textMuted,
+  },
+  webGestureOverlay: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    opacity: 0.8,
+  },
+  webGestureText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
   },
 });
