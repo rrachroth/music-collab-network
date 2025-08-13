@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
-    ...shadows.medium,
+    ...shadows.md,
   },
   inputIcon: {
     marginRight: spacing.md,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: colors.textPrimary,
+    color: colors.black,
   },
   eyeButton: {
     padding: spacing.sm,
