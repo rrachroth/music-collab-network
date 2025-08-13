@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -36,15 +36,19 @@ const LoginScreen: React.FC = () => {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(50);
 
-  React.useEffect(() => {
-    fadeIn.value = withTiming(1, { duration: 800 });
-    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
-  }, [fadeIn, slideUp]);
-
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
     transform: [{ translateY: slideUp.value }],
   }));
+
+  const initializeAnimations = useCallback(() => {
+    fadeIn.value = withTiming(1, { duration: 800 });
+    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
+  }, [fadeIn, slideUp]);
+
+  useEffect(() => {
+    initializeAnimations();
+  }, [initializeAnimations]);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -159,7 +163,7 @@ const LoginScreen: React.FC = () => {
               </View>
 
               <Button
-                title={isLoading ? 'Signing In...' : 'Sign In'}
+                text={isLoading ? 'Signing In...' : 'Sign In'}
                 onPress={handleSignIn}
                 disabled={isLoading}
                 style={styles.submitButton}
@@ -170,7 +174,7 @@ const LoginScreen: React.FC = () => {
                 onPress={handleCreateNewAccount}
               >
                 <Text style={styles.createAccountText}>
-                  Don't have an account? 
+                  Don&apos;t have an account? 
                   <Text style={styles.createAccountLink}> Create New Account</Text>
                 </Text>
               </TouchableOpacity>

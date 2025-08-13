@@ -484,13 +484,13 @@ const BackendSetupScreen: React.FC = () => {
           {/* Action Buttons */}
           <View style={styles.section}>
             <Button
-              title="Run All Checks"
+              text="Run All Checks"
               onPress={runAllChecks}
               style={styles.actionButton}
             />
             
             <Button
-              title="Continue to App"
+              text="Continue to App"
               onPress={() => router.replace('/(tabs)')}
               variant="outline"
               style={styles.actionButton}

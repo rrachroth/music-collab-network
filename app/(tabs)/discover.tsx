@@ -153,7 +153,6 @@ export default function DiscoverScreen() {
     }
   }, []);
 
-  // ALWAYS call all hooks at the top level - never conditionally
   // Memoize current profile to prevent unnecessary re-renders
   const currentProfile = useMemo(() => {
     try {
@@ -170,7 +169,7 @@ export default function DiscoverScreen() {
     }
   }, [profiles, currentIndex]);
 
-  // Calculate compatibility score
+  // Calculate compatibility score - ALWAYS call this hook
   const compatibility = useMemo(() => {
     try {
       return calculateCompatibility(currentUser, currentProfile);
@@ -179,8 +178,6 @@ export default function DiscoverScreen() {
       return 50;
     }
   }, [currentUser, currentProfile, calculateCompatibility]);
-
-
 
   const loadData = useCallback(async () => {
     if (!isMountedRef.current) {
@@ -534,8 +531,6 @@ export default function DiscoverScreen() {
     };
   }, [loadData]);
 
-
-
   const onRefresh = useCallback(async () => {
     try {
       console.log('🔄 Refreshing data');
@@ -690,8 +685,6 @@ export default function DiscoverScreen() {
     }
   });
 
-
-
   // Loading state
   if (loading) {
     return (
@@ -709,7 +702,7 @@ export default function DiscoverScreen() {
             Discovering amazing talent for you
           </Text>
           <Button
-            title="Cancel"
+            text="Cancel"
             onPress={() => {
               try {
                 console.log('🔄 User cancelled loading');
@@ -745,14 +738,14 @@ export default function DiscoverScreen() {
             {error}
           </Text>
           <Button
-            title="Try Again"
+            text="Try Again"
             onPress={onRefresh}
             variant="gradient"
             size="lg"
             style={{ marginBottom: spacing.md }}
           />
           <Button
-            title="Clear Data & Retry"
+            text="Clear Data & Retry"
             onPress={async () => {
               try {
                 console.log('🧹 Clearing data and retrying');
@@ -794,14 +787,14 @@ export default function DiscoverScreen() {
             }
           </Text>
           <Button
-            title="Refresh"
+            text="Refresh"
             onPress={onRefresh}
             variant="gradient"
             size="lg"
             style={{ marginBottom: spacing.md }}
           />
           <Button
-            title="View Matches"
+            text="View Matches"
             onPress={() => {
               try {
                 router.push('/(tabs)/matches');
@@ -813,7 +806,7 @@ export default function DiscoverScreen() {
             size="lg"
           />
           <Button
-            title="Debug Info"
+            text="Debug Info"
             onPress={() => {
               try {
                 console.log('🔍 DEBUG - No Profiles State:');
@@ -852,14 +845,14 @@ export default function DiscoverScreen() {
             Index: {currentIndex}, Profiles: {profiles.length}
           </Text>
           <Button
-            title="Refresh"
+            text="Refresh"
             onPress={onRefresh}
             variant="gradient"
             size="lg"
             style={{ marginBottom: spacing.md }}
           />
           <Button
-            title="Reset"
+            text="Reset"
             onPress={() => {
               try {
                 console.log('🔄 Resetting discover state');
@@ -1076,7 +1069,7 @@ export default function DiscoverScreen() {
           The discover screen encountered a critical error. Please restart the app.
         </Text>
         <Button
-          title="Restart App"
+          text="Restart App"
           onPress={() => {
             try {
               router.replace('/');
@@ -1499,21 +1492,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     textAlign: 'center',
-  },
-  compatibilityBadge: {
-    position: 'absolute',
-    right: spacing.lg,
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    ...shadows.md,
-  },
-  compatibilityGradient: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  compatibilityText: {
-    fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-    color: colors.text,
   },
 });

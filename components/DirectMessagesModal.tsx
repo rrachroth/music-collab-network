@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -62,17 +63,6 @@ export default function DirectMessagesModal({
     };
   });
 
-  useEffect(() => {
-    if (visible) {
-      modalOpacity.value = withTiming(1, { duration: 300 });
-      modalScale.value = withSpring(1, { damping: 15 });
-      loadConversations();
-    } else {
-      modalOpacity.value = withTiming(0, { duration: 200 });
-      modalScale.value = withTiming(0.9, { duration: 200 });
-    }
-  }, [visible, modalOpacity, modalScale, loadConversations]);
-
   const loadConversations = useCallback(async () => {
     try {
       setLoading(true);
@@ -89,6 +79,17 @@ export default function DirectMessagesModal({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (visible) {
+      modalOpacity.value = withTiming(1, { duration: 300 });
+      modalScale.value = withSpring(1, { damping: 15 });
+      loadConversations();
+    } else {
+      modalOpacity.value = withTiming(0, { duration: 200 });
+      modalScale.value = withTiming(0.9, { duration: 200 });
+    }
+  }, [visible, modalOpacity, modalScale, loadConversations]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -165,7 +166,7 @@ export default function DirectMessagesModal({
                 <Icon name="chatbubbles-outline" size={64} color={colors.textMuted} />
                 <Text style={styles.emptyTitle}>No Messages Yet</Text>
                 <Text style={styles.emptyDescription}>
-                  When you message applicants or receive messages about your projects, they'll appear here.
+                  When you message applicants or receive messages about your projects, they&apos;ll appear here.
                 </Text>
               </View>
             ) : (

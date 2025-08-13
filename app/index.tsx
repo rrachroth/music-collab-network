@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -24,18 +24,6 @@ const HomeScreen: React.FC = () => {
   const slideUp = useSharedValue(50);
   const logoScale = useSharedValue(0.8);
 
-  useEffect(() => {
-    console.log('🏠 NextDrop Landing Page Loading...');
-    
-    // Start animations
-    fadeIn.value = withTiming(1, { duration: 1000 });
-    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
-    logoScale.value = withDelay(300, withSpring(1, { damping: 15, stiffness: 100 }));
-
-    // Check if user is already logged in
-    checkUserStatus();
-  }, [fadeIn, slideUp, logoScale]);
-
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
     transform: [{ translateY: slideUp.value }],
@@ -45,7 +33,13 @@ const HomeScreen: React.FC = () => {
     transform: [{ scale: logoScale.value }],
   }));
 
-  const checkUserStatus = async () => {
+  const initializeAnimations = useCallback(() => {
+    fadeIn.value = withTiming(1, { duration: 1000 });
+    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
+    logoScale.value = withDelay(300, withSpring(1, { damping: 15, stiffness: 100 }));
+  }, [fadeIn, slideUp, logoScale]);
+
+  const checkUserStatus = useCallback(async () => {
     try {
       console.log('🏠 Checking user status...');
       
@@ -63,7 +57,17 @@ const HomeScreen: React.FC = () => {
       console.error('❌ Error checking user status:', error);
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    console.log('🏠 NextDrop Landing Page Loading...');
+    
+    // Start animations
+    initializeAnimations();
+
+    // Check if user is already logged in
+    checkUserStatus();
+  }, [initializeAnimations, checkUserStatus]);
 
   const handleGetStarted = () => {
     console.log('🚀 Get Started pressed');
@@ -120,7 +124,7 @@ const HomeScreen: React.FC = () => {
 
         <View style={styles.buttonContainer}>
           <Button
-            title="Get Started"
+            text="Get Started"
             onPress={handleGetStarted}
             style={styles.primaryButton}
           />
