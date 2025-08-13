@@ -98,7 +98,7 @@ const BackendSetupScreen: React.FC = () => {
     
     // Auto-run setup checks
     runAllChecks();
-  }, []);
+  }, [fadeIn, slideUp, runAllChecks]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
@@ -345,7 +345,7 @@ const BackendSetupScreen: React.FC = () => {
     
     await runAllChecks();
     setIsRefreshing(false);
-  }, []);
+  }, [runAllChecks]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -514,7 +514,7 @@ const SetupStepCard: React.FC<SetupStepProps> = ({
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 15, stiffness: 100 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,

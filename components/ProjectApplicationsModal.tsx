@@ -80,7 +80,7 @@ export default function ProjectApplicationsModal({
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.9, { duration: 200 });
     }
-  }, [visible, modalOpacity, modalScale]);
+  }, [visible, modalOpacity, modalScale, loadApplications]);
 
   const loadApplications = useCallback(async () => {
     try {

@@ -39,7 +39,7 @@ const LoginScreen: React.FC = () => {
   React.useEffect(() => {
     fadeIn.value = withTiming(1, { duration: 800 });
     slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
-  }, []);
+  }, [fadeIn, slideUp]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,

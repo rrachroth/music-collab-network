@@ -34,7 +34,7 @@ const HomeScreen: React.FC = () => {
 
     // Check if user is already logged in
     checkUserStatus();
-  }, []);
+  }, [fadeIn, slideUp, logoScale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
