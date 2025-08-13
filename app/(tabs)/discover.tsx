@@ -62,7 +62,7 @@ export default function DiscoverScreen() {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
-  // Memoize current profile to prevent unnecessary re-renders
+  // Memoize current profile to prevent unnecessary re-renders - ALWAYS call useMemo
   const currentProfile = useMemo(() => {
     try {
       if (currentIndex >= 0 && currentIndex < profiles.length) {
@@ -606,6 +606,19 @@ export default function DiscoverScreen() {
     }
   });
 
+  // Calculate compatibility safely - ALWAYS call useMemo
+  const compatibility = useMemo(() => {
+    try {
+      if (currentUser && currentProfile) {
+        return calculateCompatibility(currentUser, currentProfile);
+      }
+      return 50;
+    } catch (error) {
+      console.error('❌ Error calculating compatibility:', error);
+      return 50;
+    }
+  }, [currentUser, currentProfile, calculateCompatibility]);
+
   // Loading state
   if (loading) {
     return (
@@ -792,19 +805,6 @@ export default function DiscoverScreen() {
       </ErrorBoundary>
     );
   }
-
-  // Calculate compatibility safely
-  const compatibility = useMemo(() => {
-    try {
-      if (currentUser && currentProfile) {
-        return calculateCompatibility(currentUser, currentProfile);
-      }
-      return 50;
-    } catch (error) {
-      console.error('❌ Error calculating compatibility:', error);
-      return 50;
-    }
-  }, [currentUser, currentProfile, calculateCompatibility]);
 
   // Main render with comprehensive error handling
   try {

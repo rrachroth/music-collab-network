@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -92,32 +92,19 @@ const BackendSetupScreen: React.FC = () => {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(50);
 
-  useEffect(() => {
-    fadeIn.value = withTiming(1, { duration: 800 });
-    slideUp.value = withSpring(0, { damping: 15, stiffness: 100 });
-    
-    // Auto-run setup checks
-    runAllChecks();
-  }, [fadeIn, slideUp, runAllChecks]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: fadeIn.value,
-    transform: [{ translateY: slideUp.value }],
-  }));
-
-  const updateStepStatus = (stepId: string, status: 'pending' | 'loading' | 'success' | 'error') => {
+  const updateStepStatus = useCallback((stepId: string, status: 'pending' | 'loading' | 'success' | 'error') => {
     setSetupSteps(prev => prev.map(step => 
       step.id === stepId ? { ...step, status } : step
     ));
-  };
+  }, []);
 
-  const updateTableStatus = (tableName: string, status: DatabaseTableInfo['status'], rowCount?: number) => {
+  const updateTableStatus = useCallback((tableName: string, status: DatabaseTableInfo['status'], rowCount?: number) => {
     setDatabaseTables(prev => prev.map(table => 
       table.name === tableName ? { ...table, status, rowCount } : table
     ));
-  };
+  }, []);
 
-  const testDatabaseConnection = async () => {
+  const testDatabaseConnection = useCallback(async () => {
     console.log('🔍 Testing database connection...');
     updateStepStatus('connection', 'loading');
     
@@ -161,9 +148,9 @@ const BackendSetupScreen: React.FC = () => {
       });
       return false;
     }
-  };
+  }, [updateStepStatus]);
 
-  const checkDatabaseTables = async () => {
+  const checkDatabaseTables = useCallback(async () => {
     console.log('🔍 Checking database tables...');
     updateStepStatus('tables', 'loading');
     
@@ -200,9 +187,9 @@ const BackendSetupScreen: React.FC = () => {
       updateStepStatus('tables', 'error');
       return false;
     }
-  };
+  }, [databaseTables, updateStepStatus, updateTableStatus]);
 
-  const testAuthentication = async () => {
+  const testAuthentication = useCallback(async () => {
     console.log('🔍 Testing authentication system...');
     updateStepStatus('auth', 'loading');
     
@@ -230,9 +217,9 @@ const BackendSetupScreen: React.FC = () => {
       updateStepStatus('auth', 'error');
       return false;
     }
-  };
+  }, [updateStepStatus]);
 
-  const checkRLSPolicies = async () => {
+  const checkRLSPolicies = useCallback(async () => {
     console.log('🔍 Checking RLS policies...');
     updateStepStatus('rls', 'loading');
     
@@ -256,9 +243,9 @@ const BackendSetupScreen: React.FC = () => {
       updateStepStatus('rls', 'success');
       return true;
     }
-  };
+  }, [updateStepStatus]);
 
-  const testFileStorage = async () => {
+  const testFileStorage = useCallback(async () => {
     console.log('🔍 Testing file storage...');
     updateStepStatus('storage', 'loading');
     
@@ -282,9 +269,10 @@ const BackendSetupScreen: React.FC = () => {
       updateStepStatus('storage', 'success');
       return true;
     }
-  };
+  }, [updateStepStatus]);
 
-  const runAllChecks = async () => {
+  // Wrap runAllChecks in useCallback to stabilize dependencies
+  const runAllChecks = useCallback(async () => {
     console.log('🚀 Starting backend setup checks...');
     
     try {
@@ -334,7 +322,15 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
-  };
+  }, [testDatabaseConnection, checkDatabaseTables, testAuthentication, checkRLSPolicies, testFileStorage]);
+
+  useEffect(() => {
+    fadeIn.value = withTiming(1, { duration: 800 });
+    slideUp.value = withSpring(0, { damping: 15, stiffness: 100 });
+    
+    // Auto-run setup checks
+    runAllChecks();
+  }, [fadeIn, slideUp, runAllChecks]);
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -346,6 +342,11 @@ const BackendSetupScreen: React.FC = () => {
     await runAllChecks();
     setIsRefreshing(false);
   }, [runAllChecks]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: fadeIn.value,
+    transform: [{ translateY: slideUp.value }],
+  }));
 
   const getStatusIcon = (status: string) => {
     switch (status) {
