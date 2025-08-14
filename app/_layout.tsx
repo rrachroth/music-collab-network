@@ -2,6 +2,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { commonStyles } from '../styles/commonStyles';
 import { useEffect } from 'react';
@@ -77,22 +78,24 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <LinearGradient
-          colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
-          style={commonStyles.wrapper}
-        >
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'slide_from_right',
-              animationDuration: 400,
-              animationTypeForReplace: 'push',
-            }}
-          />
-        </LinearGradient>
-      </SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <LinearGradient
+            colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
+            style={commonStyles.wrapper}
+          >
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+                animationDuration: 400,
+                animationTypeForReplace: 'push',
+              }}
+            />
+          </LinearGradient>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     </ErrorBoundary>
   );
 }
