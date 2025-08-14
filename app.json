@@ -1,8 +1,7 @@
-
 {
   "expo": {
-    "name": "NextDrop",
-    "slug": "nextdrop",
+    "name": "Muse",
+    "slug": "Muse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -15,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nextdrop.app",
+      "bundleIdentifier": "com.anonymous.Muse",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,7 +24,7 @@
         "foregroundImage": "./assets/images/natively-dark.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.nextdrop.app"
+      "package": "com.anonymous.Muse"
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -35,7 +34,7 @@
       "expo-font",
       "expo-router"
     ],
-    "scheme": "nextdrop",
+    "scheme": "muse",
     "experiments": {
       "typedRoutes": true
     },

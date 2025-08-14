@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import Icon from '../../components/Icon';
 import Button from '../../components/Button';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import { getCurrentUser } from '../../utils/storage';
+import AuthService from '../../utils/authService';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -27,8 +27,11 @@ import Animated, {
 
 const LoginScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -36,56 +39,78 @@ const LoginScreen: React.FC = () => {
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(50);
 
+  React.useEffect(() => {
+    fadeIn.value = withTiming(1, { duration: 800 });
+    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
+  }, []);
+
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
     transform: [{ translateY: slideUp.value }],
   }));
 
-  const initializeAnimations = useCallback(() => {
-    fadeIn.value = withTiming(1, { duration: 800 });
-    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
-  }, [fadeIn, slideUp]);
-
-  useEffect(() => {
-    initializeAnimations();
-  }, [initializeAnimations]);
-
-  const handleSignIn = async () => {
+  const handleSubmit = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields.');
+      Alert.alert('Error', 'Please fill in all required fields.');
       return;
+    }
+
+    if (!isLogin) {
+      if (!name) {
+        Alert.alert('Error', 'Please enter your name.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        Alert.alert('Error', 'Passwords do not match.');
+        return;
+      }
+      if (password.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters long.');
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
-      console.log('🔐 Attempting sign in...');
-      
-      // For demo purposes, we'll simulate a successful login
-      // In a real app, you would authenticate with your backend
-      
-      // Check if user exists and is onboarded
-      const currentUser = await getCurrentUser();
-      
-      if (currentUser?.isOnboarded) {
-        console.log('✅ User signed in successfully');
-        router.replace('/(tabs)');
+      if (isLogin) {
+        const result = await AuthService.signIn(email, password);
+        
+        if (result.success) {
+          if (result.needsOnboarding) {
+            router.replace('/onboarding');
+          } else {
+            router.replace('/(tabs)');
+          }
+        }
       } else {
-        console.log('⚠️ User needs onboarding');
-        router.replace('/onboarding');
+        const result = await AuthService.signUp(email, password, {
+          name,
+          role: 'producer', // Default role, can be changed in onboarding
+          genres: [],
+          location: '',
+          bio: '',
+        });
+        
+        if (result.success) {
+          // User will need to verify email before proceeding
+          router.replace('/onboarding');
+        }
       }
-      
     } catch (error) {
-      console.error('❌ Sign in error:', error);
-      Alert.alert('Error', 'Invalid email or password. Please try again.');
+      console.error('❌ Auth error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCreateNewAccount = () => {
-    console.log('📝 Create new account pressed');
-    router.push('/onboarding');
+  const toggleMode = () => {
+    setIsLogin(!isLogin);
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setName('');
   };
 
   return (
@@ -113,18 +138,34 @@ const LoginScreen: React.FC = () => {
               >
                 <Icon name="arrow-back" size={24} color={colors.white} />
               </TouchableOpacity>
-              <Text style={styles.title}>Sign In</Text>
+              <Text style={styles.title}>
+                {isLogin ? 'Welcome Back' : 'Create Account'}
+              </Text>
               <View style={styles.placeholder} />
             </View>
 
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>🎵</Text>
-              <Text style={styles.appName}>NextDrop</Text>
+              <Text style={styles.appName}>MusicLinked</Text>
             </View>
 
             {/* Form */}
             <View style={styles.formContainer}>
+              {!isLogin && (
+                <View style={styles.inputContainer}>
+                  <Icon name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full Name"
+                    placeholderTextColor={colors.textSecondary}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                  />
+                </View>
+              )}
+
               <View style={styles.inputContainer}>
                 <Icon name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
@@ -162,20 +203,37 @@ const LoginScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
+              {!isLogin && (
+                <View style={styles.inputContainer}>
+                  <Icon name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm Password"
+                    placeholderTextColor={colors.textSecondary}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+
               <Button
-                text={isLoading ? 'Signing In...' : 'Sign In'}
-                onPress={handleSignIn}
+                title={isLoading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                onPress={handleSubmit}
                 disabled={isLoading}
                 style={styles.submitButton}
               />
 
               <TouchableOpacity
-                style={styles.createAccountButton}
-                onPress={handleCreateNewAccount}
+                style={styles.toggleButton}
+                onPress={toggleMode}
               >
-                <Text style={styles.createAccountText}>
-                  Don&apos;t have an account? 
-                  <Text style={styles.createAccountLink}> Create New Account</Text>
+                <Text style={styles.toggleText}>
+                  {isLogin ? "Don't have an account? " : "Already have an account? "}
+                  <Text style={styles.toggleLink}>
+                    {isLogin ? 'Sign Up' : 'Sign In'}
+                  </Text>
                 </Text>
               </TouchableOpacity>
             </View>
@@ -249,7 +307,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
-    ...shadows.md,
+    ...shadows.medium,
   },
   inputIcon: {
     marginRight: spacing.md,
@@ -258,7 +316,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: colors.black,
+    color: colors.textPrimary,
   },
   eyeButton: {
     padding: spacing.sm,
@@ -267,15 +325,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.xl,
   },
-  createAccountButton: {
+  toggleButton: {
     alignItems: 'center',
-    padding: spacing.md,
   },
-  createAccountText: {
+  toggleText: {
     fontSize: 16,
     color: colors.white,
   },
-  createAccountLink: {
+  toggleLink: {
     fontWeight: '600',
     textDecorationLine: 'underline',
   },

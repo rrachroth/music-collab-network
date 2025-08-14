@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet, Dimensions } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,8 +17,6 @@ import Button from '../../components/Button';
 import { getCurrentUser, initializeSampleData, User } from '../../utils/storage';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 
-const { height: screenHeight } = Dimensions.get('window');
-
 interface FeatureCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
   title: string;
@@ -29,8 +27,6 @@ interface FeatureCardProps {
 }
 
 export default function HomeScreen() {
-  console.log('🏠 NextDrop Home Screen rendering...');
-  
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,16 +43,15 @@ export default function HomeScreen() {
 
   const initializeApp = useCallback(async () => {
     try {
-      console.log('🏠 Initializing NextDrop home screen...');
+      console.log('🏠 Initializing home screen...');
       await initializeSampleData();
       
       const currentUser = await getCurrentUser();
       if (currentUser) {
         setUser(currentUser);
-        console.log('✅ User loaded:', currentUser.name);
       }
     } catch (error) {
-      console.error('❌ Error initializing NextDrop app:', error);
+      console.error('❌ Error initializing app:', error);
     }
   }, []);
 
@@ -69,29 +64,24 @@ export default function HomeScreen() {
   }, [fadeIn, slideUp, initializeApp]);
 
   const onRefresh = useCallback(async () => {
-    console.log('🔄 Refreshing NextDrop home screen...');
     setRefreshing(true);
     await initializeApp();
     setRefreshing(false);
   }, [initializeApp]);
 
   const handleDiscover = () => {
-    console.log('🔍 Navigating to Discover');
     router.push('/(tabs)/discover');
   };
 
   const handleProjects = () => {
-    console.log('📁 Navigating to Projects');
     router.push('/(tabs)/projects');
   };
 
   const handleMatches = () => {
-    console.log('💖 Navigating to Matches');
     router.push('/(tabs)/matches');
   };
 
   const handleProfile = () => {
-    console.log('👤 Navigating to Profile');
     router.push('/(tabs)/profile');
   };
 
@@ -102,8 +92,7 @@ export default function HomeScreen() {
           colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
-        <Icon name="musical-note" size={80} color={colors.primary} />
-        <Text style={[commonStyles.text, { marginTop: spacing.lg }]}>Loading NextDrop...</Text>
+        <Text style={commonStyles.text}>Loading...</Text>
       </View>
     );
   }
@@ -117,18 +106,8 @@ export default function HomeScreen() {
       
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent, 
-          { 
-            paddingTop: insets.top + spacing.md,
-            paddingBottom: insets.bottom + spacing.xl * 2,
-          }
-        ]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing.md }]}
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        bounces={true}
-        alwaysBounceVertical={true}
-        nestedScrollEnabled={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -142,7 +121,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.welcomeTitle}>
-              Welcome to NextDrop
+              Welcome to MusicLinked
             </Text>
             <Text style={styles.welcomeSubtitle}>
               Connect, collaborate, and create amazing music together
@@ -203,89 +182,13 @@ export default function HomeScreen() {
                 Start discovering amazing artists and create music together
               </Text>
               <Button
-                title="Start Discovering"
+                text="Start Discovering"
                 onPress={handleDiscover}
+                variant="secondary"
+                size="lg"
                 style={styles.ctaButton}
               />
             </LinearGradient>
-          </View>
-
-          {/* About NextDrop Section */}
-          <View style={styles.aboutSection}>
-            <Text style={styles.aboutTitle}>About NextDrop</Text>
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutText}>
-                NextDrop is the professional network for musicians, producers, and music industry collaborators.
-                Join thousands of artists already creating amazing music together.
-              </Text>
-            </View>
-            
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutSubtitle}>🎵 For Musicians</Text>
-              <Text style={styles.aboutText}>
-                Showcase your talent, find collaborators, and build your professional network in the music industry.
-              </Text>
-            </View>
-            
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutSubtitle}>🎹 For Producers</Text>
-              <Text style={styles.aboutText}>
-                Connect with vocalists, instrumentalists, and other producers to bring your musical visions to life.
-              </Text>
-            </View>
-            
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutSubtitle}>💼 For Industry Professionals</Text>
-              <Text style={styles.aboutText}>
-                Discover new talent, manage projects, and expand your professional network in the music business.
-              </Text>
-            </View>
-          </View>
-
-          {/* Features Overview */}
-          <View style={styles.featuresSection}>
-            <Text style={styles.featuresTitle}>Why Choose NextDrop?</Text>
-            
-            <View style={styles.featureRow}>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>🔍</Text>
-                <Text style={styles.featureItemTitle}>Smart Discovery</Text>
-                <Text style={styles.featureItemText}>AI-powered matching based on your musical style and preferences</Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>💬</Text>
-                <Text style={styles.featureItemTitle}>Direct Messaging</Text>
-                <Text style={styles.featureItemText}>Connect instantly with potential collaborators</Text>
-              </View>
-            </View>
-            
-            <View style={styles.featureRow}>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>📁</Text>
-                <Text style={styles.featureItemTitle}>Project Management</Text>
-                <Text style={styles.featureItemText}>Organize and manage your music collaborations</Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>🎯</Text>
-                <Text style={styles.featureItemTitle}>Professional Network</Text>
-                <Text style={styles.featureItemText}>Build meaningful connections in the music industry</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Final CTA */}
-          <View style={styles.finalCta}>
-            <Text style={styles.finalCtaTitle}>Ready to make music?</Text>
-            <Text style={styles.finalCtaText}>
-              Join NextDrop today and start collaborating with talented musicians from around the world.
-            </Text>
-            <Button
-              title="Explore Now"
-              onPress={handleDiscover}
-              style={styles.finalCtaButton}
-            />
           </View>
         </Animated.View>
       </ScrollView>
@@ -339,6 +242,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   header: {
     alignItems: 'center',
@@ -350,13 +254,14 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
   welcomeSubtitle: {
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 24,
@@ -366,7 +271,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
     marginBottom: spacing.lg,
     textAlign: 'center',
@@ -395,12 +300,13 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   featureDescription: {
     fontSize: 14,
+    fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     lineHeight: 20,
   },
@@ -415,13 +321,14 @@ const styles = StyleSheet.create({
   },
   ctaTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
   ctaSubtitle: {
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     color: colors.text,
     textAlign: 'center',
     opacity: 0.9,
@@ -431,103 +338,5 @@ const styles = StyleSheet.create({
   ctaButton: {
     backgroundColor: colors.text,
     minWidth: 200,
-  },
-  aboutSection: {
-    marginBottom: spacing.xl,
-  },
-  aboutTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  aboutCard: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  aboutSubtitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  aboutText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  featuresSection: {
-    marginBottom: spacing.xl,
-  },
-  featuresTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  featureItem: {
-    flex: 1,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    alignItems: 'center',
-  },
-  featureEmoji: {
-    fontSize: 24,
-    marginBottom: spacing.sm,
-  },
-  featureItemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  featureItemText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  finalCta: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginBottom: spacing.xl,
-  },
-  finalCtaTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  finalCtaText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: spacing.lg,
-  },
-  finalCtaButton: {
-    backgroundColor: colors.primary,
-    minWidth: 150,
   },
 });

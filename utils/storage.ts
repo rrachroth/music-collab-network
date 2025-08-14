@@ -1,4 +1,3 @@
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface User {
@@ -104,107 +103,22 @@ const STORAGE_KEYS = {
   APPLICATIONS: 'applications',
   DIRECT_MESSAGES: 'direct_messages',
   USER_PREFERENCES: 'user_preferences',
-  SAMPLE_DATA_INITIALIZED: 'sample_data_initialized',
 };
 
 // Helper functions
 export const generateId = (): string => {
-  try {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substr(2);
-    const id = `${timestamp}_${random}`;
-    console.log('🆔 Generated ID:', id);
-    return id;
-  } catch (error) {
-    console.error('❌ Error generating ID:', error);
-    return `fallback_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-  }
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
 export const getCurrentTimestamp = (): string => {
-  try {
-    const timestamp = new Date().toISOString();
-    console.log('⏰ Generated timestamp:', timestamp);
-    return timestamp;
-  } catch (error) {
-    console.error('❌ Error generating timestamp:', error);
-    return new Date().toString();
-  }
-};
-
-// Safe JSON operations with error handling
-const safeJSONParse = (data: string | null, fallback: any = null) => {
-  if (!data) return fallback;
-  
-  try {
-    const parsed = JSON.parse(data);
-    return parsed;
-  } catch (error) {
-    console.error('❌ JSON parse error:', error);
-    return fallback;
-  }
-};
-
-const safeJSONStringify = (data: any): string => {
-  try {
-    return JSON.stringify(data);
-  } catch (error) {
-    console.error('❌ JSON stringify error:', error);
-    return '{}';
-  }
-};
-
-// Safe AsyncStorage operations with retry logic
-const safeAsyncStorageGet = async (key: string, fallback: any = null, retries: number = 3) => {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      console.log(`📱 Getting from AsyncStorage: ${key} (attempt ${attempt})`);
-      const data = await AsyncStorage.getItem(key);
-      const result = safeJSONParse(data, fallback);
-      console.log(`✅ Retrieved from AsyncStorage: ${key}`, typeof result, Array.isArray(result) ? `array(${result.length})` : 'object');
-      return result;
-    } catch (error) {
-      console.error(`❌ Error getting from AsyncStorage (${key}) attempt ${attempt}:`, error);
-      if (attempt === retries) {
-        console.error(`❌ All ${retries} attempts failed for ${key}, returning fallback`);
-        return fallback;
-      }
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
-    }
-  }
-  return fallback;
-};
-
-const safeAsyncStorageSet = async (key: string, data: any, retries: number = 3) => {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      console.log(`📱 Setting to AsyncStorage: ${key} (attempt ${attempt})`, typeof data, Array.isArray(data) ? `array(${data.length})` : 'object');
-      const jsonString = safeJSONStringify(data);
-      await AsyncStorage.setItem(key, jsonString);
-      console.log(`✅ Saved to AsyncStorage: ${key}`);
-      return;
-    } catch (error) {
-      console.error(`❌ Error setting to AsyncStorage (${key}) attempt ${attempt}:`, error);
-      if (attempt === retries) {
-        console.error(`❌ All ${retries} attempts failed for ${key}`);
-        throw error;
-      }
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
-    }
-  }
+  return new Date().toISOString();
 };
 
 // User Management
 export const saveCurrentUser = async (user: User): Promise<void> => {
   try {
-    if (!user || !user.id || !user.name) {
-      throw new Error('Invalid user data');
-    }
-    
-    await safeAsyncStorageSet(STORAGE_KEYS.CURRENT_USER, user);
-    console.log('✅ User saved successfully:', user.name);
+    await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+    console.log('✅ User saved successfully');
   } catch (error) {
     console.error('❌ Error saving user:', error);
     throw error;
@@ -213,14 +127,12 @@ export const saveCurrentUser = async (user: User): Promise<void> => {
 
 export const getCurrentUser = async (): Promise<User | null> => {
   try {
-    const user = await safeAsyncStorageGet(STORAGE_KEYS.CURRENT_USER, null);
-    
-    if (user && user.id && user.name) {
+    const userData = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (userData) {
+      const user = JSON.parse(userData);
       console.log('👤 Current user loaded:', user.name);
       return user;
     }
-    
-    console.log('👤 No valid current user found');
     return null;
   } catch (error) {
     console.error('❌ Error loading user:', error);
@@ -246,22 +158,7 @@ export const updateCurrentUser = async (updates: Partial<User>): Promise<User | 
 // All Users Management
 export const saveAllUsers = async (users: User[]): Promise<void> => {
   try {
-    if (!Array.isArray(users)) {
-      throw new Error('Users must be an array');
-    }
-    
-    // Validate users
-    const validUsers = users.filter(user => 
-      user && 
-      typeof user === 'object' && 
-      user.id && 
-      user.name &&
-      typeof user.id === 'string' &&
-      typeof user.name === 'string'
-    );
-    
-    console.log(`👥 Saving ${validUsers.length} valid users (filtered from ${users.length})`);
-    await safeAsyncStorageSet(STORAGE_KEYS.ALL_USERS, validUsers);
+    await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(users));
   } catch (error) {
     console.error('❌ Error saving all users:', error);
     throw error;
@@ -270,25 +167,11 @@ export const saveAllUsers = async (users: User[]): Promise<void> => {
 
 export const getAllUsers = async (): Promise<User[]> => {
   try {
-    const users = await safeAsyncStorageGet(STORAGE_KEYS.ALL_USERS, []);
-    
-    if (!Array.isArray(users)) {
-      console.warn('⚠️ Users data is not an array, returning empty array');
-      return [];
+    const usersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
+    if (usersData) {
+      return JSON.parse(usersData);
     }
-    
-    // Validate and filter users
-    const validUsers = users.filter(user => 
-      user && 
-      typeof user === 'object' && 
-      user.id && 
-      user.name &&
-      typeof user.id === 'string' &&
-      typeof user.name === 'string'
-    );
-    
-    console.log(`👥 Loaded ${validUsers.length} valid users (filtered from ${users.length})`);
-    return validUsers;
+    return [];
   } catch (error) {
     console.error('❌ Error loading all users:', error);
     return [];
@@ -297,25 +180,9 @@ export const getAllUsers = async (): Promise<User[]> => {
 
 export const addUser = async (user: User): Promise<void> => {
   try {
-    if (!user || !user.id || !user.name) {
-      throw new Error('Invalid user data');
-    }
-    
     const allUsers = await getAllUsers();
-    
-    // Check if user already exists
-    const existingUserIndex = allUsers.findIndex(u => u.id === user.id);
-    if (existingUserIndex >= 0) {
-      // Update existing user
-      allUsers[existingUserIndex] = user;
-      console.log('👤 Updated existing user:', user.name);
-    } else {
-      // Add new user
-      allUsers.push(user);
-      console.log('👤 Added new user:', user.name);
-    }
-    
-    await saveAllUsers(allUsers);
+    const updatedUsers = [...allUsers, user];
+    await saveAllUsers(updatedUsers);
   } catch (error) {
     console.error('❌ Error adding user:', error);
     throw error;
@@ -325,24 +192,7 @@ export const addUser = async (user: User): Promise<void> => {
 // Matches Management
 export const saveMatches = async (matches: Match[]): Promise<void> => {
   try {
-    if (!Array.isArray(matches)) {
-      throw new Error('Matches must be an array');
-    }
-    
-    // Validate matches
-    const validMatches = matches.filter(match => 
-      match && 
-      typeof match === 'object' && 
-      match.id && 
-      match.userId && 
-      match.matchedUserId &&
-      typeof match.id === 'string' &&
-      typeof match.userId === 'string' &&
-      typeof match.matchedUserId === 'string'
-    );
-    
-    console.log(`💕 Saving ${validMatches.length} valid matches (filtered from ${matches.length})`);
-    await safeAsyncStorageSet(STORAGE_KEYS.MATCHES, validMatches);
+    await AsyncStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(matches));
   } catch (error) {
     console.error('❌ Error saving matches:', error);
     throw error;
@@ -351,27 +201,11 @@ export const saveMatches = async (matches: Match[]): Promise<void> => {
 
 export const getMatches = async (): Promise<Match[]> => {
   try {
-    const matches = await safeAsyncStorageGet(STORAGE_KEYS.MATCHES, []);
-    
-    if (!Array.isArray(matches)) {
-      console.warn('⚠️ Matches data is not an array, returning empty array');
-      return [];
+    const matchesData = await AsyncStorage.getItem(STORAGE_KEYS.MATCHES);
+    if (matchesData) {
+      return JSON.parse(matchesData);
     }
-    
-    // Validate and filter matches
-    const validMatches = matches.filter(match => 
-      match && 
-      typeof match === 'object' && 
-      match.id && 
-      match.userId && 
-      match.matchedUserId &&
-      typeof match.id === 'string' &&
-      typeof match.userId === 'string' &&
-      typeof match.matchedUserId === 'string'
-    );
-    
-    console.log(`💕 Loaded ${validMatches.length} valid matches (filtered from ${matches.length})`);
-    return validMatches;
+    return [];
   } catch (error) {
     console.error('❌ Error loading matches:', error);
     return [];
@@ -380,25 +214,9 @@ export const getMatches = async (): Promise<Match[]> => {
 
 export const addMatch = async (match: Match): Promise<void> => {
   try {
-    if (!match || !match.id || !match.userId || !match.matchedUserId) {
-      throw new Error('Invalid match data');
-    }
-    
     const matches = await getMatches();
-    
-    // Check if match already exists
-    const existingMatch = matches.find(m => 
-      (m.userId === match.userId && m.matchedUserId === match.matchedUserId) ||
-      (m.userId === match.matchedUserId && m.matchedUserId === match.userId)
-    );
-    
-    if (existingMatch) {
-      console.log('💕 Match already exists, skipping');
-      return;
-    }
-    
-    matches.push(match);
-    await saveMatches(matches);
+    const updatedMatches = [...matches, match];
+    await saveMatches(updatedMatches);
     console.log('💕 Match added successfully');
   } catch (error) {
     console.error('❌ Error adding match:', error);
@@ -409,11 +227,7 @@ export const addMatch = async (match: Match): Promise<void> => {
 // Messages Management
 export const saveMessages = async (messages: Message[]): Promise<void> => {
   try {
-    if (!Array.isArray(messages)) {
-      throw new Error('Messages must be an array');
-    }
-    
-    await safeAsyncStorageSet(STORAGE_KEYS.MESSAGES, messages);
+    await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
   } catch (error) {
     console.error('❌ Error saving messages:', error);
     throw error;
@@ -422,17 +236,12 @@ export const saveMessages = async (messages: Message[]): Promise<void> => {
 
 export const getMessages = async (matchId?: string): Promise<Message[]> => {
   try {
-    const messages = await safeAsyncStorageGet(STORAGE_KEYS.MESSAGES, []);
-    
-    if (!Array.isArray(messages)) {
-      return [];
+    const messagesData = await AsyncStorage.getItem(STORAGE_KEYS.MESSAGES);
+    if (messagesData) {
+      const allMessages = JSON.parse(messagesData);
+      return matchId ? allMessages.filter((msg: Message) => msg.matchId === matchId) : allMessages;
     }
-    
-    const validMessages = messages.filter(msg => 
-      msg && typeof msg === 'object' && msg.id && msg.content
-    );
-    
-    return matchId ? validMessages.filter(msg => msg.matchId === matchId) : validMessages;
+    return [];
   } catch (error) {
     console.error('❌ Error loading messages:', error);
     return [];
@@ -441,13 +250,9 @@ export const getMessages = async (matchId?: string): Promise<Message[]> => {
 
 export const addMessage = async (message: Message): Promise<void> => {
   try {
-    if (!message || !message.id || !message.content) {
-      throw new Error('Invalid message data');
-    }
-    
     const messages = await getMessages();
-    messages.push(message);
-    await saveMessages(messages);
+    const updatedMessages = [...messages, message];
+    await saveMessages(updatedMessages);
     console.log('💬 Message added successfully');
   } catch (error) {
     console.error('❌ Error adding message:', error);
@@ -458,11 +263,7 @@ export const addMessage = async (message: Message): Promise<void> => {
 // Projects Management
 export const saveProjects = async (projects: Project[]): Promise<void> => {
   try {
-    if (!Array.isArray(projects)) {
-      throw new Error('Projects must be an array');
-    }
-    
-    await safeAsyncStorageSet(STORAGE_KEYS.PROJECTS, projects);
+    await AsyncStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
   } catch (error) {
     console.error('❌ Error saving projects:', error);
     throw error;
@@ -471,15 +272,11 @@ export const saveProjects = async (projects: Project[]): Promise<void> => {
 
 export const getProjects = async (): Promise<Project[]> => {
   try {
-    const projects = await safeAsyncStorageGet(STORAGE_KEYS.PROJECTS, []);
-    
-    if (!Array.isArray(projects)) {
-      return [];
+    const projectsData = await AsyncStorage.getItem(STORAGE_KEYS.PROJECTS);
+    if (projectsData) {
+      return JSON.parse(projectsData);
     }
-    
-    return projects.filter(project => 
-      project && typeof project === 'object' && project.id && project.title
-    );
+    return [];
   } catch (error) {
     console.error('❌ Error loading projects:', error);
     return [];
@@ -488,13 +285,9 @@ export const getProjects = async (): Promise<Project[]> => {
 
 export const addProject = async (project: Project): Promise<void> => {
   try {
-    if (!project || !project.id || !project.title) {
-      throw new Error('Invalid project data');
-    }
-    
     const projects = await getProjects();
-    projects.push(project);
-    await saveProjects(projects);
+    const updatedProjects = [...projects, project];
+    await saveProjects(updatedProjects);
     console.log('📋 Project added successfully');
   } catch (error) {
     console.error('❌ Error adding project:', error);
@@ -519,11 +312,7 @@ export const updateProject = async (projectId: string, updates: Partial<Project>
 // Applications Management
 export const saveApplications = async (applications: Application[]): Promise<void> => {
   try {
-    if (!Array.isArray(applications)) {
-      throw new Error('Applications must be an array');
-    }
-    
-    await safeAsyncStorageSet(STORAGE_KEYS.APPLICATIONS, applications);
+    await AsyncStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(applications));
   } catch (error) {
     console.error('❌ Error saving applications:', error);
     throw error;
@@ -532,17 +321,12 @@ export const saveApplications = async (applications: Application[]): Promise<voi
 
 export const getApplications = async (projectId?: string): Promise<Application[]> => {
   try {
-    const applications = await safeAsyncStorageGet(STORAGE_KEYS.APPLICATIONS, []);
-    
-    if (!Array.isArray(applications)) {
-      return [];
+    const applicationsData = await AsyncStorage.getItem(STORAGE_KEYS.APPLICATIONS);
+    if (applicationsData) {
+      const allApplications = JSON.parse(applicationsData);
+      return projectId ? allApplications.filter((app: Application) => app.projectId === projectId) : allApplications;
     }
-    
-    const validApplications = applications.filter(app => 
-      app && typeof app === 'object' && app.id && app.projectId
-    );
-    
-    return projectId ? validApplications.filter(app => app.projectId === projectId) : validApplications;
+    return [];
   } catch (error) {
     console.error('❌ Error loading applications:', error);
     return [];
@@ -551,13 +335,9 @@ export const getApplications = async (projectId?: string): Promise<Application[]
 
 export const addApplication = async (application: Application): Promise<void> => {
   try {
-    if (!application || !application.id || !application.projectId) {
-      throw new Error('Invalid application data');
-    }
-    
     const applications = await getApplications();
-    applications.push(application);
-    await saveApplications(applications);
+    const updatedApplications = [...applications, application];
+    await saveApplications(updatedApplications);
     console.log('📝 Application added successfully');
   } catch (error) {
     console.error('❌ Error adding application:', error);
@@ -568,11 +348,7 @@ export const addApplication = async (application: Application): Promise<void> =>
 // Direct Messages Management
 export const saveDirectMessages = async (messages: DirectMessage[]): Promise<void> => {
   try {
-    if (!Array.isArray(messages)) {
-      throw new Error('Direct messages must be an array');
-    }
-    
-    await safeAsyncStorageSet(STORAGE_KEYS.DIRECT_MESSAGES, messages);
+    await AsyncStorage.setItem(STORAGE_KEYS.DIRECT_MESSAGES, JSON.stringify(messages));
   } catch (error) {
     console.error('❌ Error saving direct messages:', error);
     throw error;
@@ -581,32 +357,31 @@ export const saveDirectMessages = async (messages: DirectMessage[]): Promise<voi
 
 export const getDirectMessages = async (projectId?: string, userId?: string): Promise<DirectMessage[]> => {
   try {
-    const messages = await safeAsyncStorageGet(STORAGE_KEYS.DIRECT_MESSAGES, []);
-    
-    if (!Array.isArray(messages)) {
-      return [];
-    }
-    
-    let validMessages = messages.filter(msg => 
-      msg && typeof msg === 'object' && msg.id && msg.content
-    );
-    
-    if (projectId && userId) {
-      validMessages = validMessages.filter(msg => 
-        msg.projectId === projectId && 
-        (msg.senderId === userId || msg.receiverId === userId)
+    const messagesData = await AsyncStorage.getItem(STORAGE_KEYS.DIRECT_MESSAGES);
+    if (messagesData) {
+      let allMessages = JSON.parse(messagesData);
+      
+      if (projectId && userId) {
+        // Get messages for a specific project where user is either sender or receiver
+        allMessages = allMessages.filter((msg: DirectMessage) => 
+          msg.projectId === projectId && 
+          (msg.senderId === userId || msg.receiverId === userId)
+        );
+      } else if (projectId) {
+        // Get all messages for a specific project
+        allMessages = allMessages.filter((msg: DirectMessage) => msg.projectId === projectId);
+      } else if (userId) {
+        // Get all messages where user is either sender or receiver
+        allMessages = allMessages.filter((msg: DirectMessage) => 
+          msg.senderId === userId || msg.receiverId === userId
+        );
+      }
+      
+      return allMessages.sort((a: DirectMessage, b: DirectMessage) => 
+        new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
       );
-    } else if (projectId) {
-      validMessages = validMessages.filter(msg => msg.projectId === projectId);
-    } else if (userId) {
-      validMessages = validMessages.filter(msg => 
-        msg.senderId === userId || msg.receiverId === userId
-      );
     }
-    
-    return validMessages.sort((a, b) => 
-      new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-    );
+    return [];
   } catch (error) {
     console.error('❌ Error loading direct messages:', error);
     return [];
@@ -615,13 +390,9 @@ export const getDirectMessages = async (projectId?: string, userId?: string): Pr
 
 export const addDirectMessage = async (message: DirectMessage): Promise<void> => {
   try {
-    if (!message || !message.id || !message.content) {
-      throw new Error('Invalid direct message data');
-    }
-    
     const messages = await getDirectMessages();
-    messages.push(message);
-    await saveDirectMessages(messages);
+    const updatedMessages = [...messages, message];
+    await saveDirectMessages(updatedMessages);
     console.log('💬 Direct message added successfully');
   } catch (error) {
     console.error('❌ Error adding direct message:', error);
@@ -701,170 +472,151 @@ export const markDirectMessagesAsRead = async (projectId: string, otherUserId: s
 // Initialize with sample data
 export const initializeSampleData = async (): Promise<void> => {
   try {
-    // Check if sample data has already been initialized
-    const isInitialized = await safeAsyncStorageGet(STORAGE_KEYS.SAMPLE_DATA_INITIALIZED, false);
-    
-    if (isInitialized) {
-      console.log('🎵 Sample data already initialized, skipping');
-      return;
-    }
-    
     const existingUsers = await getAllUsers();
-    if (existingUsers.length > 0) {
-      console.log('🎵 Users already exist, skipping sample data initialization');
-      await safeAsyncStorageSet(STORAGE_KEYS.SAMPLE_DATA_INITIALIZED, true);
-      return;
+    if (existingUsers.length === 0) {
+      console.log('🎵 Initializing sample data...');
+      
+      const sampleUsers: User[] = [
+        {
+          id: 'user_1',
+          name: 'Alex Producer',
+          role: 'producer',
+          genres: ['Hip-Hop', 'R&B'],
+          location: 'Los Angeles, CA',
+          bio: 'Grammy-nominated producer specializing in modern hip-hop and R&B. Looking for talented vocalists and rappers.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.8,
+          verified: true,
+          joinDate: '2024-01-15',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'user_2',
+          name: 'Maya Vocalist',
+          role: 'vocalist',
+          genres: ['Pop', 'R&B'],
+          location: 'Nashville, TN',
+          bio: 'Professional vocalist with 10+ years experience. Featured on multiple Billboard charting songs.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.9,
+          verified: true,
+          joinDate: '2024-02-20',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'user_3',
+          name: 'Jordan Beats',
+          role: 'producer',
+          genres: ['Electronic', 'Pop'],
+          location: 'New York, NY',
+          bio: 'Electronic music producer and sound designer. Specializing in innovative pop productions.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.7,
+          verified: false,
+          joinDate: '2024-03-10',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'user_4',
+          name: 'Sophia Strings',
+          role: 'instrumentalist',
+          genres: ['Classical', 'Pop', 'Rock'],
+          location: 'Boston, MA',
+          bio: 'Professional violinist and string arranger. Classically trained with a passion for modern music.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.6,
+          verified: true,
+          joinDate: '2024-02-05',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'user_5',
+          name: 'Marcus Mix',
+          role: 'mixer',
+          genres: ['Hip-Hop', 'Pop', 'R&B'],
+          location: 'Atlanta, GA',
+          bio: 'Award-winning mix engineer with credits on platinum albums. Specializing in modern urban music.',
+          highlights: [],
+          collaborations: [],
+          rating: 4.9,
+          verified: true,
+          joinDate: '2024-01-30',
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: getCurrentTimestamp(),
+        },
+      ];
+
+      await saveAllUsers(sampleUsers);
+
+      const sampleProjects: Project[] = [
+        {
+          id: 'project_1',
+          title: 'Looking for Vocalist - R&B Track',
+          description: 'I have a smooth R&B instrumental ready and need a talented vocalist to bring it to life. Looking for someone with experience in contemporary R&B.',
+          createdBy: 'user_1',
+          authorId: 'user_1',
+          authorName: 'Alex Producer',
+          authorRole: 'Producer',
+          genres: ['R&B', 'Soul'],
+          budget: '$500-1000',
+          timeline: '2 weeks',
+          status: 'open',
+          applicants: [],
+          createdAt: getCurrentTimestamp(),
+          updatedAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'project_2',
+          title: 'Hip-Hop Collab - Need Rapper',
+          description: 'Fresh hip-hop beat with a trap influence. Looking for a skilled rapper with their own style and flow.',
+          createdBy: 'user_1',
+          authorId: 'user_1',
+          authorName: 'Alex Producer',
+          authorRole: 'Producer',
+          genres: ['Hip-Hop', 'Trap'],
+          budget: '$300-500',
+          timeline: '1 week',
+          status: 'open',
+          applicants: [],
+          createdAt: getCurrentTimestamp(),
+          updatedAt: getCurrentTimestamp(),
+        },
+        {
+          id: 'project_3',
+          title: 'Pop Song Needs String Arrangement',
+          description: 'Working on a pop ballad that needs beautiful string arrangements. Looking for a skilled string player or arranger.',
+          createdBy: 'user_2',
+          authorId: 'user_2',
+          authorName: 'Maya Vocalist',
+          authorRole: 'Vocalist',
+          genres: ['Pop', 'Ballad'],
+          budget: '$400-800',
+          timeline: '3 weeks',
+          status: 'open',
+          applicants: [],
+          createdAt: getCurrentTimestamp(),
+          updatedAt: getCurrentTimestamp(),
+        },
+      ];
+
+      await saveProjects(sampleProjects);
+      console.log('✅ Sample data initialized');
     }
-    
-    console.log('🎵 Initializing sample data...');
-    
-    const timestamp = getCurrentTimestamp();
-    
-    const sampleUsers: User[] = [
-      {
-        id: 'user_1',
-        name: 'Alex Producer',
-        role: 'producer',
-        genres: ['Hip-Hop', 'R&B'],
-        location: 'Los Angeles, CA',
-        bio: 'Grammy-nominated producer specializing in modern hip-hop and R&B. Looking for talented vocalists and rappers.',
-        highlights: [],
-        collaborations: [],
-        rating: 4.8,
-        verified: true,
-        joinDate: '2024-01-15',
-        isOnboarded: true,
-        lastActive: timestamp,
-        createdAt: timestamp,
-      },
-      {
-        id: 'user_2',
-        name: 'Maya Vocalist',
-        role: 'vocalist',
-        genres: ['Pop', 'R&B'],
-        location: 'Nashville, TN',
-        bio: 'Professional vocalist with 10+ years experience. Featured on multiple Billboard charting songs.',
-        highlights: [],
-        collaborations: [],
-        rating: 4.9,
-        verified: true,
-        joinDate: '2024-02-20',
-        isOnboarded: true,
-        lastActive: timestamp,
-        createdAt: timestamp,
-      },
-      {
-        id: 'user_3',
-        name: 'Jordan Beats',
-        role: 'producer',
-        genres: ['Electronic', 'Pop'],
-        location: 'New York, NY',
-        bio: 'Electronic music producer and sound designer. Specializing in innovative pop productions.',
-        highlights: [],
-        collaborations: [],
-        rating: 4.7,
-        verified: false,
-        joinDate: '2024-03-10',
-        isOnboarded: true,
-        lastActive: timestamp,
-        createdAt: timestamp,
-      },
-      {
-        id: 'user_4',
-        name: 'Sophia Strings',
-        role: 'instrumentalist',
-        genres: ['Classical', 'Pop', 'Rock'],
-        location: 'Boston, MA',
-        bio: 'Professional violinist and string arranger. Classically trained with a passion for modern music.',
-        highlights: [],
-        collaborations: [],
-        rating: 4.6,
-        verified: true,
-        joinDate: '2024-02-05',
-        isOnboarded: true,
-        lastActive: timestamp,
-        createdAt: timestamp,
-      },
-      {
-        id: 'user_5',
-        name: 'Marcus Mix',
-        role: 'mixer',
-        genres: ['Hip-Hop', 'Pop', 'R&B'],
-        location: 'Atlanta, GA',
-        bio: 'Award-winning mix engineer with credits on platinum albums. Specializing in modern urban music.',
-        highlights: [],
-        collaborations: [],
-        rating: 4.9,
-        verified: true,
-        joinDate: '2024-01-30',
-        isOnboarded: true,
-        lastActive: timestamp,
-        createdAt: timestamp,
-      },
-    ];
-
-    await saveAllUsers(sampleUsers);
-
-    const sampleProjects: Project[] = [
-      {
-        id: 'project_1',
-        title: 'Looking for Vocalist - R&B Track',
-        description: 'I have a smooth R&B instrumental ready and need a talented vocalist to bring it to life. Looking for someone with experience in contemporary R&B.',
-        createdBy: 'user_1',
-        authorId: 'user_1',
-        authorName: 'Alex Producer',
-        authorRole: 'Producer',
-        genres: ['R&B', 'Soul'],
-        budget: '$500-1000',
-        timeline: '2 weeks',
-        status: 'open',
-        applicants: [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-      {
-        id: 'project_2',
-        title: 'Hip-Hop Collab - Need Rapper',
-        description: 'Fresh hip-hop beat with a trap influence. Looking for a skilled rapper with their own style and flow.',
-        createdBy: 'user_1',
-        authorId: 'user_1',
-        authorName: 'Alex Producer',
-        authorRole: 'Producer',
-        genres: ['Hip-Hop', 'Trap'],
-        budget: '$300-500',
-        timeline: '1 week',
-        status: 'open',
-        applicants: [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-      {
-        id: 'project_3',
-        title: 'Pop Song Needs String Arrangement',
-        description: 'Working on a pop ballad that needs beautiful string arrangements. Looking for a skilled string player or arranger.',
-        createdBy: 'user_2',
-        authorId: 'user_2',
-        authorName: 'Maya Vocalist',
-        authorRole: 'Vocalist',
-        genres: ['Pop', 'Ballad'],
-        budget: '$400-800',
-        timeline: '3 weeks',
-        status: 'open',
-        applicants: [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-    ];
-
-    await saveProjects(sampleProjects);
-    
-    // Mark sample data as initialized
-    await safeAsyncStorageSet(STORAGE_KEYS.SAMPLE_DATA_INITIALIZED, true);
-    
-    console.log('✅ Sample data initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing sample data:', error);
-    // Don't throw error, just log it so app can continue
   }
 };
 
@@ -876,31 +628,5 @@ export const clearAllData = async (): Promise<void> => {
   } catch (error) {
     console.error('❌ Error clearing data:', error);
     throw error;
-  }
-};
-
-// Debug function to check storage state
-export const debugStorage = async (): Promise<void> => {
-  try {
-    console.log('🔍 === STORAGE DEBUG ===');
-    
-    const currentUser = await getCurrentUser();
-    console.log('👤 Current User:', currentUser?.name || 'None');
-    
-    const allUsers = await getAllUsers();
-    console.log('👥 All Users:', allUsers.length);
-    
-    const matches = await getMatches();
-    console.log('💕 Matches:', matches.length);
-    
-    const projects = await getProjects();
-    console.log('📋 Projects:', projects.length);
-    
-    const isInitialized = await safeAsyncStorageGet(STORAGE_KEYS.SAMPLE_DATA_INITIALIZED, false);
-    console.log('🎵 Sample Data Initialized:', isInitialized);
-    
-    console.log('🔍 === END DEBUG ===');
-  } catch (error) {
-    console.error('❌ Error in debug storage:', error);
   }
 };

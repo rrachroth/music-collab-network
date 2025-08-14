@@ -1,4 +1,3 @@
-
 import { Text, View, ScrollView, TextInput, Alert, Dimensions, TouchableOpacity } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
@@ -124,6 +123,7 @@ export default function OnboardingScreen() {
     if (step > 1) {
       setStep(step - 1);
     } else {
+      // Instead of router.back(), go to home or show confirmation
       Alert.alert(
         'Exit Setup?',
         'Are you sure you want to exit profile setup? Your progress will be lost.',
@@ -132,7 +132,7 @@ export default function OnboardingScreen() {
           { 
             text: 'Exit', 
             style: 'destructive',
-            onPress: () => router.replace('/auth/login')
+            onPress: () => router.replace('/(tabs)')
           }
         ]
       );
@@ -172,7 +172,7 @@ export default function OnboardingScreen() {
       
       // Show success message and navigate
       Alert.alert(
-        'Welcome to NextDrop! 🎉',
+        'Welcome to Muse! 🎉',
         `Your profile has been created successfully, ${name}! Let's start discovering amazing artists and collaborating on music.`,
         [
           {
@@ -206,11 +206,11 @@ export default function OnboardingScreen() {
     switch (step) {
       case 1:
         return (
-          <Animated.View style={[styles.section, animatedStyle]}>
-            <Text style={styles.stepTitle}>
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
               What's your role in music?
             </Text>
-            <Text style={styles.stepSubtitle}>
+            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
               Select your primary role to help us connect you with the right collaborators
             </Text>
             
@@ -229,11 +229,11 @@ export default function OnboardingScreen() {
       
       case 2:
         return (
-          <Animated.View style={[styles.section, animatedStyle]}>
-            <Text style={styles.stepTitle}>
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
               What genres do you work with?
             </Text>
-            <Text style={styles.stepSubtitle}>
+            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
               Choose all genres that match your style (you can change this later)
             </Text>
             
@@ -252,48 +252,48 @@ export default function OnboardingScreen() {
       
       case 3:
         return (
-          <Animated.View style={[styles.section, animatedStyle]}>
-            <Text style={styles.stepTitle}>
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
+            <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
               Tell us about yourself
             </Text>
-            <Text style={styles.stepSubtitle}>
+            <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
               This information will be displayed on your profile
             </Text>
             
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>
+              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
                 Name or Artist Name *
               </Text>
               <TextInput
-                style={styles.input}
+                style={[commonStyles.input, styles.input]}
                 placeholder="Enter your name..."
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.textMuted}
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
                 maxLength={50}
               />
               
-              <Text style={styles.inputLabel}>
+              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
                 Location *
               </Text>
               <TextInput
-                style={styles.input}
+                style={[commonStyles.input, styles.input]}
                 placeholder="City, State/Country"
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.textMuted}
                 value={location}
                 onChangeText={setLocation}
                 autoCapitalize="words"
                 maxLength={100}
               />
               
-              <Text style={styles.inputLabel}>
+              <Text style={[commonStyles.textLeft, { marginBottom: spacing.sm }]}>
                 Bio (Optional)
               </Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[commonStyles.input, styles.textArea]}
                 placeholder="Tell us about your musical journey..."
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.textMuted}
                 value={bio}
                 onChangeText={setBio}
                 multiline
@@ -307,20 +307,20 @@ export default function OnboardingScreen() {
       
       case 4:
         return (
-          <Animated.View style={[styles.section, animatedStyle]}>
+          <Animated.View style={[commonStyles.section, animatedStyle]}>
             <View style={styles.summaryContainer}>
               <LinearGradient
-                colors={['#667eea', '#764ba2']}
+                colors={colors.gradientPrimary}
                 style={styles.summaryIcon}
               >
-                <Icon name="checkmark-circle" size={60} color={colors.white} />
+                <Icon name="checkmark-circle" size={60} color={colors.text} />
               </LinearGradient>
               
-              <Text style={styles.stepTitle}>
+              <Text style={[commonStyles.subtitle, { marginBottom: spacing.lg }]}>
                 You're all set!
               </Text>
               
-              <Text style={styles.stepSubtitle}>
+              <Text style={[commonStyles.text, { marginBottom: spacing.xl }]}>
                 Here's what we've set up for your profile:
               </Text>
               
@@ -332,7 +332,7 @@ export default function OnboardingScreen() {
                 {bio && <SummaryItem icon="document-text" label="Bio" value={bio} />}
               </View>
               
-              <Text style={styles.summaryNote}>
+              <Text style={[commonStyles.caption, { marginTop: spacing.lg, textAlign: 'center', opacity: 0.8 }]}>
                 You can always update your profile later in settings
               </Text>
             </View>
@@ -345,7 +345,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={['#0A0E1A', '#1A1F2E', '#2A1F3D']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -353,18 +353,19 @@ export default function OnboardingScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
+        <Button
+          text="Back"
           onPress={handleBack}
-        >
-          <Icon name="arrow-back" size={24} color={colors.white} />
-        </TouchableOpacity>
+          variant="ghost"
+          size="sm"
+          style={styles.backButton}
+        />
         
-        <Text style={styles.headerTitle}>
+        <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
           Setup Profile
         </Text>
         
-        <Text style={styles.stepCounter}>
+        <Text style={[commonStyles.caption, { minWidth: 40, textAlign: 'right' }]}>
           {step}/4
         </Text>
       </View>
@@ -377,7 +378,7 @@ export default function OnboardingScreen() {
       </View>
 
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
         showsVerticalScrollIndicator={false}
       >
         {renderStep()}
@@ -386,11 +387,12 @@ export default function OnboardingScreen() {
       {/* Footer */}
       <View style={styles.footer}>
         <Button
-          title={step === 4 ? 'Complete Profile' : 'Continue'}
+          text={step === 4 ? 'Complete Profile' : 'Continue'}
           onPress={handleNext}
+          variant="gradient"
+          size="lg"
           loading={loading}
           disabled={loading || isCompleting}
-          style={styles.continueButton}
         />
       </View>
     </View>
@@ -408,7 +410,8 @@ function RoleCard({ role, selected, onPress }: RoleCardProps) {
     <TouchableOpacity 
       style={[
         styles.roleCard,
-        selected && styles.roleCardSelected
+        styles.roleButton,
+        selected && styles.roleButtonSelected
       ]}
       onPress={onPress}
       activeOpacity={0.8}
@@ -417,7 +420,7 @@ function RoleCard({ role, selected, onPress }: RoleCardProps) {
         <Icon 
           name={role.icon as any} 
           size={32} 
-          color={selected ? colors.white : colors.textSecondary}
+          style={{ color: selected ? colors.text : colors.textMuted }}
         />
         <Text style={[
           styles.roleText,
@@ -438,21 +441,14 @@ interface GenreChipProps {
 
 function GenreChip({ genre, selected, onPress }: GenreChipProps) {
   return (
-    <TouchableOpacity
-      style={[
-        styles.genreChip,
-        selected && styles.genreChipSelected
-      ]}
+    <Button
+      text={genre}
       onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <Text style={[
-        styles.genreText,
-        selected && styles.genreTextSelected
-      ]}>
-        {genre}
-      </Text>
-    </TouchableOpacity>
+      variant={selected ? "primary" : "outline"}
+      size="sm"
+      style={[styles.genreChip, selected && styles.genreChipSelected]}
+      textStyle={[styles.genreText, selected && styles.genreTextSelected]}
+    />
   );
 }
 
@@ -475,39 +471,17 @@ function SummaryItem({ icon, label, value }: SummaryItemProps) {
 }
 
 const styles = {
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   header: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.border,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: colors.white,
-    textAlign: 'center' as const,
-    marginHorizontal: spacing.md,
-  },
-  stepCounter: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    minWidth: 40,
-    textAlign: 'right' as const,
+    minWidth: 60,
+    justifyContent: 'flex-start' as const,
   },
   progressContainer: {
     paddingHorizontal: spacing.lg,
@@ -515,7 +489,7 @@ const styles = {
   },
   progressBar: {
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.backgroundAlt,
     borderRadius: 2,
     overflow: 'hidden' as const,
   },
@@ -523,28 +497,6 @@ const styles = {
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: 2,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: spacing.lg,
-  },
-  section: {
-    flex: 1,
-    justifyContent: 'center' as const,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: 'bold' as const,
-    color: colors.white,
-    textAlign: 'center' as const,
-    marginBottom: spacing.md,
-  },
-  stepSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center' as const,
-    marginBottom: spacing.xl,
-    lineHeight: 24,
   },
   optionsGrid: {
     flexDirection: 'row' as const,
@@ -554,17 +506,22 @@ const styles = {
   },
   roleCard: {
     width: '48%',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    minHeight: 100,
     marginBottom: spacing.md,
   },
   roleCardSelected: {
+    transform: [{ scale: 1.02 }],
+  },
+  roleButton: {
+    backgroundColor: colors.backgroundCard,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    minHeight: 100,
+  },
+  roleButtonSelected: {
     borderColor: colors.primary,
-    backgroundColor: 'rgba(102, 126, 234, 0.2)',
+    backgroundColor: colors.backgroundAlt,
   },
   roleContent: {
     alignItems: 'center' as const,
@@ -572,13 +529,13 @@ const styles = {
   },
   roleText: {
     fontSize: 14,
-    fontWeight: '500' as const,
-    color: colors.textSecondary,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
     textAlign: 'center' as const,
   },
   roleTextSelected: {
-    color: colors.white,
-    fontWeight: '600' as const,
+    color: colors.text,
+    fontFamily: 'Inter_600SemiBold',
   },
   genreGrid: {
     flexDirection: 'row' as const,
@@ -586,49 +543,27 @@ const styles = {
     gap: spacing.sm,
   },
   genreChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    minWidth: 80,
     marginBottom: spacing.sm,
   },
   genreChipSelected: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   genreText: {
     fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500' as const,
   },
   genreTextSelected: {
-    color: colors.white,
-    fontWeight: '600' as const,
+    color: colors.text,
   },
   inputContainer: {
     width: '100%',
   },
-  inputLabel: {
-    fontSize: 16,
-    color: colors.white,
-    marginBottom: spacing.sm,
-    fontWeight: '500' as const,
-  },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    fontSize: 16,
-    color: colors.white,
     marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   textArea: {
     height: 100,
-    textAlignVertical: 'top' as const,
+    paddingTop: spacing.md,
   },
   summaryContainer: {
     alignItems: 'center' as const,
@@ -644,19 +579,18 @@ const styles = {
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: spacing.lg,
+    borderColor: colors.border,
   },
   summaryItem: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.border,
   },
   summaryItemText: {
     marginLeft: spacing.md,
@@ -664,29 +598,20 @@ const styles = {
   },
   summaryLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
     marginBottom: spacing.xs,
-    fontWeight: '500' as const,
   },
   summaryValue: {
     fontSize: 16,
-    color: colors.white,
-    fontWeight: '600' as const,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
     flexWrap: 'wrap' as const,
-  },
-  summaryNote: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center' as const,
-    opacity: 0.8,
   },
   footer: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  continueButton: {
-    width: '100%',
+    borderTopColor: colors.border,
   },
 };
