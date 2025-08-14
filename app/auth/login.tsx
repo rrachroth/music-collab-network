@@ -18,6 +18,7 @@ import Icon from '../../components/Icon';
 import Button from '../../components/Button';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 import { getCurrentUser } from '../../utils/storage';
+import { AuthService } from '../../utils/authService';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -59,32 +60,35 @@ const LoginScreen: React.FC = () => {
     setIsLoading(true);
 
     try {
-      console.log('🔐 Attempting sign in...');
+      console.log('🔐 Attempting sign in with Supabase...');
       
-      // For demo purposes, we'll simulate a successful login
-      // In a real app, you would authenticate with your backend
+      const result = await AuthService.signIn(email, password);
       
-      // Check if user exists and is onboarded
-      const currentUser = await getCurrentUser();
-      
-      if (currentUser?.isOnboarded) {
+      if (result.success) {
         console.log('✅ User signed in successfully');
-        router.replace('/(tabs)');
+        
+        if (result.needsOnboarding) {
+          console.log('⚠️ User needs onboarding - redirecting');
+          router.replace('/onboarding');
+        } else {
+          console.log('🏠 User is onboarded - redirecting to home');
+          router.replace('/(tabs)');
+        }
       } else {
-        console.log('⚠️ User needs onboarding');
-        router.replace('/onboarding');
+        console.error('❌ Sign in failed:', result.error);
+        Alert.alert('Sign In Failed', result.error || 'Invalid email or password. Please try again.');
       }
       
     } catch (error) {
       console.error('❌ Sign in error:', error);
-      Alert.alert('Error', 'Invalid email or password. Please try again.');
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCreateNewAccount = () => {
-    console.log('📝 Create new account pressed');
+    console.log('📝 Create new account pressed - redirecting to onboarding');
     router.push('/onboarding');
   };
 

@@ -41,12 +41,13 @@ const HomeScreen: React.FC = () => {
 
   const checkUserStatus = useCallback(async () => {
     try {
-      console.log('🏠 Checking user status...');
+      console.log('🏠 Checking user status for automatic navigation...');
       
       const currentUser = await getCurrentUser();
       
       if (currentUser?.isOnboarded) {
-        console.log('✅ User is onboarded, redirecting to main app');
+        console.log('✅ User is onboarded, automatically redirecting to home screen');
+        // Immediate redirect without delay
         router.replace('/(tabs)');
         return;
       }

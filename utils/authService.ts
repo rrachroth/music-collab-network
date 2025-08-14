@@ -68,11 +68,7 @@ export class AuthService {
           await saveCurrentUser(localUser);
         }
 
-        Alert.alert(
-          'Account Created!',
-          'Please check your email and click the verification link to complete your registration.',
-          [{ text: 'OK' }]
-        );
+        console.log('✅ Account created successfully - user will be redirected automatically');
         
         return { 
           success: true, 

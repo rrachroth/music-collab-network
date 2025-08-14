@@ -15,6 +15,7 @@ import { commonStyles, colors, spacing, borderRadius } from '../styles/commonSty
 import Button from '../components/Button';
 import Icon from '../components/Icon';
 import { saveCurrentUser, getCurrentUser, generateId, getCurrentTimestamp, User } from '../utils/storage';
+import { AuthService } from '../utils/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -40,8 +41,11 @@ export default function OnboardingScreen() {
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -56,9 +60,14 @@ export default function OnboardingScreen() {
         setLocation(existingUser.location || '');
         setSelectedRole(existingUser.role || '');
         setSelectedGenres(existingUser.genres || []);
+        setIsNewUser(false);
+      } else {
+        // This is a new user coming from the landing page
+        setIsNewUser(true);
       }
     } catch (error) {
       console.error('❌ Error loading existing user:', error);
+      setIsNewUser(true);
     }
   }, []);
 
@@ -97,6 +106,16 @@ export default function OnboardingScreen() {
         }
         break;
       case 3:
+        if (isNewUser) {
+          if (!email.trim()) {
+            Alert.alert('Enter Your Email', 'Please enter your email address');
+            return false;
+          }
+          if (!password.trim() || password.length < 6) {
+            Alert.alert('Enter Your Password', 'Please enter a password (at least 6 characters)');
+            return false;
+          }
+        }
         if (!name.trim()) {
           Alert.alert('Enter Your Name', 'Please enter your name or artist name');
           return false;
@@ -145,45 +164,72 @@ export default function OnboardingScreen() {
     try {
       setLoading(true);
       setIsCompleting(true);
-      console.log('🎵 Completing onboarding:', { selectedRole, selectedGenres, name, bio, location });
+      console.log('🎵 Completing onboarding:', { selectedRole, selectedGenres, name, bio, location, isNewUser });
       
-      const existingUser = await getCurrentUser();
-      
-      const newUser: User = {
-        id: existingUser?.id || generateId(),
-        name: name.trim(),
-        role: selectedRole,
-        genres: selectedGenres,
-        location: location.trim(),
-        bio: bio.trim() || `${selectedRole} specializing in ${selectedGenres.slice(0, 2).join(' and ')} music.`,
-        highlights: existingUser?.highlights || [],
-        collaborations: existingUser?.collaborations || [],
-        rating: existingUser?.rating || 0,
-        verified: existingUser?.verified || false,
-        joinDate: existingUser?.joinDate || getCurrentTimestamp(),
-        isOnboarded: true,
-        lastActive: getCurrentTimestamp(),
-        createdAt: existingUser?.createdAt || getCurrentTimestamp(),
-      };
-
-      await saveCurrentUser(newUser);
-      
-      console.log('✅ User onboarding completed successfully');
-      
-      // Show success message and navigate
-      Alert.alert(
-        'Welcome to NextDrop! 🎉',
-        `Your profile has been created successfully, ${name}! Let's start discovering amazing artists and collaborating on music.`,
-        [
-          {
-            text: 'Start Exploring',
-            onPress: () => {
-              // Use replace to prevent going back to onboarding
-              router.replace('/(tabs)');
-            }
+      if (isNewUser) {
+        // Create new account with Supabase
+        console.log('📝 Creating new account...');
+        const profileData = {
+          name: name.trim(),
+          role: selectedRole,
+          genres: selectedGenres,
+          location: location.trim(),
+          bio: bio.trim() || `${selectedRole} specializing in ${selectedGenres.slice(0, 2).join(' and ')} music.`,
+        };
+        
+        const result = await AuthService.signUp(email.trim(), password, profileData);
+        
+        if (result.success) {
+          console.log('✅ Account created successfully');
+          if (result.needsEmailVerification) {
+            Alert.alert(
+              'Account Created! 🎉',
+              'Please check your email and click the verification link to complete your registration. You can now sign in.',
+              [
+                {
+                  text: 'Go to Sign In',
+                  onPress: () => router.replace('/auth/login')
+                }
+              ]
+            );
+            return;
+          } else {
+            // Account is ready, redirect to home
+            router.replace('/(tabs)');
           }
-        ]
-      );
+        } else {
+          Alert.alert('Account Creation Failed', result.error || 'Please try again.');
+          return;
+        }
+      } else {
+        // Update existing user profile
+        const existingUser = await getCurrentUser();
+        
+        const updatedUser: User = {
+          id: existingUser?.id || generateId(),
+          name: name.trim(),
+          role: selectedRole,
+          genres: selectedGenres,
+          location: location.trim(),
+          bio: bio.trim() || `${selectedRole} specializing in ${selectedGenres.slice(0, 2).join(' and ')} music.`,
+          highlights: existingUser?.highlights || [],
+          collaborations: existingUser?.collaborations || [],
+          rating: existingUser?.rating || 0,
+          verified: existingUser?.verified || false,
+          joinDate: existingUser?.joinDate || getCurrentTimestamp(),
+          isOnboarded: true,
+          lastActive: getCurrentTimestamp(),
+          createdAt: existingUser?.createdAt || getCurrentTimestamp(),
+        };
+
+        await saveCurrentUser(updatedUser);
+        
+        console.log('✅ User profile updated successfully');
+        console.log('🎉 Onboarding completed - automatically redirecting to home');
+        
+        // Automatically redirect to home screen
+        router.replace('/(tabs)');
+      }
       
     } catch (error) {
       console.error('❌ Error completing onboarding:', error);
@@ -254,13 +300,46 @@ export default function OnboardingScreen() {
         return (
           <Animated.View style={[styles.section, animatedStyle]}>
             <Text style={styles.stepTitle}>
-              Tell us about yourself
+              {isNewUser ? 'Create your account' : 'Tell us about yourself'}
             </Text>
             <Text style={styles.stepSubtitle}>
-              This information will be displayed on your profile
+              {isNewUser ? 'Set up your account and profile information' : 'This information will be displayed on your profile'}
             </Text>
             
             <View style={styles.inputContainer}>
+              {isNewUser && (
+                <>
+                  <Text style={styles.inputLabel}>
+                    Email Address *
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={100}
+                  />
+                  
+                  <Text style={styles.inputLabel}>
+                    Password *
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password (min 6 characters)..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    maxLength={50}
+                  />
+                </>
+              )}
+              
               <Text style={styles.inputLabel}>
                 Name or Artist Name *
               </Text>
@@ -325,6 +404,7 @@ export default function OnboardingScreen() {
               </Text>
               
               <View style={styles.summaryCard}>
+                {isNewUser && <SummaryItem icon="mail" label="Email" value={email} />}
                 <SummaryItem icon="person" label="Name" value={name} />
                 <SummaryItem icon="briefcase" label="Role" value={ROLES.find(r => r.id === selectedRole)?.name || ''} />
                 <SummaryItem icon="location" label="Location" value={location} />
@@ -386,7 +466,7 @@ export default function OnboardingScreen() {
       {/* Footer */}
       <View style={styles.footer}>
         <Button
-          title={step === 4 ? 'Complete Profile' : 'Continue'}
+          title={step === 4 ? (isNewUser ? 'Create Account' : 'Complete Profile') : 'Continue'}
           onPress={handleNext}
           loading={loading}
           disabled={loading || isCompleting}

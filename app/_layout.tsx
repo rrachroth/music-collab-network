@@ -11,6 +11,8 @@ import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700
 import * as SplashScreen from 'expo-splash-screen';
 import { setupErrorLogging } from '../utils/errorLogger';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { supabase } from './integrations/supabase/client';
+import { router } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,6 +40,19 @@ export default function RootLayout() {
       console.error('❌ Failed to initialize error logging:', error);
     }
     
+    // Set up auth state listener for automatic navigation
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth state changed:', event, session?.user?.id);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ User signed in - checking if navigation needed');
+        // Let the individual screens handle navigation to avoid conflicts
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👋 User signed out - redirecting to landing');
+        router.replace('/');
+      }
+    });
+    
     if (fontsLoaded) {
       try {
         SplashScreen.hideAsync();
@@ -49,6 +64,11 @@ export default function RootLayout() {
         console.error('❌ Error hiding splash screen:', error);
       }
     }
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {

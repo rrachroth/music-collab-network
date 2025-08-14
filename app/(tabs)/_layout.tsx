@@ -19,17 +19,13 @@ export default function TabLayout() {
             backgroundColor: colors.backgroundCard,
             borderTopColor: colors.border,
             borderTopWidth: 1,
-            paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-            paddingTop: 10,
-            height: Platform.OS === 'ios' ? 90 : 70,
+            paddingBottom: Platform.OS === 'ios' ? 15 : 8,
+            paddingTop: 8,
+            height: Platform.OS === 'ios' ? 70 : 60,
           },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-            marginTop: 4,
-          },
+          tabBarShowLabel: false, // Hide text labels
           tabBarIconStyle: {
-            marginBottom: 2,
+            marginBottom: 0,
           },
         }}
       >
@@ -38,7 +34,7 @@ export default function TabLayout() {
           options={{
             title: 'Home',
             tabBarIcon: ({ color, size }) => (
-              <Icon name="home" size={size} color={color} />
+              <Icon name="home" size={28} color={color} />
             ),
           }}
         />
@@ -47,7 +43,7 @@ export default function TabLayout() {
           options={{
             title: 'Discover',
             tabBarIcon: ({ color, size }) => (
-              <Icon name="search" size={size} color={color} />
+              <Icon name="search" size={28} color={color} />
             ),
           }}
         />
@@ -56,7 +52,7 @@ export default function TabLayout() {
           options={{
             title: 'Projects',
             tabBarIcon: ({ color, size }) => (
-              <Icon name="folder" size={size} color={color} />
+              <Icon name="folder" size={28} color={color} />
             ),
           }}
         />
@@ -65,7 +61,7 @@ export default function TabLayout() {
           options={{
             title: 'Matches',
             tabBarIcon: ({ color, size }) => (
-              <Icon name="heart" size={size} color={color} />
+              <Icon name="heart" size={28} color={color} />
             ),
           }}
         />
@@ -74,7 +70,7 @@ export default function TabLayout() {
           options={{
             title: 'Profile',
             tabBarIcon: ({ color, size }) => (
-              <Icon name="person" size={size} color={color} />
+              <Icon name="person" size={28} color={color} />
             ),
           }}
         />
