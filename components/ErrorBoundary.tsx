@@ -71,7 +71,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             </View>
           )}
           <Button
-            title="Try Again"
+            text="Try Again"
             onPress={this.retry}
             variant="gradient"
             size="lg"
