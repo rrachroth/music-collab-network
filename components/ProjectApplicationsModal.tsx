@@ -80,7 +80,7 @@ export default function ProjectApplicationsModal({
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.9, { duration: 200 });
     }
-  }, [visible, modalOpacity, modalScale]);
+  }, [visible, modalOpacity, modalScale, loadApplications]);
 
   const loadApplications = useCallback(async () => {
     try {
@@ -412,18 +412,17 @@ function ApplicationCard({ application, onMessage, formatTimeAgo, delay }: Appli
 
         <View style={styles.applicationActions}>
           <Button
-            text="Message"
+            title="Message"
             onPress={onMessage}
             variant="primary"
             size="sm"
-            icon={<Icon name="chatbubble" size={16} color={colors.text} />}
+            style={{ marginRight: spacing.sm }}
           />
           <Button
-            text="View Profile"
+            title="View Profile"
             onPress={() => console.log('View profile:', application.applicantId)}
             variant="outline"
             size="sm"
-            style={{ marginLeft: spacing.sm }}
           />
         </View>
       </View>

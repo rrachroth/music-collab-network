@@ -1,3 +1,4 @@
+
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -22,6 +23,8 @@ export const colors = {
   border: '#475569',
   borderLight: '#334155',
   overlay: 'rgba(0, 0, 0, 0.8)',
+  white: '#FFFFFF',
+  black: '#000000',
   gradientPrimary: ['#6366F1', '#8B5CF6'],
   gradientSecondary: ['#06B6D4', '#3B82F6'],
   gradientBackground: ['#0A0E1A', '#1A1F2E', '#2A1F3D'],

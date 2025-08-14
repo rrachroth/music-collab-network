@@ -5,7 +5,8 @@ import { Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, ActivityIndic
 import { useEffect } from 'react';
 
 interface ButtonProps {
-  text: string;
+  title?: string;
+  text?: string;
   onPress: () => void;
   style?: ViewStyle | ViewStyle[];
   textStyle?: TextStyle;
@@ -18,6 +19,7 @@ interface ButtonProps {
 }
 
 export default function Button({
+  title,
   text,
   onPress,
   style,
@@ -29,6 +31,7 @@ export default function Button({
   icon,
   iconPosition = 'left'
 }: ButtonProps) {
+  const buttonText = title || text || '';
   const scale = useSharedValue(1);
   const opacity = useSharedValue(disabled ? 0.6 : 1);
 
@@ -95,7 +98,7 @@ export default function Button({
     return (
       <>
         {icon && iconPosition === 'left' && icon}
-        <Text style={[getTextStyle(), textStyle]}>{text}</Text>
+        <Text style={[getTextStyle(), textStyle]}>{buttonText}</Text>
         {icon && iconPosition === 'right' && icon}
       </>
     );
