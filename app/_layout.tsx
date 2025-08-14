@@ -46,8 +46,11 @@ export default function RootLayout() {
       console.log('🔐 Auth state changed:', event, session?.user?.id);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        console.log('✅ User signed in - checking if navigation needed');
-        // Let the individual screens handle navigation to avoid conflicts
+        console.log('✅ User signed in - navigating to home');
+        // Navigate to home screen automatically after sign in
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 100);
       } else if (event === 'SIGNED_OUT') {
         console.log('👋 User signed out - redirecting to landing');
         router.replace('/');

@@ -4,7 +4,7 @@ import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshCon
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -1167,11 +1167,12 @@ export default function DiscoverScreen() {
           />
         </View>
       )}>
-        <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-          <LinearGradient
-            colors={colors.gradientBackground}
-            style={StyleSheet.absoluteFill}
-          />
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+            <LinearGradient
+              colors={colors.gradientBackground}
+              style={StyleSheet.absoluteFill}
+            />
           
           {/* Header */}
           <ErrorBoundary>
@@ -1361,7 +1362,8 @@ export default function DiscoverScreen() {
               </Text>
             </View>
           </ErrorBoundary>
-        </View>
+          </View>
+        </GestureHandlerRootView>
       </ErrorBoundary>
     );
   } catch (renderError) {

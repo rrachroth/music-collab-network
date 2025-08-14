@@ -67,12 +67,14 @@ const LoginScreen: React.FC = () => {
       if (result.success) {
         console.log('✅ User signed in successfully');
         
+        // The auth state listener in _layout.tsx will handle navigation automatically
+        // Just show a brief success message
         if (result.needsOnboarding) {
-          console.log('⚠️ User needs onboarding - redirecting');
-          router.replace('/onboarding');
+          console.log('⚠️ User needs onboarding - will be redirected');
+          setTimeout(() => router.replace('/onboarding'), 500);
         } else {
-          console.log('🏠 User is onboarded - redirecting to home');
-          router.replace('/(tabs)');
+          console.log('🏠 User is onboarded - will be redirected to home');
+          // Navigation will be handled by auth state listener
         }
       } else {
         console.error('❌ Sign in failed:', result.error);

@@ -194,8 +194,8 @@ export default function OnboardingScreen() {
             );
             return;
           } else {
-            // Account is ready, redirect to home
-            router.replace('/(tabs)');
+            // Account is ready, auth state listener will handle navigation
+            console.log('🏠 Account ready - navigation will be handled automatically');
           }
         } else {
           Alert.alert('Account Creation Failed', result.error || 'Please try again.');
@@ -227,8 +227,17 @@ export default function OnboardingScreen() {
         console.log('✅ User profile updated successfully');
         console.log('🎉 Onboarding completed - automatically redirecting to home');
         
-        // Automatically redirect to home screen
-        router.replace('/(tabs)');
+        // Show success message and automatically redirect to home screen
+        Alert.alert(
+          'Profile Complete! 🎉',
+          'Welcome to NextDrop! Your profile has been set up successfully.',
+          [
+            {
+              text: 'Get Started',
+              onPress: () => router.replace('/(tabs)')
+            }
+          ]
+        );
       }
       
     } catch (error) {

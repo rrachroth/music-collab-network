@@ -70,6 +70,15 @@ export class AuthService {
 
         console.log('✅ Account created successfully - user will be redirected automatically');
         
+        // Show email verification alert if needed
+        if (!data.user.email_confirmed_at) {
+          Alert.alert(
+            'Verify Your Email',
+            'Please check your email and click the verification link to complete your account setup.',
+            [{ text: 'OK' }]
+          );
+        }
+        
         return { 
           success: true, 
           user: data.user, 
@@ -126,6 +135,14 @@ export class AuthService {
           await saveCurrentUser(localUser);
           
           console.log('✅ User profile loaded and saved locally');
+          
+          // Show success message
+          Alert.alert(
+            'Welcome Back!',
+            `Welcome back, ${localUser.name}! You're now signed in.`,
+            [{ text: 'Continue' }]
+          );
+          
           return { success: true, user: data.user, profile: localUser };
         } else {
           console.log('⚠️ No profile found, user needs onboarding');

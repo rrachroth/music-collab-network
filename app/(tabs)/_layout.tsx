@@ -14,7 +14,7 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textMuted,
+          tabBarInactiveTintColor: colors.text, // Better contrast as requested
           tabBarStyle: {
             backgroundColor: colors.backgroundCard,
             borderTopColor: colors.border,
@@ -23,7 +23,7 @@ export default function TabLayout() {
             paddingTop: 8,
             height: Platform.OS === 'ios' ? 70 : 60,
           },
-          tabBarShowLabel: false, // Hide text labels
+          tabBarShowLabel: false, // Hide text labels as requested
           tabBarIconStyle: {
             marginBottom: 0,
           },
