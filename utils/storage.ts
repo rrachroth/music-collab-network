@@ -18,6 +18,9 @@ export interface User {
   profileImage?: string;
   lastActive: string;
   createdAt: string;
+  subscriptionStatus?: 'free' | 'premium';
+  subscriptionExpiresAt?: string;
+  stripeCustomerId?: string;
 }
 
 export interface MediaFile {

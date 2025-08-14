@@ -1,17 +1,20 @@
-import { supabase } from '../app/integrations/supabase/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCurrentUser, updateCurrentUser } from './storage';
 
 export interface SubscriptionLimits {
   projectsPerMonth: number;
   likesPerDay: number;
+  applicationsPerMonth: number;
   unlimited: boolean;
 }
 
 export interface UserLimits {
   projectsPostedThisMonth: number;
   likesUsedToday: number;
+  applicationsThisMonth: number;
   lastProjectResetDate: string;
   lastLikeResetDate: string;
+  lastApplicationResetDate: string;
 }
 
 export const SUBSCRIPTION_PLANS = {
@@ -20,7 +23,8 @@ export const SUBSCRIPTION_PLANS = {
     price: 0,
     limits: {
       projectsPerMonth: 1,
-      likesPerDay: 3,
+      likesPerDay: 5,
+      applicationsPerMonth: 1,
       unlimited: false,
     },
   },
@@ -30,6 +34,7 @@ export const SUBSCRIPTION_PLANS = {
     limits: {
       projectsPerMonth: -1, // Unlimited
       likesPerDay: -1, // Unlimited
+      applicationsPerMonth: -1, // Unlimited
       unlimited: true,
     },
   },
@@ -39,24 +44,14 @@ export class SubscriptionService {
   // Check if user has premium subscription
   static async hasPremiumSubscription(userId?: string): Promise<boolean> {
     try {
-      if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return false;
-        userId = user.id;
-      }
+      const user = await getCurrentUser();
+      if (!user) return false;
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('subscription_status, subscription_expires_at')
-        .eq('user_id', userId)
-        .single();
-
-      if (!profile) return false;
-
-      if (profile.subscription_status === 'premium') {
+      // Check if user has premium subscription
+      if (user.subscriptionStatus === 'premium') {
         // Check if subscription is still valid
-        if (profile.subscription_expires_at) {
-          const expiresAt = new Date(profile.subscription_expires_at);
+        if (user.subscriptionExpiresAt) {
+          const expiresAt = new Date(user.subscriptionExpiresAt);
           return expiresAt > new Date();
         }
         return true;
@@ -72,47 +67,36 @@ export class SubscriptionService {
   // Get user's current limits
   static async getUserLimits(userId?: string): Promise<UserLimits | null> {
     try {
-      if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null;
-        userId = user.id;
-      }
+      const user = await getCurrentUser();
+      if (!user) return null;
 
-      const { data: limits } = await supabase
-        .from('user_limits')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (!limits) {
+      // Get limits from AsyncStorage
+      const limitsKey = `user_limits_${user.id}`;
+      const limitsData = await AsyncStorage.getItem(limitsKey);
+      
+      if (!limitsData) {
         // Create initial limits record
-        const newLimits = {
-          user_id: userId,
-          projects_posted_this_month: 0,
-          likes_used_today: 0,
-          last_project_reset_date: new Date().toISOString().split('T')[0],
-          last_like_reset_date: new Date().toISOString().split('T')[0],
+        const newLimits: UserLimits = {
+          projectsPostedThisMonth: 0,
+          likesUsedToday: 0,
+          applicationsThisMonth: 0,
+          lastProjectResetDate: new Date().toISOString().split('T')[0],
+          lastLikeResetDate: new Date().toISOString().split('T')[0],
+          lastApplicationResetDate: new Date().toISOString().split('T')[0],
         };
 
-        const { data: createdLimits } = await supabase
-          .from('user_limits')
-          .insert(newLimits)
-          .select()
-          .single();
-
-        return createdLimits ? {
-          projectsPostedThisMonth: createdLimits.projects_posted_this_month,
-          likesUsedToday: createdLimits.likes_used_today,
-          lastProjectResetDate: createdLimits.last_project_reset_date,
-          lastLikeResetDate: createdLimits.last_like_reset_date,
-        } : null;
+        await AsyncStorage.setItem(limitsKey, JSON.stringify(newLimits));
+        return newLimits;
       }
 
+      const limits = JSON.parse(limitsData);
       return {
-        projectsPostedThisMonth: limits.projects_posted_this_month,
-        likesUsedToday: limits.likes_used_today,
-        lastProjectResetDate: limits.last_project_reset_date,
-        lastLikeResetDate: limits.last_like_reset_date,
+        projectsPostedThisMonth: limits.projectsPostedThisMonth || 0,
+        likesUsedToday: limits.likesUsedToday || 0,
+        applicationsThisMonth: limits.applicationsThisMonth || 0,
+        lastProjectResetDate: limits.lastProjectResetDate || new Date().toISOString().split('T')[0],
+        lastLikeResetDate: limits.lastLikeResetDate || new Date().toISOString().split('T')[0],
+        lastApplicationResetDate: limits.lastApplicationResetDate || new Date().toISOString().split('T')[0],
       };
     } catch (error) {
       console.error('Error getting user limits:', error);
@@ -197,22 +181,63 @@ export class SubscriptionService {
     }
   }
 
+  // Check if user can apply to projects
+  static async canApply(userId?: string): Promise<{ canApply: boolean; reason?: string }> {
+    try {
+      const isPremium = await this.hasPremiumSubscription(userId);
+      
+      if (isPremium) {
+        return { canApply: true };
+      }
+
+      const limits = await this.getUserLimits(userId);
+      if (!limits) {
+        return { canApply: false, reason: 'Unable to check limits' };
+      }
+
+      // Check if we need to reset monthly counter
+      const today = new Date().toISOString().split('T')[0];
+      const lastReset = new Date(limits.lastApplicationResetDate);
+      const currentDate = new Date(today);
+      
+      // Reset if it's a new month
+      if (lastReset.getMonth() !== currentDate.getMonth() || 
+          lastReset.getFullYear() !== currentDate.getFullYear()) {
+        await this.resetMonthlyApplicationCount(userId);
+        return { canApply: true };
+      }
+
+      const maxApplications = SUBSCRIPTION_PLANS.FREE.limits.applicationsPerMonth;
+      if (limits.applicationsThisMonth >= maxApplications) {
+        return { 
+          canApply: false, 
+          reason: `Free users can only apply to ${maxApplications} project per month. Upgrade to Premium for unlimited applications!` 
+        };
+      }
+
+      return { canApply: true };
+    } catch (error) {
+      console.error('Error checking application ability:', error);
+      return { canApply: false, reason: 'Error checking limits' };
+    }
+  }
+
   // Increment project count
   static async incrementProjectCount(userId?: string): Promise<void> {
     try {
-      if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        userId = user.id;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      await supabase
-        .from('user_limits')
-        .update({ 
-          projects_posted_this_month: supabase.sql`projects_posted_this_month + 1`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+      const limits = await this.getUserLimits();
+      if (!limits) return;
+
+      const updatedLimits = {
+        ...limits,
+        projectsPostedThisMonth: limits.projectsPostedThisMonth + 1,
+      };
+
+      const limitsKey = `user_limits_${user.id}`;
+      await AsyncStorage.setItem(limitsKey, JSON.stringify(updatedLimits));
     } catch (error) {
       console.error('Error incrementing project count:', error);
     }
@@ -221,42 +246,63 @@ export class SubscriptionService {
   // Increment like count
   static async incrementLikeCount(userId?: string): Promise<void> {
     try {
-      if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        userId = user.id;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
 
-      await supabase
-        .from('user_limits')
-        .update({ 
-          likes_used_today: supabase.sql`likes_used_today + 1`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+      const limits = await this.getUserLimits();
+      if (!limits) return;
+
+      const updatedLimits = {
+        ...limits,
+        likesUsedToday: limits.likesUsedToday + 1,
+      };
+
+      const limitsKey = `user_limits_${user.id}`;
+      await AsyncStorage.setItem(limitsKey, JSON.stringify(updatedLimits));
     } catch (error) {
       console.error('Error incrementing like count:', error);
+    }
+  }
+
+  // Increment application count
+  static async incrementApplicationCount(userId?: string): Promise<void> {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const limits = await this.getUserLimits();
+      if (!limits) return;
+
+      const updatedLimits = {
+        ...limits,
+        applicationsThisMonth: limits.applicationsThisMonth + 1,
+      };
+
+      const limitsKey = `user_limits_${user.id}`;
+      await AsyncStorage.setItem(limitsKey, JSON.stringify(updatedLimits));
+    } catch (error) {
+      console.error('Error incrementing application count:', error);
     }
   }
 
   // Reset monthly project count
   static async resetMonthlyProjectCount(userId?: string): Promise<void> {
     try {
-      if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        userId = user.id;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const limits = await this.getUserLimits();
+      if (!limits) return;
 
       const today = new Date().toISOString().split('T')[0];
-      await supabase
-        .from('user_limits')
-        .update({ 
-          projects_posted_this_month: 0,
-          last_project_reset_date: today,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+      const updatedLimits = {
+        ...limits,
+        projectsPostedThisMonth: 0,
+        lastProjectResetDate: today,
+      };
+
+      const limitsKey = `user_limits_${user.id}`;
+      await AsyncStorage.setItem(limitsKey, JSON.stringify(updatedLimits));
     } catch (error) {
       console.error('Error resetting monthly project count:', error);
     }
@@ -265,42 +311,66 @@ export class SubscriptionService {
   // Reset daily like count
   static async resetDailyLikeCount(userId?: string): Promise<void> {
     try {
-      if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        userId = user.id;
-      }
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const limits = await this.getUserLimits();
+      if (!limits) return;
 
       const today = new Date().toISOString().split('T')[0];
-      await supabase
-        .from('user_limits')
-        .update({ 
-          likes_used_today: 0,
-          last_like_reset_date: today,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+      const updatedLimits = {
+        ...limits,
+        likesUsedToday: 0,
+        lastLikeResetDate: today,
+      };
+
+      const limitsKey = `user_limits_${user.id}`;
+      await AsyncStorage.setItem(limitsKey, JSON.stringify(updatedLimits));
     } catch (error) {
       console.error('Error resetting daily like count:', error);
+    }
+  }
+
+  // Reset monthly application count
+  static async resetMonthlyApplicationCount(userId?: string): Promise<void> {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const limits = await this.getUserLimits();
+      if (!limits) return;
+
+      const today = new Date().toISOString().split('T')[0];
+      const updatedLimits = {
+        ...limits,
+        applicationsThisMonth: 0,
+        lastApplicationResetDate: today,
+      };
+
+      const limitsKey = `user_limits_${user.id}`;
+      await AsyncStorage.setItem(limitsKey, JSON.stringify(updatedLimits));
+    } catch (error) {
+      console.error('Error resetting monthly application count:', error);
     }
   }
 
   // Upgrade to premium
   static async upgradeToPremium(userId: string, stripeCustomerId: string): Promise<void> {
     try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error('User not found');
+
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month from now
 
-      await supabase
-        .from('profiles')
-        .update({
-          subscription_status: 'premium',
-          subscription_expires_at: expiresAt.toISOString(),
-          stripe_customer_id: stripeCustomerId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+      const updatedUser = {
+        ...user,
+        subscriptionStatus: 'premium',
+        subscriptionExpiresAt: expiresAt.toISOString(),
+        stripeCustomerId: stripeCustomerId,
+      };
 
+      await updateCurrentUser(updatedUser);
       console.log('✅ User upgraded to premium successfully');
     } catch (error) {
       console.error('Error upgrading to premium:', error);
@@ -311,15 +381,16 @@ export class SubscriptionService {
   // Cancel premium subscription
   static async cancelPremium(userId: string): Promise<void> {
     try {
-      await supabase
-        .from('profiles')
-        .update({
-          subscription_status: 'free',
-          subscription_expires_at: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+      const user = await getCurrentUser();
+      if (!user) throw new Error('User not found');
 
+      const updatedUser = {
+        ...user,
+        subscriptionStatus: 'free',
+        subscriptionExpiresAt: null,
+      };
+
+      await updateCurrentUser(updatedUser);
       console.log('✅ Premium subscription cancelled');
     } catch (error) {
       console.error('Error cancelling premium:', error);
@@ -338,11 +409,13 @@ export class SubscriptionService {
     try {
       const isPremium = await this.hasPremiumSubscription(userId);
       const usage = await this.getUserLimits(userId);
+      const user = await getCurrentUser();
       
       if (isPremium) {
         return {
           isPremium: true,
           plan: 'Premium',
+          expiresAt: user?.subscriptionExpiresAt,
           limits: SUBSCRIPTION_PLANS.PREMIUM.limits,
           usage,
         };

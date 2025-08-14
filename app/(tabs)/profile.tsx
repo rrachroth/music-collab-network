@@ -20,6 +20,8 @@ import {
   getApplications,
   User 
 } from '../../utils/storage';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import SubscriptionModal from '../../components/SubscriptionModal';
 import { useState, useEffect, useCallback } from 'react';
 import Button from '../../components/Button';
 
@@ -54,6 +56,8 @@ export default function ProfileScreen() {
     rating: 0
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
   
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(30);
@@ -72,6 +76,10 @@ export default function ProfileScreen() {
       if (currentUser) {
         setUser(currentUser);
         await loadStats(currentUser);
+        
+        // Load subscription status
+        const status = await SubscriptionService.getSubscriptionStatus();
+        setSubscriptionStatus(status);
       }
     } catch (error) {
       console.error('❌ Error loading profile:', error);
@@ -257,6 +265,76 @@ export default function ProfileScreen() {
             </View>
           )}
 
+          {/* Subscription Status */}
+          {subscriptionStatus && (
+            <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
+              <View style={styles.subscriptionHeader}>
+                <View style={styles.subscriptionInfo}>
+                  <Text style={[commonStyles.heading, { marginBottom: spacing.xs }]}>
+                    {subscriptionStatus.plan} Plan
+                  </Text>
+                  {subscriptionStatus.isPremium ? (
+                    <Text style={[commonStyles.caption, { color: colors.success }]}>
+                      Premium Active • Unlimited Access
+                    </Text>
+                  ) : (
+                    <Text style={[commonStyles.caption, { color: colors.textMuted }]}>
+                      Free Plan • Limited Access
+                    </Text>
+                  )}
+                </View>
+                <Icon 
+                  name={subscriptionStatus.isPremium ? "diamond" : "person"} 
+                  size={24} 
+                  color={subscriptionStatus.isPremium ? colors.warning : colors.primary} 
+                />
+              </View>
+              
+              {subscriptionStatus.usage && (
+                <View style={styles.usageStats}>
+                  <View style={styles.usageStat}>
+                    <Text style={styles.usageLabel}>Projects this month</Text>
+                    <Text style={styles.usageValue}>
+                      {subscriptionStatus.isPremium 
+                        ? 'Unlimited' 
+                        : `${subscriptionStatus.usage.projectsPostedThisMonth}/${subscriptionStatus.limits.projectsPerMonth}`
+                      }
+                    </Text>
+                  </View>
+                  <View style={styles.usageStat}>
+                    <Text style={styles.usageLabel}>Likes today</Text>
+                    <Text style={styles.usageValue}>
+                      {subscriptionStatus.isPremium 
+                        ? 'Unlimited' 
+                        : `${subscriptionStatus.usage.likesUsedToday}/${subscriptionStatus.limits.likesPerDay}`
+                      }
+                    </Text>
+                  </View>
+                  <View style={styles.usageStat}>
+                    <Text style={styles.usageLabel}>Applications this month</Text>
+                    <Text style={styles.usageValue}>
+                      {subscriptionStatus.isPremium 
+                        ? 'Unlimited' 
+                        : `${subscriptionStatus.usage.applicationsThisMonth}/${subscriptionStatus.limits.applicationsPerMonth}`
+                      }
+                    </Text>
+                  </View>
+                </View>
+              )}
+              
+              {!subscriptionStatus.isPremium && (
+                <Button
+                  text="Upgrade to Premium"
+                  onPress={() => setShowSubscriptionModal(true)}
+                  variant="gradient"
+                  size="sm"
+                  style={{ marginTop: spacing.md }}
+                  icon={<Icon name="diamond" size={16} color={colors.text} />}
+                />
+              )}
+            </View>
+          )}
+
           {/* Genres */}
           <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
             <Text style={[commonStyles.heading, { marginBottom: spacing.md }]}>
@@ -327,6 +405,16 @@ export default function ProfileScreen() {
               onPress={handleUploadHighlight}
               gradient={colors.gradientSecondary}
             />
+            
+            {subscriptionStatus && !subscriptionStatus.isPremium && (
+              <QuickActionCard
+                icon="diamond"
+                title="Upgrade to Premium"
+                subtitle="Unlimited likes, projects & applications"
+                onPress={() => setShowSubscriptionModal(true)}
+                gradient={['#FFD700', '#FFA500']}
+              />
+            )}
           </View>
 
           {/* Highlights */}
@@ -366,6 +454,17 @@ export default function ProfileScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSuccess={() => {
+          setShowSubscriptionModal(false);
+          Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited access to all features!');
+          loadProfile(); // Reload to update subscription status
+        }}
+      />
     </View>
   );
 }
@@ -575,6 +674,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
+    textAlign: 'center',
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  subscriptionInfo: {
+    flex: 1,
+  },
+  usageStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  usageStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  usageLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  usageValue: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
     textAlign: 'center',
   },
 });

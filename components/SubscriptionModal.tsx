@@ -103,9 +103,11 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
       // 3. Handle Stripe Connect setup for revenue splitting
       
       // For demo purposes, we'll simulate the upgrade
+      await SubscriptionService.upgradeToPremium('demo_user_id', 'demo_stripe_customer_id');
+      
       Alert.alert(
         'Upgrade Successful! 🎉',
-        'Welcome to Muse Premium! You now have unlimited project postings and likes. Your subscription will be processed through Stripe Connect.',
+        'Welcome to Muse Premium! You now have unlimited project postings, likes, and applications. Your subscription will be processed through Stripe Connect.',
         [
           {
             text: 'Awesome!',
@@ -272,9 +274,15 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
               />
               <FeatureComparison
                 feature="Daily Likes"
-                free="3/day"
+                free="5/day"
                 premium="Unlimited"
                 icon="heart"
+              />
+              <FeatureComparison
+                feature="Job Applications"
+                free="1/month"
+                premium="Unlimited"
+                icon="briefcase"
               />
               <FeatureComparison
                 feature="Revenue Splitting"

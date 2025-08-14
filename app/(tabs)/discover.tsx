@@ -31,6 +31,8 @@ import {
   User, 
   Match 
 } from '../../utils/storage';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import SubscriptionModal from '../../components/SubscriptionModal';
 
 interface ProfileCardProps {
   profile: User;
@@ -68,6 +70,7 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
   // Animated values - all at top level
   const translateX = useSharedValue(0);
@@ -547,6 +550,23 @@ export default function DiscoverScreen() {
       
       if (direction === 'right') {
         try {
+          // Check like limits before creating match
+          const { canLike, reason } = await SubscriptionService.canLike();
+          if (!canLike) {
+            Alert.alert(
+              'Like Limit Reached 💖',
+              reason || 'You have reached your daily like limit.',
+              [
+                { text: 'Maybe Later', style: 'cancel' },
+                { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
+              ]
+            );
+            return;
+          }
+
+          // Increment like count
+          await SubscriptionService.incrementLikeCount();
+
           // Create match with iOS-safe validation
           const matchId = generateId();
           const timestamp = getCurrentTimestamp();
@@ -1364,6 +1384,16 @@ export default function DiscoverScreen() {
             </Text>
           </View>
         </ErrorBoundary>
+
+        {/* Subscription Modal */}
+        <SubscriptionModal
+          visible={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          onSuccess={() => {
+            setShowSubscriptionModal(false);
+            Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited likes and project postings!');
+          }}
+        />
         </View>
       </ErrorBoundary>
     );

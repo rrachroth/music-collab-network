@@ -309,6 +309,20 @@ export default function ProjectsScreen() {
 
       console.log('📝 Applying to project:', project.title);
 
+      // Check application limits
+      const { canApply, reason } = await SubscriptionService.canApply();
+      if (!canApply) {
+        Alert.alert(
+          'Application Limit Reached 📝',
+          reason || 'You have reached your monthly application limit.',
+          [
+            { text: 'Maybe Later', style: 'cancel' },
+            { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
+          ]
+        );
+        return;
+      }
+
       Alert.prompt(
         'Apply to Project',
         'Tell the project owner why you\'re perfect for this collaboration:',
@@ -327,6 +341,10 @@ export default function ProjectsScreen() {
               };
 
               await addApplication(application);
+              
+              // Increment application count for free users
+              await SubscriptionService.incrementApplicationCount();
+              
               await loadProjects();
               
               Alert.alert('Success! 📝', 'Application submitted successfully!');
