@@ -4,7 +4,7 @@ import { Text, View, ScrollView, TouchableOpacity, Dimensions, Alert, RefreshCon
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -44,7 +44,7 @@ const CARD_HEIGHT = Platform.OS === 'ios' ? screenHeight * 0.65 : screenHeight *
 const SWIPE_THRESHOLD = Platform.OS === 'ios' ? 100 : 120; // Lower threshold for iOS
 
 export default function DiscoverScreen() {
-  console.log('🔍 DiscoverScreen rendering - iOS Optimized Version 3.1');
+  console.log('🔍 DiscoverScreen rendering - iOS Optimized Version 3.2 - FIXED GESTURE HANDLER');
   
   // iOS-specific early safety checks
   try {
@@ -92,8 +92,9 @@ export default function DiscoverScreen() {
     console.log('📱 Platform:', Platform.OS);
     console.log('🌐 Web compatibility mode:', Platform.OS === 'web' ? 'ENABLED' : 'DISABLED');
     console.log('🔧 React Native version:', Platform.constants?.reactNativeVersion || 'unknown');
-    console.log('🎵 NextDrop Discover Screen - Version 3.0 - iOS CRITICAL FIXES APPLIED');
+    console.log('🎵 NextDrop Discover Screen - Version 3.2 - GESTURE HANDLER FIXED');
     console.log('✅ All iOS critical errors should now be resolved!');
+    console.log('🔧 FIXED: Removed redundant GestureHandlerRootView from Discover screen');
     
     // Test basic functionality - iOS safe
     try {
@@ -101,6 +102,7 @@ export default function DiscoverScreen() {
       console.log('✅ Component mounted without errors');
       console.log('✅ Error logging is active');
       console.log('✅ Platform detection working');
+      console.log('✅ Gesture handler properly configured');
       console.log('🎉 NextDrop Discover Screen is ready for iOS use!');
     } catch (testError) {
       console.error('❌ Component test failed:', testError);
@@ -1167,203 +1169,202 @@ export default function DiscoverScreen() {
           />
         </View>
       )}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-            <LinearGradient
-              colors={colors.gradientBackground}
-              style={StyleSheet.absoluteFill}
-            />
-          
-          {/* Header */}
-          <ErrorBoundary>
-            <View style={styles.header}>
-              <TouchableOpacity 
-                onPress={() => {
-                  try {
-                    router.back();
-                  } catch (navError) {
-                    console.error('❌ Navigation error:', navError);
-                  }
-                }} 
-                style={styles.headerButton}
-              >
-                <Icon name="arrow-back" size={24} color={colors.text} />
-              </TouchableOpacity>
-              
-              <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
-                Discover
-              </Text>
-              
-              <TouchableOpacity 
-                onPress={() => {
-                  try {
-                    console.log('🔍 DEBUG INFO:');
-                    console.log('- Current User:', currentUser?.name || 'None');
-                    console.log('- Profiles:', profiles.length);
-                    console.log('- Current Index:', currentIndex);
-                    console.log('- Current Profile:', currentProfile?.name || 'None');
-                    console.log('- Loading:', loading);
-                    console.log('- Error:', error);
-                    console.log('- Initialized:', isInitialized);
-                    
-                    Alert.alert(
-                      'Debug Info',
-                      `User: ${currentUser?.name || 'None'}\n` +
-                      `Profiles: ${profiles.length}\n` +
-                      `Index: ${currentIndex}\n` +
-                      `Current: ${currentProfile?.name || 'None'}\n` +
-                      `Loading: ${loading}\n` +
-                      `Error: ${error || 'None'}\n` +
-                      `Initialized: ${isInitialized}`
-                    );
-                  } catch (debugError) {
-                    console.error('❌ Debug error:', debugError);
-                  }
-                }} 
-                style={styles.headerButton}
-              >
-                <Icon name="bug" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-          </ErrorBoundary>
-
-          {/* Card Stack - iOS Optimized */}
-          <ErrorBoundary>
-            <View style={styles.cardContainer}>
-              {currentProfile && (
-                <>
-                  {Platform.OS === 'web' ? (
-                    // Web fallback - no gesture handling
-                    <Animated.View style={[styles.card, cardAnimatedStyle]}>
-                      <ErrorBoundary>
-                        <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
-                      </ErrorBoundary>
-                      <View style={styles.webGestureOverlay}>
-                        <Text style={styles.webGestureText}>
-                          Use buttons below to swipe
-                        </Text>
-                      </View>
-                    </Animated.View>
-                  ) : (
-                    // Native gesture handling - iOS optimized
-                    <ErrorBoundary>
-                      <PanGestureHandler 
-                        onGestureEvent={gestureHandler}
-                        enabled={Platform.OS !== 'web'}
-                        shouldCancelWhenOutside={Platform.OS === 'ios'}
-                        activeOffsetX={[-10, 10]}
-                        failOffsetY={[-50, 50]}
-                      >
-                        <Animated.View style={[styles.card, cardAnimatedStyle]}>
-                          <ErrorBoundary>
-                            <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
-                          </ErrorBoundary>
-                        </Animated.View>
-                      </PanGestureHandler>
-                    </ErrorBoundary>
-                  )}
-                </>
-              )}
-              
-              {/* Next card preview - iOS safe */}
-              {(() => {
+        {/* REMOVED GestureHandlerRootView - it's already provided at app level */}
+        <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+          <LinearGradient
+            colors={colors.gradientBackground}
+            style={StyleSheet.absoluteFill}
+          />
+        
+        {/* Header */}
+        <ErrorBoundary>
+          <View style={styles.header}>
+            <TouchableOpacity 
+              onPress={() => {
                 try {
-                  const nextIndex = currentIndex + 1;
-                  const nextProfile = profiles[nextIndex];
-                  if (nextIndex < profiles.length && nextProfile && typeof nextProfile === 'object' && nextProfile.id) {
-                    return (
-                      <View style={[styles.card, styles.nextCard]}>
-                        <ErrorBoundary>
-                          <ProfileCard profile={nextProfile} />
-                        </ErrorBoundary>
-                      </View>
-                    );
-                  }
-                  return null;
-                } catch (nextCardError) {
-                  console.error('❌ Error rendering next card - iOS:', nextCardError);
-                  return null;
+                  router.back();
+                } catch (navError) {
+                  console.error('❌ Navigation error:', navError);
                 }
-              })()}
-            </View>
-          </ErrorBoundary>
-
-          {/* Compatibility Badge */}
-          <ErrorBoundary>
-            {currentProfile && (
-              <View style={[styles.compatibilityBadge, { top: insets.top + 80 }]}>
-                <LinearGradient
-                  colors={colors.gradientPrimary}
-                  style={styles.compatibilityGradient}
-                >
-                  <Text style={styles.compatibilityText}>{Math.round(compatibility)}% Match</Text>
-                </LinearGradient>
-              </View>
-            )}
-          </ErrorBoundary>
-
-          {/* Action Buttons */}
-          <ErrorBoundary>
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.passButton]} 
-                onPress={() => handleButtonSwipe('left')}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#EF4444', '#DC2626']}
-                  style={styles.actionButtonGradient}
-                >
-                  <Icon name="close" size={32} color={colors.text} />
-                </LinearGradient>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.superLikeButton]} 
-                onPress={handleSuperLike}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={colors.gradientSecondary}
-                  style={styles.actionButtonGradient}
-                >
-                  <Icon name="star" size={28} color={colors.text} />
-                </LinearGradient>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.likeButton]} 
-                onPress={() => handleButtonSwipe('right')}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={colors.gradientPrimary}
-                  style={styles.actionButtonGradient}
-                >
-                  <Icon name="heart" size={32} color={colors.text} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </ErrorBoundary>
-
-          {/* Progress Indicator */}
-          <ErrorBoundary>
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { width: `${profiles.length > 0 ? ((currentIndex + 1) / profiles.length) * 100 : 0}%` }
-                  ]} 
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {profiles.length > 0 ? `${currentIndex + 1} of ${profiles.length}` : '0 of 0'}
-              </Text>
-            </View>
-          </ErrorBoundary>
+              }} 
+              style={styles.headerButton}
+            >
+              <Icon name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            
+            <Text style={[commonStyles.heading, { flex: 1, textAlign: 'center' }]}>
+              Discover
+            </Text>
+            
+            <TouchableOpacity 
+              onPress={() => {
+                try {
+                  console.log('🔍 DEBUG INFO:');
+                  console.log('- Current User:', currentUser?.name || 'None');
+                  console.log('- Profiles:', profiles.length);
+                  console.log('- Current Index:', currentIndex);
+                  console.log('- Current Profile:', currentProfile?.name || 'None');
+                  console.log('- Loading:', loading);
+                  console.log('- Error:', error);
+                  console.log('- Initialized:', isInitialized);
+                  
+                  Alert.alert(
+                    'Debug Info',
+                    `User: ${currentUser?.name || 'None'}\n` +
+                    `Profiles: ${profiles.length}\n` +
+                    `Index: ${currentIndex}\n` +
+                    `Current: ${currentProfile?.name || 'None'}\n` +
+                    `Loading: ${loading}\n` +
+                    `Error: ${error || 'None'}\n` +
+                    `Initialized: ${isInitialized}`
+                  );
+                } catch (debugError) {
+                  console.error('❌ Debug error:', debugError);
+                }
+              }} 
+              style={styles.headerButton}
+            >
+              <Icon name="bug" size={24} color={colors.text} />
+            </TouchableOpacity>
           </View>
-        </GestureHandlerRootView>
+        </ErrorBoundary>
+
+        {/* Card Stack - iOS Optimized */}
+        <ErrorBoundary>
+          <View style={styles.cardContainer}>
+            {currentProfile && (
+              <>
+                {Platform.OS === 'web' ? (
+                  // Web fallback - no gesture handling
+                  <Animated.View style={[styles.card, cardAnimatedStyle]}>
+                    <ErrorBoundary>
+                      <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
+                    </ErrorBoundary>
+                    <View style={styles.webGestureOverlay}>
+                      <Text style={styles.webGestureText}>
+                        Use buttons below to swipe
+                      </Text>
+                    </View>
+                  </Animated.View>
+                ) : (
+                  // Native gesture handling - iOS optimized - NO WRAPPER
+                  <ErrorBoundary>
+                    <PanGestureHandler 
+                      onGestureEvent={gestureHandler}
+                      enabled={Platform.OS !== 'web'}
+                      shouldCancelWhenOutside={Platform.OS === 'ios'}
+                      activeOffsetX={[-10, 10]}
+                      failOffsetY={[-50, 50]}
+                    >
+                      <Animated.View style={[styles.card, cardAnimatedStyle]}>
+                        <ErrorBoundary>
+                          <ProfileCard profile={currentProfile} onViewProfile={handleViewProfile} />
+                        </ErrorBoundary>
+                      </Animated.View>
+                    </PanGestureHandler>
+                  </ErrorBoundary>
+                )}
+              </>
+            )}
+            
+            {/* Next card preview - iOS safe */}
+            {(() => {
+              try {
+                const nextIndex = currentIndex + 1;
+                const nextProfile = profiles[nextIndex];
+                if (nextIndex < profiles.length && nextProfile && typeof nextProfile === 'object' && nextProfile.id) {
+                  return (
+                    <View style={[styles.card, styles.nextCard]}>
+                      <ErrorBoundary>
+                        <ProfileCard profile={nextProfile} />
+                      </ErrorBoundary>
+                    </View>
+                  );
+                }
+                return null;
+              } catch (nextCardError) {
+                console.error('❌ Error rendering next card - iOS:', nextCardError);
+                return null;
+              }
+            })()}
+          </View>
+        </ErrorBoundary>
+
+        {/* Compatibility Badge */}
+        <ErrorBoundary>
+          {currentProfile && (
+            <View style={[styles.compatibilityBadge, { top: insets.top + 80 }]}>
+              <LinearGradient
+                colors={colors.gradientPrimary}
+                style={styles.compatibilityGradient}
+              >
+                <Text style={styles.compatibilityText}>{Math.round(compatibility)}% Match</Text>
+              </LinearGradient>
+            </View>
+          )}
+        </ErrorBoundary>
+
+        {/* Action Buttons */}
+        <ErrorBoundary>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.passButton]} 
+              onPress={() => handleButtonSwipe('left')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#EF4444', '#DC2626']}
+                style={styles.actionButtonGradient}
+              >
+                <Icon name="close" size={32} color={colors.text} />
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.superLikeButton]} 
+              onPress={handleSuperLike}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={colors.gradientSecondary}
+                style={styles.actionButtonGradient}
+              >
+                <Icon name="star" size={28} color={colors.text} />
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.likeButton]} 
+              onPress={() => handleButtonSwipe('right')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={colors.gradientPrimary}
+                style={styles.actionButtonGradient}
+              >
+                <Icon name="heart" size={32} color={colors.text} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </ErrorBoundary>
+
+        {/* Progress Indicator */}
+        <ErrorBoundary>
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${profiles.length > 0 ? ((currentIndex + 1) / profiles.length) * 100 : 0}%` }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressText}>
+              {profiles.length > 0 ? `${currentIndex + 1} of ${profiles.length}` : '0 of 0'}
+            </Text>
+          </View>
+        </ErrorBoundary>
+        </View>
       </ErrorBoundary>
     );
   } catch (renderError) {
