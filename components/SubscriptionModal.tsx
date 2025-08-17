@@ -107,7 +107,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
       
       Alert.alert(
         'Upgrade Successful! 🎉',
-        'Welcome to Muse Premium! You now have unlimited project postings, likes, and applications. Your subscription will be processed through Stripe Connect.',
+        'Welcome to NextDrop Premium! You now have unlimited project postings, likes, and applications. Your subscription will be processed through Stripe Connect.',
         [
           {
             text: 'Awesome!',
@@ -138,7 +138,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
       <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
         <StripePayment
           amount={SUBSCRIPTION_PLANS.PREMIUM.price}
-          description="Muse Premium Subscription - Monthly"
+          description="NextDrop Premium Subscription - Monthly"
           onSuccess={handlePaymentSuccess}
           onError={handlePaymentError}
           onCancel={() => setShowPayment(false)}
@@ -319,7 +319,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
                 <Icon name="information-circle" size={24} color={colors.primary} />
                 <Text style={styles.revenueTitle}>How Revenue Splitting Works</Text>
                 <Text style={styles.revenueText}>
-                  When you get paid for projects on Muse, we automatically handle the payment processing and take a 10% platform fee. The remaining 90% goes directly to you through Stripe Connect.
+                  When you get paid for projects on NextDrop, we automatically handle the payment processing and take a 10% platform fee. The remaining 90% goes directly to you through Stripe Connect.
                 </Text>
                 <View style={styles.revenueExample}>
                   <Text style={styles.revenueExampleTitle}>Example:</Text>
