@@ -120,7 +120,7 @@ export default function PaymentInfoModal({ visible, onClose }: PaymentInfoModalP
             <View>
               <Text style={styles.sectionTitle}>Setup Steps</Text>
               <Text style={styles.sectionDescription}>
-                Follow these steps to integrate Stripe Connect with your Muse app
+                Follow these steps to integrate Stripe Connect with your NextDrop app
               </Text>
               
               {STRIPE_SETUP_GUIDE.steps.map((step, index) => (

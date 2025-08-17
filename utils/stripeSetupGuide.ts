@@ -1,5 +1,5 @@
 export const STRIPE_SETUP_GUIDE = {
-  title: "Setting Up Stripe Connect for Muse",
+  title: "Setting Up Stripe Connect for NextDrop",
   description: "Complete guide to integrate Stripe payments with 10% platform fee",
   
   steps: [
@@ -103,7 +103,7 @@ const initializePaymentSheet = async () => {
   
   const { error } = await initPaymentSheet({
     paymentIntentClientSecret: clientSecret,
-    merchantDisplayName: 'Muse',
+    merchantDisplayName: 'NextDrop',
   });
 };`
   },
