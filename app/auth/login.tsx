@@ -90,8 +90,16 @@ const LoginScreen: React.FC = () => {
   };
 
   const handleCreateNewAccount = () => {
-    console.log('📝 Create new account pressed - redirecting to onboarding');
-    router.push('/onboarding');
+    console.log('📝 Create new account pressed - redirecting to registration');
+    router.push('/auth/register');
+  };
+
+  const handleForgotPassword = () => {
+    Alert.alert(
+      'Reset Password',
+      'Password reset functionality will be available soon. Please contact support if you need immediate assistance.',
+      [{ text: 'OK' }]
+    );
   };
 
   return (
@@ -127,6 +135,7 @@ const LoginScreen: React.FC = () => {
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>🎵</Text>
               <Text style={styles.appName}>NextDrop</Text>
+              <Text style={styles.tagline}>Welcome back to your music network</Text>
             </View>
 
             {/* Form */}
@@ -168,6 +177,13 @@ const LoginScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
+              <TouchableOpacity
+                style={styles.forgotPasswordButton}
+                onPress={handleForgotPassword}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+
               <Button
                 text={isLoading ? 'Signing In...' : 'Sign In'}
                 onPress={handleSignIn}
@@ -175,15 +191,18 @@ const LoginScreen: React.FC = () => {
                 style={styles.submitButton}
               />
 
-              <TouchableOpacity
-                style={styles.createAccountButton}
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <Button
+                text="Create New Account"
                 onPress={handleCreateNewAccount}
-              >
-                <Text style={styles.createAccountText}>
-                  Don&apos;t have an account? 
-                  <Text style={styles.createAccountLink}> Create New Account</Text>
-                </Text>
-              </TouchableOpacity>
+                style={styles.createAccountButton}
+                variant="outline"
+              />
             </View>
           </Animated.View>
         </ScrollView>
@@ -243,6 +262,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.white,
+    marginBottom: spacing.sm,
+  },
+  tagline: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
   },
   formContainer: {
     flex: 1,
@@ -269,21 +294,36 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: spacing.sm,
   },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.lg,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.white,
+    textDecorationLine: 'underline',
+  },
   submitButton: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  dividerText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginHorizontal: spacing.md,
   },
   createAccountButton: {
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  createAccountText: {
-    fontSize: 16,
-    color: colors.white,
-  },
-  createAccountLink: {
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+    borderColor: colors.white,
+    borderWidth: 2,
   },
 });
 
