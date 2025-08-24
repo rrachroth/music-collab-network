@@ -18,10 +18,7 @@ export class AuthService {
       // Add timeout to prevent hanging
       const signUpPromise = supabase.auth.signUp({
         email,
-        password,
-        options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed'
-        }
+        password
       });
       
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -128,10 +125,13 @@ export class AuthService {
         
         console.log('✅ Account created successfully');
         
+        // Check if email verification is required
+        const needsVerification = !data.user.email_confirmed_at;
+        
         return { 
           success: true, 
           user: data.user, 
-          needsEmailVerification: !data.user.email_confirmed_at 
+          needsEmailVerification: needsVerification
         };
       }
 

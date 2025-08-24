@@ -171,7 +171,7 @@ const RegisterScreen: React.FC = () => {
         if (result.needsEmailVerification) {
           Alert.alert(
             'Account Created! 🎉',
-            'Please check your email and click the verification link to complete your registration. You can now sign in with your credentials.',
+            'Please check your email and click the verification link to complete your registration. You can then sign in with your credentials.',
             [
               {
                 text: 'Go to Sign In',

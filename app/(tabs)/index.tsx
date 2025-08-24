@@ -17,8 +17,6 @@ import Button from '../../components/Button';
 import { getCurrentUser, initializeSampleData, User } from '../../utils/storage';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
 
-const { height: screenHeight } = Dimensions.get('window');
-
 interface FeatureCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
   title: string;
@@ -120,15 +118,11 @@ export default function HomeScreen() {
         contentContainerStyle={[
           styles.scrollContent, 
           { 
-            paddingTop: insets.top + spacing.md,
-            paddingBottom: insets.bottom + spacing.xl * 2,
+            paddingTop: insets.top + spacing.lg,
+            paddingBottom: insets.bottom + spacing.xl,
           }
         ]}
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        bounces={true}
-        alwaysBounceVertical={true}
-        nestedScrollEnabled={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -139,155 +133,73 @@ export default function HomeScreen() {
         }
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.welcomeTitle}>
-              Welcome to NextDrop
-            </Text>
-            <Text style={styles.welcomeSubtitle}>
-              Connect, collaborate, and create amazing music together
-            </Text>
-          </View>
+        <Animated.View style={[styles.header, animatedStyle]}>
+          <Text style={styles.welcomeTitle}>
+            Welcome to NextDrop
+          </Text>
+          <Text style={styles.welcomeSubtitle}>
+            Connect, collaborate, and create amazing music together
+          </Text>
+        </Animated.View>
+
+        {/* Main Features */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Get Started</Text>
+          
+          <FeatureCard
+            icon="search"
+            title="Discover Artists"
+            description="Find musicians and producers to collaborate with"
+            gradient={colors.gradientPrimary}
+            onPress={handleDiscover}
+            delay={0}
+          />
+          
+          <FeatureCard
+            icon="folder"
+            title="Browse Projects"
+            description="Join exciting music collaboration projects"
+            gradient={colors.gradientSecondary}
+            onPress={handleProjects}
+            delay={100}
+          />
+          
+          <FeatureCard
+            icon="heart"
+            title="Your Matches"
+            description="Connect with artists you've matched with"
+            gradient={['#10B981', '#059669']}
+            onPress={handleMatches}
+            delay={200}
+          />
+          
+          <FeatureCard
+            icon="person"
+            title="Your Profile"
+            description="Manage your profile and showcase your music"
+            gradient={['#F59E0B', '#D97706']}
+            onPress={handleProfile}
+            delay={300}
+          />
         </View>
 
-        <Animated.View style={animatedStyle}>
-          {/* Main Features */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Get Started</Text>
-            
-            <FeatureCard
-              icon="search"
-              title="Discover Artists"
-              description="Find musicians and producers to collaborate with"
-              gradient={colors.gradientPrimary}
-              onPress={handleDiscover}
-              delay={0}
-            />
-            
-            <FeatureCard
-              icon="folder"
-              title="Browse Projects"
-              description="Join exciting music collaboration projects"
-              gradient={colors.gradientSecondary}
-              onPress={handleProjects}
-              delay={100}
-            />
-            
-            <FeatureCard
-              icon="heart"
-              title="Your Matches"
-              description="Connect with artists you've matched with"
-              gradient={['#10B981', '#059669']}
-              onPress={handleMatches}
-              delay={200}
-            />
-            
-            <FeatureCard
-              icon="person"
-              title="Your Profile"
-              description="Manage your profile and showcase your music"
-              gradient={['#F59E0B', '#D97706']}
-              onPress={handleProfile}
-              delay={300}
-            />
-          </View>
-
-          {/* Call to Action */}
-          <View style={styles.ctaSection}>
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.ctaCard}
-            >
-              <Text style={styles.ctaTitle}>Ready to collaborate?</Text>
-              <Text style={styles.ctaSubtitle}>
-                Start discovering amazing artists and create music together
-              </Text>
-              <Button
-                title="Start Discovering"
-                onPress={handleDiscover}
-                style={styles.ctaButton}
-              />
-            </LinearGradient>
-          </View>
-
-          {/* About NextDrop Section */}
-          <View style={styles.aboutSection}>
-            <Text style={styles.aboutTitle}>About NextDrop</Text>
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutText}>
-                NextDrop is the professional network for musicians, producers, and music industry collaborators.
-                Join thousands of artists already creating amazing music together.
-              </Text>
-            </View>
-            
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutSubtitle}>🎵 For Musicians</Text>
-              <Text style={styles.aboutText}>
-                Showcase your talent, find collaborators, and build your professional network in the music industry.
-              </Text>
-            </View>
-            
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutSubtitle}>🎹 For Producers</Text>
-              <Text style={styles.aboutText}>
-                Connect with vocalists, instrumentalists, and other producers to bring your musical visions to life.
-              </Text>
-            </View>
-            
-            <View style={styles.aboutCard}>
-              <Text style={styles.aboutSubtitle}>💼 For Industry Professionals</Text>
-              <Text style={styles.aboutText}>
-                Discover new talent, manage projects, and expand your professional network in the music business.
-              </Text>
-            </View>
-          </View>
-
-          {/* Features Overview */}
-          <View style={styles.featuresSection}>
-            <Text style={styles.featuresTitle}>Why Choose NextDrop?</Text>
-            
-            <View style={styles.featureRow}>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>🔍</Text>
-                <Text style={styles.featureItemTitle}>Smart Discovery</Text>
-                <Text style={styles.featureItemText}>AI-powered matching based on your musical style and preferences</Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>💬</Text>
-                <Text style={styles.featureItemTitle}>Direct Messaging</Text>
-                <Text style={styles.featureItemText}>Connect instantly with potential collaborators</Text>
-              </View>
-            </View>
-            
-            <View style={styles.featureRow}>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>📁</Text>
-                <Text style={styles.featureItemTitle}>Project Management</Text>
-                <Text style={styles.featureItemText}>Organize and manage your music collaborations</Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>🎯</Text>
-                <Text style={styles.featureItemTitle}>Professional Network</Text>
-                <Text style={styles.featureItemText}>Build meaningful connections in the music industry</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Final CTA */}
-          <View style={styles.finalCta}>
-            <Text style={styles.finalCtaTitle}>Ready to make music?</Text>
-            <Text style={styles.finalCtaText}>
-              Join NextDrop today and start collaborating with talented musicians from around the world.
+        {/* Call to Action */}
+        <View style={styles.ctaSection}>
+          <LinearGradient
+            colors={colors.gradientPrimary}
+            style={styles.ctaCard}
+          >
+            <Text style={styles.ctaTitle}>Ready to collaborate?</Text>
+            <Text style={styles.ctaSubtitle}>
+              Start discovering amazing artists and create music together
             </Text>
             <Button
-              title="Explore Now"
+              title="Start Discovering"
               onPress={handleDiscover}
-              style={styles.finalCtaButton}
+              style={styles.ctaButton}
             />
-          </View>
-        </Animated.View>
+          </LinearGradient>
+        </View>
       </ScrollView>
     </View>
   );
@@ -337,16 +249,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: spacing.lg,
   },
   header: {
     alignItems: 'center',
     marginBottom: spacing.xl,
     paddingVertical: spacing.lg,
-  },
-  headerContent: {
-    alignItems: 'center',
   },
   welcomeTitle: {
     fontSize: 28,
@@ -360,6 +268,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 24,
+    paddingHorizontal: spacing.md,
   },
   section: {
     marginBottom: spacing.xl,
@@ -414,7 +323,7 @@ const styles = StyleSheet.create({
     ...shadows.lg,
   },
   ctaTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.text,
     textAlign: 'center',
@@ -425,109 +334,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
     opacity: 0.9,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
     lineHeight: 24,
+    paddingHorizontal: spacing.md,
   },
   ctaButton: {
     backgroundColor: colors.text,
     minWidth: 200,
-  },
-  aboutSection: {
-    marginBottom: spacing.xl,
-  },
-  aboutTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  aboutCard: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  aboutSubtitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  aboutText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  featuresSection: {
-    marginBottom: spacing.xl,
-  },
-  featuresTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  featureItem: {
-    flex: 1,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    alignItems: 'center',
-  },
-  featureEmoji: {
-    fontSize: 24,
-    marginBottom: spacing.sm,
-  },
-  featureItemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  featureItemText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  finalCta: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginBottom: spacing.xl,
-  },
-  finalCtaTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  finalCtaText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: spacing.lg,
-  },
-  finalCtaButton: {
-    backgroundColor: colors.primary,
-    minWidth: 150,
   },
 });
