@@ -57,27 +57,15 @@ const LandingScreen: React.FC = () => {
     try {
       console.log('🔍 Checking initial app state...');
       
-      // Check if user is already authenticated
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        console.log('✅ User already authenticated, checking profile...');
-        
-        const currentUser = await getCurrentUser();
-        if (currentUser && currentUser.isOnboarded) {
-          console.log('🏠 Redirecting to home...');
-          router.replace('/(tabs)');
-          return;
-        } else {
-          console.log('👤 Redirecting to onboarding...');
-          router.replace('/onboarding');
-          return;
-        }
-      }
-
       // Quick backend health check
       try {
-        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        const healthPromise = supabase.from('profiles').select('count', { count: 'exact', head: true });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Health check timeout')), 5000)
+        );
+        
+        const { error } = await Promise.race([healthPromise, timeoutPromise]);
+        
         if (error) {
           console.warn('⚠️ Backend health check failed:', error.message);
           setBackendStatus('error');

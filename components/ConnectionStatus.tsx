@@ -43,7 +43,8 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   }, []);
 
   useEffect(() => {
-    const shouldShow = !connectionStatus.isConnected || showWhenConnected;
+    // Only show if disconnected AND there have been multiple failures
+    const shouldShow = (!connectionStatus.isConnected && connectionStatus.consecutiveFailures > 1) || showWhenConnected;
     
     if (shouldShow) {
       opacity.value = withTiming(1, { duration: 300 });
@@ -52,7 +53,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       opacity.value = withTiming(0, { duration: 300 });
       translateY.value = withTiming(-50, { duration: 300 });
     }
-  }, [connectionStatus.isConnected, showWhenConnected]);
+  }, [connectionStatus.isConnected, connectionStatus.consecutiveFailures, showWhenConnected]);
 
   const handleRetry = async () => {
     if (isRetrying) return;

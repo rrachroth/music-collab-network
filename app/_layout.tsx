@@ -19,7 +19,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState({ isConnected: true });
+  const [initialRoute, setInitialRoute] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -36,98 +36,86 @@ export default function RootLayout() {
     console.log('🚀 NextDrop app starting...');
   }, []);
 
-  // Monitor authentication state
+  // Simplified authentication state management
   useEffect(() => {
     let mounted = true;
 
-    const checkAuthState = async () => {
+    const initializeAuth = async () => {
       try {
-        console.log('🔐 Checking authentication state...');
+        console.log('🔐 Initializing authentication...');
         
-        // Check Supabase session with timeout
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 10000)
-        );
-        
-        let session;
-        try {
-          const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
-          session = data?.session;
-        } catch (timeoutError) {
-          console.warn('⚠️ Session check timed out, checking local storage');
-          
-          // Fallback to local storage
-          const localUser = await getCurrentUser();
-          if (localUser && localUser.email && localUser.isOnboarded) {
-            console.log('✅ Found valid local user, treating as authenticated');
-            if (mounted) {
-              setIsAuthenticated(true);
-              setIsLoading(false);
-              router.replace('/(tabs)');
-            }
-            return;
-          }
+        // Quick session check with shorter timeout
+        const { data: { session }, error } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<any>((_, reject) => 
+            setTimeout(() => reject(new Error('Session timeout')), 5000)
+          )
+        ]);
+
+        if (error) {
+          console.warn('⚠️ Session check error:', error.message);
         }
 
-        if (session?.user) {
-          console.log('✅ User session found:', session.user.email);
+        if (session?.user && !error) {
+          console.log('✅ Active session found:', session.user.email);
           
-          // Check if user has completed onboarding
+          // Check local user data
           const currentUser = await getCurrentUser();
           
           if (mounted) {
             setIsAuthenticated(true);
-            setIsLoading(false);
             
-            // Navigate based on onboarding status
             if (!currentUser || !currentUser.name || !currentUser.role) {
-              console.log('👤 User needs to complete onboarding');
-              router.replace('/onboarding');
+              setInitialRoute('/onboarding');
             } else {
-              console.log('🏠 User authenticated, navigating to home');
-              router.replace('/(tabs)');
+              setInitialRoute('/(tabs)');
             }
           }
         } else {
-          console.log('❌ No user session found');
+          console.log('❌ No active session');
           if (mounted) {
             setIsAuthenticated(false);
-            setIsLoading(false);
+            setInitialRoute('/');
           }
         }
       } catch (error) {
-        console.error('❌ Auth check error:', error);
+        console.warn('⚠️ Auth initialization failed:', error);
         
-        // Fallback to local storage on error
+        // Fallback: check local storage
         try {
           const localUser = await getCurrentUser();
           if (localUser && localUser.email && localUser.isOnboarded) {
-            console.log('✅ Using local user data as fallback');
+            console.log('✅ Using local user as fallback');
             if (mounted) {
               setIsAuthenticated(true);
-              setIsLoading(false);
-              router.replace('/(tabs)');
+              setInitialRoute('/(tabs)');
             }
-            return;
+          } else {
+            if (mounted) {
+              setIsAuthenticated(false);
+              setInitialRoute('/');
+            }
           }
         } catch (localError) {
-          console.error('❌ Local storage fallback failed:', localError);
+          console.error('❌ Local fallback failed:', localError);
+          if (mounted) {
+            setIsAuthenticated(false);
+            setInitialRoute('/');
+          }
         }
-        
+      } finally {
         if (mounted) {
-          setIsAuthenticated(false);
           setIsLoading(false);
         }
       }
     };
 
-    // Initial auth check
-    checkAuthState();
+    // Initialize auth state
+    initializeAuth();
 
-    // Listen for auth changes with error handling
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`🔐 Auth state changed: ${event}`);
+      console.log(`🔐 Auth event: ${event}`);
       
       if (!mounted) return;
 
@@ -138,7 +126,6 @@ export default function RootLayout() {
               console.log('✅ User signed in:', session.user.email);
               setIsAuthenticated(true);
               
-              // Check onboarding status
               const currentUser = await getCurrentUser();
               if (!currentUser || !currentUser.name || !currentUser.role) {
                 router.replace('/onboarding');
@@ -151,24 +138,17 @@ export default function RootLayout() {
           case 'SIGNED_OUT':
             console.log('👋 User signed out');
             setIsAuthenticated(false);
-            router.replace('/auth/login');
+            router.replace('/');
             break;
             
           case 'TOKEN_REFRESHED':
             console.log('🔄 Token refreshed');
-            if (session?.user) {
-              setIsAuthenticated(true);
-            }
+            // Don't change navigation on token refresh
             break;
-            
-          default:
-            console.log(`🔐 Auth event: ${event}`);
         }
       } catch (error) {
         console.error('❌ Auth state change error:', error);
       }
-      
-      setIsLoading(false);
     });
 
     return () => {
@@ -177,18 +157,13 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Handle navigation based on auth state
+  // Handle initial navigation
   useEffect(() => {
-    if (isLoading || isAuthenticated === null) return;
-
-    const inAuthGroup = segments[0] === 'auth';
-    const inOnboarding = segments[0] === 'onboarding';
-
-    if (!isAuthenticated && !inAuthGroup) {
-      console.log('🔄 Redirecting to login...');
-      router.replace('/auth/login');
+    if (!isLoading && initialRoute && segments.length === 0) {
+      console.log('🔄 Initial navigation to:', initialRoute);
+      router.replace(initialRoute);
     }
-  }, [isAuthenticated, segments, isLoading]);
+  }, [isLoading, initialRoute, segments]);
 
   // Hide splash screen when ready
   useEffect(() => {
@@ -207,13 +182,11 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <StatusBar style="auto" />
           
-          {/* Connection Status - only show when disconnected */}
-          {!connectionStatus.isConnected && (
-            <ConnectionStatus 
-              showWhenConnected={false}
-              compact={true}
-            />
-          )}
+          {/* Connection Status - only show for persistent issues */}
+          <ConnectionStatus 
+            showWhenConnected={false}
+            compact={true}
+          />
           
           <Slot />
         </SafeAreaProvider>

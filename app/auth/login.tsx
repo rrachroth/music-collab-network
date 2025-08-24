@@ -99,7 +99,7 @@ const LoginScreen: React.FC = () => {
 
   const handleCreateNewAccount = () => {
     console.log('📝 Create new account pressed');
-    router.push('/auth/register');
+    router.replace('/auth/register');
   };
 
   const handleForgotPassword = () => {
@@ -131,7 +131,14 @@ const LoginScreen: React.FC = () => {
             <View style={styles.header}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => router.back()}
+                onPress={() => {
+                  console.log('🔙 Back button pressed from login');
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/');
+                  }
+                }}
               >
                 <Icon name="arrow-back" size={24} color={colors.white} />
               </TouchableOpacity>

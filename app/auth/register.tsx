@@ -139,7 +139,12 @@ const RegisterScreen: React.FC = () => {
     if (step > 1) {
       setStep(step - 1);
     } else {
-      router.back();
+      console.log('🔙 Back button pressed from register');
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/');
+      }
     }
   };
 

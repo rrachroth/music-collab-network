@@ -15,8 +15,8 @@ export class AuthService {
     try {
       console.log('🔐 Starting sign up process for:', email);
       
-      // First, create the auth user
-      const { data, error } = await supabase.auth.signUp({
+      // Add timeout to prevent hanging
+      const signUpPromise = supabase.auth.signUp({
         email,
         password,
         options: {
@@ -24,9 +24,28 @@ export class AuthService {
         }
       });
       
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Sign up timeout')), 15000)
+      );
+      
+      const { data, error } = await Promise.race([signUpPromise, timeoutPromise]);
+      
       if (error) {
         console.error('❌ Sign up error:', error);
-        return { success: false, error: error.message };
+        
+        // Provide more specific error messages
+        let errorMessage = error.message;
+        if (error.message.includes('already registered')) {
+          errorMessage = 'This email is already registered. Please try signing in instead.';
+        } else if (error.message.includes('invalid email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (error.message.includes('weak password')) {
+          errorMessage = 'Please choose a stronger password with at least 6 characters.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Connection error. Please check your internet connection and try again.';
+        }
+        
+        return { success: false, error: errorMessage };
       }
 
       if (data.user) {
@@ -56,7 +75,7 @@ export class AuthService {
         
         // Try to create profile in database (but don't fail if it doesn't work)
         try {
-          const { data: profile, error: profileError } = await supabase
+          const profilePromise = supabase
             .from('profiles')
             .insert({
               user_id: data.user.id,
@@ -73,19 +92,35 @@ export class AuthService {
             .select()
             .single();
 
+          const profileTimeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Profile creation timeout')), 10000)
+          );
+
+          const { data: profile, error: profileError } = await Promise.race([
+            profilePromise,
+            profileTimeoutPromise
+          ]);
+
           if (profileError) {
             console.warn('⚠️ Profile creation failed, but continuing with local storage:', profileError.message);
           } else {
             console.log('✅ Profile created in database');
           }
 
-          // Try to create user limits
-          const { error: limitsError } = await supabase
-            .from('user_limits')
-            .insert({ user_id: data.user.id });
+          // Try to create user limits (with timeout)
+          try {
+            const limitsPromise = supabase
+              .from('user_limits')
+              .insert({ user_id: data.user.id });
+              
+            const limitsTimeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Limits creation timeout')), 5000)
+            );
 
-          if (limitsError) {
-            console.warn('⚠️ User limits creation failed:', limitsError.message);
+            await Promise.race([limitsPromise, limitsTimeoutPromise]);
+            console.log('✅ User limits created');
+          } catch (limitsError) {
+            console.warn('⚠️ User limits creation failed:', limitsError);
           }
         } catch (dbError) {
           console.warn('⚠️ Database operations failed, but user is created locally:', dbError);
@@ -103,6 +138,11 @@ export class AuthService {
       return { success: false, error: 'Unknown error occurred' };
     } catch (error) {
       console.error('❌ Sign up failed:', error);
+      
+      if (error instanceof Error && error.message.includes('timeout')) {
+        return { success: false, error: 'Connection timeout. Please check your internet connection and try again.' };
+      }
+      
       return { success: false, error: 'An unexpected error occurred. Please try again.' };
     }
   }
@@ -111,10 +151,17 @@ export class AuthService {
     try {
       console.log('🔐 Starting sign in process for:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Add timeout to prevent hanging
+      const signInPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
+      
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Sign in timeout')), 15000)
+      );
+      
+      const { data, error } = await Promise.race([signInPromise, timeoutPromise]);
       
       if (error) {
         console.error('❌ Sign in error:', error);
@@ -127,6 +174,8 @@ export class AuthService {
           errorMessage = 'Please check your email and click the verification link before signing in.';
         } else if (error.message.includes('Too many requests')) {
           errorMessage = 'Too many sign-in attempts. Please wait a moment and try again.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Connection error. Please check your internet connection and try again.';
         }
         
         return { success: false, error: errorMessage };
@@ -135,15 +184,24 @@ export class AuthService {
       if (data.user) {
         console.log('✅ User signed in:', data.user.email);
         
-        // Try to fetch user profile from database
+        // Try to fetch user profile from database with timeout
         let localUser: User;
         
         try {
-          const { data: profile, error: profileError } = await supabase
+          const profilePromise = supabase
             .from('profiles')
             .select('*')
             .eq('user_id', data.user.id)
             .single();
+            
+          const profileTimeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+          );
+          
+          const { data: profile, error: profileError } = await Promise.race([
+            profilePromise, 
+            profileTimeoutPromise
+          ]);
           
           if (profile && !profileError) {
             // Create local user from database profile
@@ -177,6 +235,7 @@ export class AuthService {
           const existingUser = await getCurrentUser();
           if (existingUser && existingUser.email === email) {
             localUser = existingUser;
+            localUser.lastActive = getCurrentTimestamp(); // Update last active
             console.log('✅ Profile loaded from local storage');
           } else {
             console.log('⚠️ No local profile found, user needs onboarding');
@@ -195,6 +254,11 @@ export class AuthService {
       return { success: false, error: 'Unknown error occurred' };
     } catch (error) {
       console.error('❌ Sign in failed:', error);
+      
+      if (error instanceof Error && error.message.includes('timeout')) {
+        return { success: false, error: 'Connection timeout. Please check your internet connection and try again.' };
+      }
+      
       return { success: false, error: 'An unexpected error occurred. Please check your internet connection and try again.' };
     }
   }

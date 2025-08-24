@@ -180,6 +180,47 @@ const BackendSetupScreen: React.FC = () => {
     );
   };
 
+  const testAuthFlow = async () => {
+    Alert.alert(
+      'Test Authentication Flow',
+      'This will test the sign-in process with invalid credentials to verify error handling works correctly.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Test', 
+          onPress: async () => {
+            try {
+              console.log('🧪 Testing auth flow...');
+              
+              // Import AuthService dynamically to avoid circular imports
+              const { AuthService } = await import('../utils/authService');
+              
+              // Test sign in with invalid credentials (should fail gracefully)
+              const result = await AuthService.signIn('test@example.com', 'wrongpassword');
+              
+              if (!result.success) {
+                Alert.alert(
+                  'Auth Test Result ✅', 
+                  `Authentication service is working correctly.\n\nExpected error received: ${result.error}`
+                );
+              } else {
+                Alert.alert(
+                  'Auth Test Result ⚠️', 
+                  'Unexpected success with invalid credentials. This may indicate a configuration issue.'
+                );
+              }
+            } catch (error) {
+              Alert.alert(
+                'Auth Test Failed ❌', 
+                `Error during authentication test: ${error instanceof Error ? error.message : 'Unknown error'}`
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success':
@@ -260,6 +301,13 @@ const BackendSetupScreen: React.FC = () => {
                 style={styles.continueButton}
               />
             )}
+
+            <Button
+              text="Test Auth Flow"
+              onPress={testAuthFlow}
+              style={styles.testButton}
+              variant="outline"
+            />
 
             {!isRunning && !allPassed && checks.some(c => c.status === 'error') && (
               <>
@@ -353,6 +401,10 @@ const styles = StyleSheet.create({
   },
   setupButton: {
     borderColor: colors.white,
+    borderWidth: 2,
+  },
+  testButton: {
+    borderColor: colors.warning || '#F59E0B',
     borderWidth: 2,
   },
   skipButton: {
