@@ -1,5 +1,4 @@
 
-import { supabase } from '../app/integrations/supabase/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -10,36 +9,19 @@ interface ConnectionStatus {
   lastError?: string;
 }
 
-interface ConnectionConfig {
-  maxRetries: number;
-  retryDelay: number;
-  healthCheckInterval: number;
-  connectionTimeout: number;
-}
-
 class ConnectionService {
   private static instance: ConnectionService;
   private connectionStatus: ConnectionStatus = {
-    isConnected: false,
+    isConnected: true, // Start optimistic
     lastChecked: new Date().toISOString(),
     consecutiveFailures: 0
   };
   
-  private config: ConnectionConfig = {
-    maxRetries: 5,
-    retryDelay: 2000, // Start with 2 seconds
-    healthCheckInterval: 30000, // Check every 30 seconds
-    connectionTimeout: 10000 // 10 second timeout
-  };
-
   private healthCheckInterval?: NodeJS.Timeout;
-  private reconnectTimeout?: NodeJS.Timeout;
   private listeners: Array<(status: ConnectionStatus) => void> = [];
 
   private constructor() {
     this.initializeConnection();
-    this.startHealthCheck();
-    this.setupAuthStateListener();
   }
 
   public static getInstance(): ConnectionService {
@@ -49,56 +31,80 @@ class ConnectionService {
     return ConnectionService.instance;
   }
 
-  // Initialize connection and test it
+  // Initialize connection monitoring
   private async initializeConnection(): Promise<void> {
-    console.log('🔌 Initializing Supabase connection...');
+    console.log('🔌 Initializing connection service...');
     
     try {
-      // Test initial connection
-      const isConnected = await this.testConnection();
-      this.updateConnectionStatus(isConnected);
+      // Load previous status
+      await this.loadConnectionStatus();
       
-      if (isConnected) {
-        console.log('✅ Supabase connection established successfully');
-        await this.saveConnectionStatus();
-      } else {
-        console.log('❌ Initial connection failed, starting retry process');
-        this.startReconnectionProcess();
-      }
+      // Start with optimistic connection
+      this.updateConnectionStatus(true);
+      
+      // Start periodic health checks (less aggressive)
+      this.startHealthCheck();
+      
+      console.log('✅ Connection service initialized');
     } catch (error) {
-      console.error('❌ Connection initialization error:', error);
+      console.error('❌ Connection service initialization error:', error);
       this.updateConnectionStatus(false, error instanceof Error ? error.message : 'Unknown error');
-      this.startReconnectionProcess();
     }
   }
 
-  // Test connection by making a simple query
+  // Lightweight health check
+  private startHealthCheck(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+    }
+
+    // Check every 2 minutes (less aggressive)
+    this.healthCheckInterval = setInterval(async () => {
+      try {
+        // Only check if we've had recent failures
+        if (this.connectionStatus.consecutiveFailures > 0) {
+          await this.testConnection();
+        }
+      } catch (error) {
+        console.warn('⚠️ Health check error:', error);
+      }
+    }, 120000); // 2 minutes
+
+    console.log('🔄 Health check started (2 minute interval)');
+  }
+
+  // Simple connection test
   private async testConnection(): Promise<boolean> {
     try {
-      console.log('🔍 Testing Supabase connection...');
+      console.log('🔍 Testing connection...');
       
-      // Create a promise that will timeout
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Connection timeout')), this.config.connectionTimeout);
+      // Simple fetch test with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch('https://tioevqidrridspbsjlqb.supabase.co/rest/v1/', {
+        method: 'HEAD',
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
+        },
+        signal: controller.signal,
       });
-
-      // Test connection with a simple query
-      const connectionPromise = supabase
-        .from('profiles')
-        .select('count', { count: 'exact', head: true });
-
-      // Race between connection and timeout
-      const { error } = await Promise.race([connectionPromise, timeoutPromise]);
-
-      if (error) {
-        console.error('❌ Connection test failed:', error.message);
-        return false;
+      
+      clearTimeout(timeoutId);
+      
+      const connected = response.ok;
+      this.updateConnectionStatus(connected);
+      
+      if (connected) {
+        console.log('✅ Connection test successful');
+      } else {
+        console.log('❌ Connection test failed');
       }
-
-      console.log('✅ Connection test successful');
-      return true;
+      
+      return connected;
     } catch (error) {
-      console.error('❌ Connection test error:', error);
+      console.warn('⚠️ Connection test error:', error);
+      this.updateConnectionStatus(false, error instanceof Error ? error.message : 'Connection test failed');
       return false;
     }
   }
@@ -114,12 +120,12 @@ class ConnectionService {
       lastError: error
     };
 
-    // Log status change
+    // Log significant status changes
     if (wasConnected !== isConnected) {
       if (isConnected) {
-        console.log('🟢 Supabase connection restored');
+        console.log('🟢 Connection restored');
       } else {
-        console.log('🔴 Supabase connection lost');
+        console.log('🔴 Connection lost');
       }
     }
 
@@ -131,97 +137,15 @@ class ConnectionService {
         console.error('❌ Error notifying connection listener:', error);
       }
     });
-  }
 
-  // Start periodic health checks
-  private startHealthCheck(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-    }
-
-    this.healthCheckInterval = setInterval(async () => {
-      try {
-        const isConnected = await this.testConnection();
-        this.updateConnectionStatus(isConnected);
-        
-        if (!isConnected && this.connectionStatus.consecutiveFailures === 1) {
-          // First failure, start reconnection process
-          this.startReconnectionProcess();
-        }
-        
-        await this.saveConnectionStatus();
-      } catch (error) {
-        console.error('❌ Health check error:', error);
-        this.updateConnectionStatus(false, error instanceof Error ? error.message : 'Health check failed');
-      }
-    }, this.config.healthCheckInterval);
-
-    console.log(`🔄 Health check started (interval: ${this.config.healthCheckInterval}ms)`);
-  }
-
-  // Start reconnection process with exponential backoff
-  private startReconnectionProcess(): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-
-    const attempt = this.connectionStatus.consecutiveFailures;
-    if (attempt >= this.config.maxRetries) {
-      console.log(`❌ Max reconnection attempts (${this.config.maxRetries}) reached`);
-      return;
-    }
-
-    // Exponential backoff: 2s, 4s, 8s, 16s, 32s
-    const delay = Math.min(this.config.retryDelay * Math.pow(2, attempt), 32000);
-    
-    console.log(`🔄 Scheduling reconnection attempt ${attempt + 1}/${this.config.maxRetries} in ${delay}ms`);
-
-    this.reconnectTimeout = setTimeout(async () => {
-      try {
-        console.log(`🔄 Reconnection attempt ${attempt + 1}/${this.config.maxRetries}`);
-        
-        const isConnected = await this.testConnection();
-        this.updateConnectionStatus(isConnected);
-        
-        if (!isConnected) {
-          // Continue reconnection process
-          this.startReconnectionProcess();
-        } else {
-          console.log('✅ Reconnection successful');
-          await this.saveConnectionStatus();
-        }
-      } catch (error) {
-        console.error('❌ Reconnection attempt failed:', error);
-        this.updateConnectionStatus(false, error instanceof Error ? error.message : 'Reconnection failed');
-        this.startReconnectionProcess();
-      }
-    }, delay);
-  }
-
-  // Setup auth state listener to detect session changes
-  private setupAuthStateListener(): void {
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`🔐 Auth state changed: ${event}`);
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Test connection after auth changes
-        const isConnected = await this.testConnection();
-        this.updateConnectionStatus(isConnected);
-        
-        if (!isConnected) {
-          this.startReconnectionProcess();
-        }
-      } else if (event === 'SIGNED_OUT') {
-        // Reset connection status on sign out
-        this.updateConnectionStatus(false, 'User signed out');
-      }
-    });
+    // Save status
+    this.saveConnectionStatus();
   }
 
   // Save connection status to AsyncStorage
   private async saveConnectionStatus(): Promise<void> {
     try {
-      await AsyncStorage.setItem('supabase_connection_status', JSON.stringify(this.connectionStatus));
+      await AsyncStorage.setItem('connection_status', JSON.stringify(this.connectionStatus));
     } catch (error) {
       console.error('❌ Failed to save connection status:', error);
     }
@@ -230,11 +154,11 @@ class ConnectionService {
   // Load connection status from AsyncStorage
   private async loadConnectionStatus(): Promise<void> {
     try {
-      const stored = await AsyncStorage.getItem('supabase_connection_status');
+      const stored = await AsyncStorage.getItem('connection_status');
       if (stored) {
         const status = JSON.parse(stored);
         this.connectionStatus = { ...this.connectionStatus, ...status };
-        console.log('📱 Loaded connection status from storage:', status);
+        console.log('📱 Loaded connection status from storage');
       }
     } catch (error) {
       console.error('❌ Failed to load connection status:', error);
@@ -256,24 +180,15 @@ class ConnectionService {
     // Reset failure count
     this.connectionStatus.consecutiveFailures = 0;
     
-    // Clear existing timeouts
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-
     // Test connection immediately
-    const isConnected = await this.testConnection();
-    this.updateConnectionStatus(isConnected);
-    
-    if (!isConnected) {
-      this.startReconnectionProcess();
-    }
-    
-    return isConnected;
+    return await this.testConnection();
   }
 
   public addConnectionListener(listener: (status: ConnectionStatus) => void): () => void {
     this.listeners.push(listener);
+    
+    // Immediately notify with current status
+    listener(this.connectionStatus);
     
     // Return unsubscribe function
     return () => {
@@ -284,36 +199,25 @@ class ConnectionService {
     };
   }
 
-  public updateConfig(newConfig: Partial<ConnectionConfig>): void {
-    this.config = { ...this.config, ...newConfig };
-    console.log('⚙️ Connection config updated:', this.config);
-    
-    // Restart health check with new interval if changed
-    if (newConfig.healthCheckInterval) {
-      this.startHealthCheck();
-    }
-  }
-
-  // Enhanced error handling for Supabase operations
+  // Enhanced error handling for operations
   public async executeWithRetry<T>(
     operation: () => Promise<T>,
-    operationName: string = 'Supabase operation'
+    operationName: string = 'Operation',
+    maxRetries: number = 2
   ): Promise<T> {
     let lastError: Error | null = null;
     
-    for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 Executing ${operationName} (attempt ${attempt}/${this.config.maxRetries})`);
-        
-        // Check connection before operation
-        if (!this.connectionStatus.isConnected) {
-          const reconnected = await this.forceReconnect();
-          if (!reconnected) {
-            throw new Error('No connection available');
-          }
-        }
+        console.log(`🔄 ${operationName} (attempt ${attempt}/${maxRetries})`);
         
         const result = await operation();
+        
+        // Mark as connected on successful operation
+        if (this.connectionStatus.consecutiveFailures > 0) {
+          this.updateConnectionStatus(true);
+        }
+        
         console.log(`✅ ${operationName} successful`);
         return result;
         
@@ -325,28 +229,22 @@ class ConnectionService {
         this.updateConnectionStatus(false, lastError.message);
         
         // Don't retry on the last attempt
-        if (attempt === this.config.maxRetries) {
+        if (attempt === maxRetries) {
           break;
         }
         
-        // Wait before retry with exponential backoff
-        const delay = this.config.retryDelay * Math.pow(2, attempt - 1);
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        // Short delay before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
-    throw lastError || new Error(`${operationName} failed after ${this.config.maxRetries} attempts`);
+    throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`);
   }
 
   // Cleanup method
   public cleanup(): void {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
-    }
-    
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
     }
     
     this.listeners = [];

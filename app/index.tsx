@@ -1,98 +1,139 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  Alert,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Button from '../components/Button';
+import { router } from 'expo-router';
 import Icon from '../components/Icon';
+import Button from '../components/Button';
+import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
 import { getCurrentUser } from '../utils/storage';
-import { commonStyles, colors, spacing, borderRadius } from '../styles/commonStyles';
+import { supabase } from './integrations/supabase/client';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withSpring,
   withDelay,
-  withSequence,
 } from 'react-native-reanimated';
 
-const HomeScreen: React.FC = () => {
+const { width } = Dimensions.get('window');
+
+interface FeatureCardProps {
+  icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
+  title: string;
+  description: string;
+  gradient: string[];
+  onPress: () => void;
+  delay: number;
+}
+
+const LandingScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'ready' | 'error'>('checking');
 
   // Animation values
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(50);
-  const logoScale = useSharedValue(0.8);
-  const buttonOpacity = useSharedValue(0);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
     transform: [{ translateY: slideUp.value }],
   }));
 
-  const logoAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: logoScale.value }],
-  }));
-
-  const buttonAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: buttonOpacity.value,
-  }));
-
-  const initializeAnimations = useCallback(() => {
-    // Sequence the animations for a more polished feel
-    fadeIn.value = withTiming(1, { duration: 1000 });
-    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
-    logoScale.value = withDelay(300, withSequence(
-      withSpring(1.1, { damping: 15, stiffness: 100 }),
-      withSpring(1, { damping: 15, stiffness: 100 })
-    ));
-    buttonOpacity.value = withDelay(800, withTiming(1, { duration: 600 }));
-  }, [fadeIn, slideUp, logoScale, buttonOpacity]);
-
-  const checkUserStatus = useCallback(async () => {
-    try {
-      console.log('🏠 Checking user status for automatic navigation...');
-      
-      const currentUser = await getCurrentUser();
-      
-      if (currentUser?.isOnboarded) {
-        console.log('✅ User is onboarded, automatically redirecting to home screen');
-        // Immediate redirect without delay
-        router.replace('/(tabs)');
-        return;
-      }
-
-      console.log('👋 New user, showing landing page');
-      setIsLoading(false);
-    } catch (error) {
-      console.error('❌ Error checking user status:', error);
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    checkInitialState();
   }, []);
 
-  useEffect(() => {
-    console.log('🏠 NextDrop Landing Page Loading...');
-    
-    // Start animations
-    initializeAnimations();
+  const checkInitialState = async () => {
+    try {
+      console.log('🔍 Checking initial app state...');
+      
+      // Check if user is already authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        console.log('✅ User already authenticated, checking profile...');
+        
+        const currentUser = await getCurrentUser();
+        if (currentUser && currentUser.isOnboarded) {
+          console.log('🏠 Redirecting to home...');
+          router.replace('/(tabs)');
+          return;
+        } else {
+          console.log('👤 Redirecting to onboarding...');
+          router.replace('/onboarding');
+          return;
+        }
+      }
 
-    // Check if user is already logged in
-    checkUserStatus();
-  }, [initializeAnimations, checkUserStatus]);
+      // Quick backend health check
+      try {
+        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        if (error) {
+          console.warn('⚠️ Backend health check failed:', error.message);
+          setBackendStatus('error');
+        } else {
+          console.log('✅ Backend health check passed');
+          setBackendStatus('ready');
+        }
+      } catch (healthError) {
+        console.warn('⚠️ Backend health check error:', healthError);
+        setBackendStatus('error');
+      }
+
+      // Start animations
+      fadeIn.value = withTiming(1, { duration: 1000 });
+      slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
+      
+    } catch (error) {
+      console.error('❌ Initial state check failed:', error);
+      setBackendStatus('error');
+      
+      // Still show the landing page
+      fadeIn.value = withTiming(1, { duration: 1000 });
+      slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
 
   const handleGetStarted = () => {
-    console.log('🚀 Get Started pressed - going to login');
+    if (backendStatus === 'error') {
+      Alert.alert(
+        'Backend Issues Detected',
+        'Some features may not work properly. Would you like to run diagnostics first?',
+        [
+          { text: 'Run Diagnostics', onPress: () => router.push('/backend-setup') },
+          { text: 'Continue Anyway', onPress: () => router.push('/auth/login'), style: 'destructive' }
+        ]
+      );
+    } else {
+      router.push('/auth/login');
+    }
+  };
+
+  const handleSignIn = () => {
     router.push('/auth/login');
   };
 
   const handleCreateAccount = () => {
-    console.log('📝 Create Account pressed - going to registration');
     router.push('/auth/register');
   };
 
-  if (isLoading) {
+  const handleBackendSetup = () => {
+    router.push('/backend-setup');
+  };
+
+  if (isCheckingAuth) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <LinearGradient
@@ -100,10 +141,8 @@ const HomeScreen: React.FC = () => {
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.loadingContainer}>
-          <Animated.View style={logoAnimatedStyle}>
-            <Text style={styles.logo}>🎵</Text>
-          </Animated.View>
-          <Text style={styles.loadingText}>Loading NextDrop...</Text>
+          <Text style={styles.loadingText}>🎵</Text>
+          <Text style={styles.loadingSubtext}>Loading NextDrop...</Text>
         </View>
       </View>
     );
@@ -117,93 +156,133 @@ const HomeScreen: React.FC = () => {
       />
       
       <Animated.View style={[styles.content, animatedStyle]}>
-        {/* Logo Section */}
-        <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
+        {/* Header */}
+        <View style={styles.header}>
           <Text style={styles.logo}>🎵</Text>
-          <Text style={styles.title}>NextDrop</Text>
-          <Text style={styles.subtitle}>
-            Connect. Collaborate. Create.
-          </Text>
-          <Text style={styles.description}>
+          <Text style={styles.appName}>NextDrop</Text>
+          <Text style={styles.tagline}>
             The professional network for musicians, producers, and music industry collaborators
           </Text>
-        </Animated.View>
+          
+          {backendStatus === 'error' && (
+            <TouchableOpacity
+              style={styles.warningBanner}
+              onPress={handleBackendSetup}
+            >
+              <Icon name="warning" size={20} color={colors.warning || '#F59E0B'} />
+              <Text style={styles.warningText}>
+                Backend issues detected - Tap to diagnose
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {/* Features Section */}
+        {/* Features */}
         <View style={styles.featuresContainer}>
-          <FeatureItem 
-            icon="people-outline" 
-            text="Connect with talented musicians worldwide" 
-            delay={1000}
+          <FeatureCard
+            icon="people"
+            title="Discover Talent"
+            description="Swipe through profiles of musicians and find your perfect collaborator"
+            gradient={['#FF6B6B', '#FF8E53']}
+            onPress={() => {}}
+            delay={0}
           />
-          <FeatureItem 
-            icon="musical-notes-outline" 
-            text="Collaborate on amazing projects" 
-            delay={1200}
+          
+          <FeatureCard
+            icon="musical-notes"
+            title="Collaborate"
+            description="Work on projects together and split revenue automatically"
+            gradient={['#4ECDC4', '#44A08D']}
+            onPress={() => {}}
+            delay={200}
           />
-          <FeatureItem 
-            icon="trending-up-outline" 
-            text="Grow your music career" 
-            delay={1400}
-          />
-          <FeatureItem 
-            icon="cash-outline" 
-            text="Earn money from your skills" 
-            delay={1600}
+          
+          <FeatureCard
+            icon="trending-up"
+            title="Grow Your Career"
+            description="Build your reputation and connect with industry professionals"
+            gradient={['#A8E6CF', '#7FCDCD']}
+            onPress={() => {}}
+            delay={400}
           />
         </View>
 
-        {/* Action Buttons */}
-        <Animated.View style={[styles.buttonContainer, buttonAnimatedStyle]}>
+        {/* Actions */}
+        <View style={styles.actionsContainer}>
           <Button
-            text="Sign In"
+            text="Get Started"
             onPress={handleGetStarted}
             style={styles.primaryButton}
           />
           
-          <Button
-            text="Create New Account"
-            onPress={handleCreateAccount}
-            variant="outline"
-            style={styles.secondaryButton}
-          />
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleSignIn}
+            >
+              <Text style={styles.secondaryButtonText}>Sign In</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleCreateAccount}
+            >
+              <Text style={styles.secondaryButtonText}>Create Account</Text>
+            </TouchableOpacity>
+          </View>
           
-          <TouchableOpacity style={styles.learnMoreButton}>
-            <Text style={styles.learnMoreText}>Learn More About NextDrop</Text>
-            <Icon name="arrow-forward" size={16} color={colors.white} />
-          </TouchableOpacity>
-        </Animated.View>
+          {backendStatus === 'error' && (
+            <TouchableOpacity
+              style={styles.diagnosticsButton}
+              onPress={handleBackendSetup}
+            >
+              <Icon name="settings" size={16} color={colors.white} />
+              <Text style={styles.diagnosticsButtonText}>Run Diagnostics</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </Animated.View>
     </View>
   );
 };
 
-interface FeatureItemProps {
-  icon: string;
-  text: string;
-  delay: number;
-}
+const FeatureCard: React.FC<FeatureCardProps> = ({
+  icon,
+  title,
+  description,
+  gradient,
+  onPress,
+  delay,
+}) => {
+  const cardOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.8);
 
-const FeatureItem: React.FC<FeatureItemProps> = ({ icon, text, delay }) => {
-  const opacity = useSharedValue(0);
-  const translateX = useSharedValue(-20);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateX: translateX.value }],
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }],
   }));
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
-    translateX.value = withDelay(delay, withSpring(0, { damping: 20, stiffness: 100 }));
-  }, [delay, opacity, translateX]);
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
+    cardScale.value = withDelay(delay, withSpring(1, { damping: 20, stiffness: 100 }));
+  }, [delay]);
 
   return (
-    <Animated.View style={[styles.feature, animatedStyle]}>
-      <View style={styles.featureIconContainer}>
-        <Icon name={icon as any} size={24} color={colors.white} />
-      </View>
-      <Text style={styles.featureText}>{text}</Text>
+    <Animated.View style={[cardAnimatedStyle]}>
+      <TouchableOpacity
+        style={styles.featureCard}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={gradient}
+          style={styles.featureCardGradient}
+        >
+          <Icon name={icon} size={32} color={colors.white} />
+          <Text style={styles.featureTitle}>{title}</Text>
+          <Text style={styles.featureDescription}>{description}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -216,103 +295,126 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.xl,
+  },
+  loadingText: {
+    fontSize: 60,
+    marginBottom: spacing.md,
+  },
+  loadingSubtext: {
+    fontSize: 18,
+    color: colors.white,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.xl,
+    padding: spacing.lg,
   },
-  logoContainer: {
+  header: {
     alignItems: 'center',
-    marginTop: spacing.xl * 2,
+    marginBottom: spacing.xl * 2,
   },
   logo: {
     fontSize: 80,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  title: {
-    fontSize: 48,
+  appName: {
+    fontSize: 32,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 20,
-    color: colors.white,
-    textAlign: 'center',
-    fontWeight: '600',
     marginBottom: spacing.md,
-    opacity: 0.9,
   },
-  description: {
+  tagline: {
     fontSize: 16,
-    color: colors.white,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    opacity: 0.8,
     lineHeight: 24,
-    maxWidth: 300,
+    paddingHorizontal: spacing.lg,
   },
-  featuresContainer: {
-    width: '100%',
-    maxWidth: 320,
-  },
-  feature: {
+  warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.warning || '#F59E0B',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
   },
-  featureIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  featureText: {
-    fontSize: 16,
+  warningText: {
     color: colors.white,
-    flex: 1,
+    fontSize: 14,
     fontWeight: '500',
   },
-  loadingText: {
-    fontSize: 18,
-    color: colors.white,
-    marginTop: spacing.lg,
-    textAlign: 'center',
-  },
-  buttonContainer: {
-    width: '100%',
-    maxWidth: 300,
+  featuresContainer: {
+    flex: 1,
+    gap: spacing.lg,
     marginBottom: spacing.xl,
   },
+  featureCard: {
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.lg,
+  },
+  featureCardGradient: {
+    padding: spacing.lg,
+    alignItems: 'center',
+    minHeight: 120,
+    justifyContent: 'center',
+  },
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  actionsContainer: {
+    gap: spacing.lg,
+  },
   primaryButton: {
-    marginBottom: spacing.md,
+    backgroundColor: colors.white,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
   },
   secondaryButton: {
-    marginBottom: spacing.lg,
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
-  learnMoreButton: {
+  secondaryButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  diagnosticsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderWidth: 1,
+    borderColor: colors.error || '#EF4444',
+    borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
+    gap: spacing.sm,
   },
-  learnMoreText: {
-    fontSize: 14,
+  diagnosticsButtonText: {
     color: colors.white,
-    marginRight: spacing.sm,
-    textDecorationLine: 'underline',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
-export default HomeScreen;
+export default LandingScreen;

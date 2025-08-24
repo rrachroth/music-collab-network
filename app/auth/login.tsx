@@ -17,7 +17,6 @@ import { router } from 'expo-router';
 import Icon from '../../components/Icon';
 import Button from '../../components/Button';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import { getCurrentUser } from '../../utils/storage';
 import { AuthService } from '../../utils/authService';
 import Animated, {
   useSharedValue,
@@ -60,37 +59,46 @@ const LoginScreen: React.FC = () => {
     setIsLoading(true);
 
     try {
-      console.log('🔐 Attempting sign in with Supabase...');
+      console.log('🔐 Attempting sign in...');
       
       const result = await AuthService.signIn(email, password);
       
       if (result.success) {
-        console.log('✅ User signed in successfully');
+        console.log('✅ Sign in successful');
         
-        // The auth state listener in _layout.tsx will handle navigation automatically
-        // Just show a brief success message
-        if (result.needsOnboarding) {
-          console.log('⚠️ User needs onboarding - will be redirected');
-          setTimeout(() => router.replace('/onboarding'), 500);
-        } else {
-          console.log('🏠 User is onboarded - will be redirected to home');
-          // Navigation will be handled by auth state listener
-        }
+        // Show success message
+        Alert.alert(
+          'Welcome Back!',
+          'You have been signed in successfully.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                // Navigation will be handled by auth state listener in _layout.tsx
+                if (result.needsOnboarding) {
+                  router.replace('/onboarding');
+                } else {
+                  router.replace('/(tabs)');
+                }
+              }
+            }
+          ]
+        );
       } else {
         console.error('❌ Sign in failed:', result.error);
-        Alert.alert('Sign In Failed', result.error || 'Invalid email or password. Please try again.');
+        Alert.alert('Sign In Failed', result.error || 'Please check your credentials and try again.');
       }
       
     } catch (error) {
       console.error('❌ Sign in error:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      Alert.alert('Connection Error', 'Unable to connect to the server. Please check your internet connection and try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCreateNewAccount = () => {
-    console.log('📝 Create new account pressed - redirecting to registration');
+    console.log('📝 Create new account pressed');
     router.push('/auth/register');
   };
 

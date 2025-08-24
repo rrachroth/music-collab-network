@@ -1,448 +1,283 @@
 
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
+  Alert,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  StyleSheet,
-  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import Button from '../components/Button';
-import Icon from '../components/Icon';
-import ConnectionStatus from '../components/ConnectionStatus';
-import React, { useState, useEffect, useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase, connectionManager, withRetry } from './integrations/supabase/client';
-import { connectionService } from '../utils/connectionService';
 import { router } from 'expo-router';
+import Icon from '../components/Icon';
+import Button from '../components/Button';
+import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
+import { supabase } from './integrations/supabase/client';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withSpring,
-  withDelay,
 } from 'react-native-reanimated';
 
-interface SetupStepProps {
-  title: string;
-  description: string;
-  status: 'pending' | 'loading' | 'success' | 'error';
-  onPress: () => void;
-  delay: number;
-}
-
-interface DatabaseTableInfo {
+interface CheckResult {
   name: string;
-  status: 'checking' | 'exists' | 'missing' | 'error';
-  rowCount?: number;
+  status: 'pending' | 'success' | 'error';
+  message: string;
 }
-
-interface ConnectionDiagnostics {
-  url: string;
-  key: string;
-  authStatus: string;
-  lastCheck: string;
-  consecutiveFailures: number;
-  isConnected: boolean;
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-  },
-  header: {
-    marginBottom: spacing.xl,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  section: {
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  diagnosticsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    ...shadows.small,
-  },
-  diagnosticsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  diagnosticsLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  diagnosticsValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-    flex: 2,
-    textAlign: 'right',
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginLeft: spacing.sm,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.lg,
-  },
-});
 
 const BackendSetupScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const [checks, setChecks] = useState<CheckResult[]>([
+    { name: 'Database Connection', status: 'pending', message: 'Testing connection...' },
+    { name: 'Profiles Table', status: 'pending', message: 'Checking table...' },
+    { name: 'Projects Table', status: 'pending', message: 'Checking table...' },
+    { name: 'User Limits Table', status: 'pending', message: 'Checking table...' },
+    { name: 'Authentication', status: 'pending', message: 'Testing auth...' },
+  ]);
+  const [isRunning, setIsRunning] = useState(false);
+  const [allPassed, setAllPassed] = useState(false);
+
+  // Animation values
   const fadeIn = useSharedValue(0);
   const slideUp = useSharedValue(50);
-  
-  const [refreshing, setRefreshing] = useState(false);
-  const [setupSteps, setSetupSteps] = useState([
-    {
-      title: 'Database Connection',
-      description: 'Test connection to Supabase database',
-      status: 'pending' as const,
-    },
-    {
-      title: 'Authentication Service',
-      description: 'Verify auth service is working',
-      status: 'pending' as const,
-    },
-    {
-      title: 'Database Tables',
-      description: 'Check if all required tables exist',
-      status: 'pending' as const,
-    },
-    {
-      title: 'Row Level Security',
-      description: 'Verify RLS policies are enabled',
-      status: 'pending' as const,
-    },
-  ]);
-  
-  const [tableInfo, setTableInfo] = useState<DatabaseTableInfo[]>([]);
-  const [diagnostics, setDiagnostics] = useState<ConnectionDiagnostics | null>(null);
-  const insets = useSafeAreaInsets();
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
     transform: [{ translateY: slideUp.value }],
   }));
 
-  const runAllChecks = useCallback(async () => {
-    console.log('🔍 Running backend setup checks...');
-    
-    // Update diagnostics
-    await updateDiagnostics();
-    
-    // Test database connection
-    await testDatabaseConnection();
-    
-    // Test authentication
-    await testAuthentication();
-    
-    // Check tables
-    await checkDatabaseTables();
-    
-    // Check RLS
-    await checkRowLevelSecurity();
+  useEffect(() => {
+    fadeIn.value = withTiming(1, { duration: 800 });
+    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
   }, []);
 
-  const updateDiagnostics = async () => {
-    try {
-      const connectionStatus = connectionService.getConnectionStatus();
-      const session = await supabase.auth.getSession();
-      
-      setDiagnostics({
-        url: 'https://tioevqidrridspbsjlqb.supabase.co',
-        key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', // Truncated for security
-        authStatus: session.data.session ? 'Authenticated' : 'Not authenticated',
-        lastCheck: connectionStatus.lastChecked,
-        consecutiveFailures: connectionStatus.consecutiveFailures,
-        isConnected: connectionStatus.isConnected,
-      });
-    } catch (error) {
-      console.error('❌ Error updating diagnostics:', error);
-    }
-  };
-
-  const testDatabaseConnection = async () => {
-    updateStepStatus(0, 'loading');
-    
-    try {
-      const isConnected = await connectionService.forceReconnect();
-      updateStepStatus(0, isConnected ? 'success' : 'error');
-    } catch (error) {
-      console.error('❌ Database connection test failed:', error);
-      updateStepStatus(0, 'error');
-    }
-  };
-
-  const testAuthentication = async () => {
-    updateStepStatus(1, 'loading');
-    
-    try {
-      const { data, error } = await supabase.auth.getSession();
-      updateStepStatus(1, !error ? 'success' : 'error');
-    } catch (error) {
-      console.error('❌ Authentication test failed:', error);
-      updateStepStatus(1, 'error');
-    }
-  };
-
-  const checkDatabaseTables = async () => {
-    updateStepStatus(2, 'loading');
-    
-    const requiredTables = ['profiles', 'projects', 'matches', 'payments', 'user_limits'];
-    const tableResults: DatabaseTableInfo[] = [];
-    
-    let allTablesExist = true;
-    
-    for (const tableName of requiredTables) {
-      try {
-        const result = await withRetry(async () => {
-          const { count, error } = await supabase
-            .from(tableName as any)
-            .select('*', { count: 'exact', head: true });
-          
-          if (error) throw error;
-          return count;
-        }, `Check table ${tableName}`);
-        
-        tableResults.push({
-          name: tableName,
-          status: 'exists',
-          rowCount: result || 0,
-        });
-      } catch (error) {
-        console.error(`❌ Table ${tableName} check failed:`, error);
-        tableResults.push({
-          name: tableName,
-          status: 'error',
-        });
-        allTablesExist = false;
-      }
-    }
-    
-    setTableInfo(tableResults);
-    updateStepStatus(2, allTablesExist ? 'success' : 'error');
-  };
-
-  const checkRowLevelSecurity = async () => {
-    updateStepStatus(3, 'loading');
-    
-    try {
-      // This would require a custom function in Supabase to check RLS status
-      // For now, we'll assume it's working if we can query the tables
-      const { error } = await supabase
-        .from('profiles')
-        .select('count', { count: 'exact', head: true });
-      
-      updateStepStatus(3, !error ? 'success' : 'error');
-    } catch (error) {
-      console.error('❌ RLS check failed:', error);
-      updateStepStatus(3, 'error');
-    }
-  };
-
-  const updateStepStatus = (index: number, status: 'pending' | 'loading' | 'success' | 'error') => {
-    setSetupSteps(prev => prev.map((step, i) => 
-      i === index ? { ...step, status } : step
+  const updateCheck = (index: number, status: 'success' | 'error', message: string) => {
+    setChecks(prev => prev.map((check, i) => 
+      i === index ? { ...check, status, message } : check
     ));
   };
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await runAllChecks();
-    setRefreshing(false);
-  }, [runAllChecks]);
+  const runDiagnostics = async () => {
+    setIsRunning(true);
+    setAllPassed(false);
+    
+    // Reset all checks
+    setChecks(prev => prev.map(check => ({ ...check, status: 'pending' as const })));
 
-  useEffect(() => {
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withTiming(0, { duration: 600 });
-    runAllChecks();
-  }, [runAllChecks]);
+    try {
+      // 1. Test database connection
+      console.log('🔍 Testing database connection...');
+      try {
+        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        if (error) {
+          updateCheck(0, 'error', `Connection failed: ${error.message}`);
+        } else {
+          updateCheck(0, 'success', 'Database connection successful');
+        }
+      } catch (error) {
+        updateCheck(0, 'error', `Connection error: ${error}`);
+      }
+
+      // 2. Test profiles table
+      console.log('🔍 Testing profiles table...');
+      try {
+        const { data, error } = await supabase.from('profiles').select('*').limit(1);
+        if (error) {
+          updateCheck(1, 'error', `Profiles table error: ${error.message}`);
+        } else {
+          updateCheck(1, 'success', 'Profiles table accessible');
+        }
+      } catch (error) {
+        updateCheck(1, 'error', `Profiles table error: ${error}`);
+      }
+
+      // 3. Test projects table
+      console.log('🔍 Testing projects table...');
+      try {
+        const { data, error } = await supabase.from('projects').select('*').limit(1);
+        if (error) {
+          updateCheck(2, 'error', `Projects table error: ${error.message}`);
+        } else {
+          updateCheck(2, 'success', 'Projects table accessible');
+        }
+      } catch (error) {
+        updateCheck(2, 'error', `Projects table error: ${error}`);
+      }
+
+      // 4. Test user_limits table
+      console.log('🔍 Testing user_limits table...');
+      try {
+        const { data, error } = await supabase.from('user_limits').select('*').limit(1);
+        if (error) {
+          updateCheck(3, 'error', `User limits table error: ${error.message}`);
+        } else {
+          updateCheck(3, 'success', 'User limits table accessible');
+        }
+      } catch (error) {
+        updateCheck(3, 'error', `User limits table error: ${error}`);
+      }
+
+      // 5. Test authentication
+      console.log('🔍 Testing authentication...');
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          updateCheck(4, 'error', `Auth error: ${error.message}`);
+        } else {
+          updateCheck(4, 'success', session ? 'User authenticated' : 'Auth system working');
+        }
+      } catch (error) {
+        updateCheck(4, 'error', `Auth error: ${error}`);
+      }
+
+      // Check if all passed
+      setTimeout(() => {
+        setChecks(current => {
+          const allSuccess = current.every(check => check.status === 'success');
+          setAllPassed(allSuccess);
+          return current;
+        });
+      }, 1000);
+
+    } catch (error) {
+      console.error('❌ Diagnostics failed:', error);
+      Alert.alert('Diagnostics Failed', 'An unexpected error occurred during diagnostics.');
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleContinueAnyway = () => {
+    Alert.alert(
+      'Continue with Limited Functionality?',
+      'Some backend features may not work properly. The app will use local storage as a fallback.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Continue', 
+          onPress: () => router.replace('/auth/login'),
+          style: 'destructive'
+        }
+      ]
+    );
+  };
+
+  const handleRetrySetup = () => {
+    Alert.alert(
+      'Database Setup Required',
+      'It looks like the database tables need to be created. Please contact support or check the setup documentation.',
+      [
+        { text: 'OK' },
+        { 
+          text: 'Continue Anyway', 
+          onPress: handleContinueAnyway,
+          style: 'destructive'
+        }
+      ]
+    );
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'loading': return 'refresh';
-      case 'success': return 'checkmark-circle';
-      case 'error': return 'close-circle';
-      default: return 'ellipse-outline';
+      case 'success':
+        return 'checkmark-circle';
+      case 'error':
+        return 'close-circle';
+      default:
+        return 'time';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'loading': return colors.warning;
-      case 'success': return colors.success;
-      case 'error': return colors.error;
-      default: return colors.textSecondary;
+      case 'success':
+        return colors.success || '#10B981';
+      case 'error':
+        return colors.error || '#EF4444';
+      default:
+        return colors.textSecondary;
     }
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      
       <ScrollView
-        style={styles.container}
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
       >
-        <Animated.View style={animatedStyle}>
+        <Animated.View style={[styles.content, animatedStyle]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Backend Setup</Text>
             <Text style={styles.subtitle}>
-              Monitor and diagnose your Supabase connection and database setup.
+              Let&apos;s check if everything is working properly
             </Text>
           </View>
 
-          {/* Connection Status */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Connection Status</Text>
-            <ConnectionStatus showWhenConnected={true} />
-          </View>
-
-          {/* Connection Diagnostics */}
-          {diagnostics && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Connection Diagnostics</Text>
-              <View style={styles.diagnosticsCard}>
-                <View style={styles.diagnosticsRow}>
-                  <Text style={styles.diagnosticsLabel}>Database URL</Text>
-                  <Text style={styles.diagnosticsValue}>{diagnostics.url}</Text>
-                  <View style={[
-                    styles.statusIndicator,
-                    { backgroundColor: diagnostics.isConnected ? colors.success : colors.error }
-                  ]} />
-                </View>
-                
-                <View style={styles.diagnosticsRow}>
-                  <Text style={styles.diagnosticsLabel}>Auth Status</Text>
-                  <Text style={styles.diagnosticsValue}>{diagnostics.authStatus}</Text>
-                </View>
-                
-                <View style={styles.diagnosticsRow}>
-                  <Text style={styles.diagnosticsLabel}>Last Check</Text>
-                  <Text style={styles.diagnosticsValue}>
-                    {new Date(diagnostics.lastCheck).toLocaleTimeString()}
-                  </Text>
-                </View>
-                
-                <View style={styles.diagnosticsRow}>
-                  <Text style={styles.diagnosticsLabel}>Consecutive Failures</Text>
+          {/* Diagnostics */}
+          <View style={styles.diagnosticsContainer}>
+            {checks.map((check, index) => (
+              <View key={index} style={styles.checkItem}>
+                <Icon
+                  name={getStatusIcon(check.status) as any}
+                  size={24}
+                  color={getStatusColor(check.status)}
+                />
+                <View style={styles.checkContent}>
+                  <Text style={styles.checkName}>{check.name}</Text>
                   <Text style={[
-                    styles.diagnosticsValue,
-                    { color: diagnostics.consecutiveFailures > 0 ? colors.error : colors.success }
+                    styles.checkMessage,
+                    { color: getStatusColor(check.status) }
                   ]}>
-                    {diagnostics.consecutiveFailures}
+                    {check.message}
                   </Text>
                 </View>
               </View>
-              
-              <View style={styles.actionButtons}>
-                <Button
-                  title="Force Reconnect"
-                  onPress={() => connectionService.forceReconnect()}
-                  variant="outline"
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  title="Refresh Diagnostics"
-                  onPress={updateDiagnostics}
-                  variant="outline"
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          )}
-
-          {/* Setup Steps */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>System Checks</Text>
-            {setupSteps.map((step, index) => (
-              <SetupStepCard
-                key={index}
-                title={step.title}
-                description={step.description}
-                status={step.status}
-                onPress={() => {
-                  switch (index) {
-                    case 0: testDatabaseConnection(); break;
-                    case 1: testAuthentication(); break;
-                    case 2: checkDatabaseTables(); break;
-                    case 3: checkRowLevelSecurity(); break;
-                  }
-                }}
-                delay={index * 100}
-              />
             ))}
           </View>
 
-          {/* Database Tables */}
-          {tableInfo.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Database Tables</Text>
-              <View style={styles.diagnosticsCard}>
-                {tableInfo.map((table, index) => (
-                  <View key={table.name} style={styles.diagnosticsRow}>
-                    <Text style={styles.diagnosticsLabel}>{table.name}</Text>
-                    <Text style={styles.diagnosticsValue}>
-                      {table.status === 'exists' ? `${table.rowCount} rows` : table.status}
-                    </Text>
-                    <View style={[
-                      styles.statusIndicator,
-                      { backgroundColor: getStatusColor(table.status === 'exists' ? 'success' : 'error') }
-                    ]} />
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
+          {/* Actions */}
+          <View style={styles.actionsContainer}>
+            <Button
+              text={isRunning ? 'Running Diagnostics...' : 'Run Diagnostics'}
+              onPress={runDiagnostics}
+              disabled={isRunning}
+              style={styles.diagnosticsButton}
+            />
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <Button
-              title="Run All Checks"
-              onPress={runAllChecks}
-              style={{ flex: 1 }}
-            />
-            <Button
-              title="Back to App"
-              onPress={() => router.back()}
-              variant="outline"
-              style={{ flex: 1 }}
-            />
+            {allPassed && (
+              <Button
+                text="Continue to App"
+                onPress={() => router.replace('/auth/login')}
+                style={styles.continueButton}
+              />
+            )}
+
+            {!isRunning && !allPassed && checks.some(c => c.status === 'error') && (
+              <>
+                <Button
+                  text="Setup Database"
+                  onPress={handleRetrySetup}
+                  style={styles.setupButton}
+                  variant="outline"
+                />
+                
+                <TouchableOpacity
+                  style={styles.skipButton}
+                  onPress={handleContinueAnyway}
+                >
+                  <Text style={styles.skipText}>Continue with Limited Features</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </Animated.View>
       </ScrollView>
@@ -450,67 +285,85 @@ const BackendSetupScreen: React.FC = () => {
   );
 };
 
-const SetupStepCard: React.FC<SetupStepProps> = ({ title, description, status, onPress, delay }) => {
-  const cardOpacity = useSharedValue(0);
-  const cardScale = useSharedValue(0.9);
-
-  useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-    cardScale.value = withDelay(delay, withSpring(1, { damping: 15, stiffness: 150 }));
-  }, [delay]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: cardOpacity.value,
-    transform: [{ scale: cardScale.value }],
-  }));
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'loading': return 'refresh';
-      case 'success': return 'checkmark-circle';
-      case 'error': return 'close-circle';
-      default: return 'ellipse-outline';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'loading': return colors.warning;
-      case 'success': return colors.success;
-      case 'error': return colors.error;
-      default: return colors.textSecondary;
-    }
-  };
-
-  return (
-    <Animated.View style={animatedStyle}>
-      <TouchableOpacity
-        onPress={onPress}
-        style={[
-          commonStyles.card,
-          { marginBottom: spacing.md, borderLeftWidth: 4, borderLeftColor: getStatusColor(status) }
-        ]}
-        activeOpacity={0.8}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1 }}>
-            <Text style={[commonStyles.cardTitle, { marginBottom: spacing.xs }]}>
-              {title}
-            </Text>
-            <Text style={commonStyles.cardSubtitle}>
-              {description}
-            </Text>
-          </View>
-          
-          <Icon
-            name={getStatusIcon(status)}
-            size={24}
-            color={getStatusColor(status)}
-          />
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing.xl * 2,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: spacing.md,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  diagnosticsContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  checkItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  checkContent: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  checkName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: spacing.xs,
+  },
+  checkMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  actionsContainer: {
+    gap: spacing.lg,
+  },
+  diagnosticsButton: {
+    backgroundColor: colors.primary,
+  },
+  continueButton: {
+    backgroundColor: colors.success || '#10B981',
+  },
+  setupButton: {
+    borderColor: colors.white,
+    borderWidth: 2,
+  },
+  skipButton: {
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  skipText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textDecorationLine: 'underline',
+  },
+});
 
 export default BackendSetupScreen;

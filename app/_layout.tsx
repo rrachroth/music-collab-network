@@ -10,8 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setupErrorLogging } from '../utils/errorLogger';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ConnectionStatus from '../components/ConnectionStatus';
-import { connectionService } from '../utils/connectionService';
-import { supabase, connectionManager } from './integrations/supabase/client';
+import { supabase } from './integrations/supabase/client';
 import { getCurrentUser } from '../utils/storage';
 
 // Prevent the splash screen from auto-hiding
@@ -20,7 +19,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState(connectionService.getConnectionStatus());
+  const [connectionStatus, setConnectionStatus] = useState({ isConnected: true });
   const router = useRouter();
   const segments = useSegments();
 
@@ -37,21 +36,6 @@ export default function RootLayout() {
     console.log('🚀 NextDrop app starting...');
   }, []);
 
-  // Monitor connection status
-  useEffect(() => {
-    const unsubscribe = connectionService.addConnectionListener((status) => {
-      setConnectionStatus(status);
-      
-      if (!status.isConnected) {
-        console.log('🔴 Connection lost, monitoring for restoration...');
-      } else {
-        console.log('🟢 Connection restored');
-      }
-    });
-
-    return unsubscribe;
-  }, []);
-
   // Monitor authentication state
   useEffect(() => {
     let mounted = true;
@@ -60,16 +44,30 @@ export default function RootLayout() {
       try {
         console.log('🔐 Checking authentication state...');
         
-        // Check Supabase session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Check Supabase session with timeout
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session check timeout')), 10000)
+        );
         
-        if (error) {
-          console.error('❌ Error getting session:', error);
-          if (mounted) {
-            setIsAuthenticated(false);
-            setIsLoading(false);
+        let session;
+        try {
+          const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+          session = data?.session;
+        } catch (timeoutError) {
+          console.warn('⚠️ Session check timed out, checking local storage');
+          
+          // Fallback to local storage
+          const localUser = await getCurrentUser();
+          if (localUser && localUser.email && localUser.isOnboarded) {
+            console.log('✅ Found valid local user, treating as authenticated');
+            if (mounted) {
+              setIsAuthenticated(true);
+              setIsLoading(false);
+              router.replace('/(tabs)');
+            }
+            return;
           }
-          return;
         }
 
         if (session?.user) {
@@ -100,6 +98,23 @@ export default function RootLayout() {
         }
       } catch (error) {
         console.error('❌ Auth check error:', error);
+        
+        // Fallback to local storage on error
+        try {
+          const localUser = await getCurrentUser();
+          if (localUser && localUser.email && localUser.isOnboarded) {
+            console.log('✅ Using local user data as fallback');
+            if (mounted) {
+              setIsAuthenticated(true);
+              setIsLoading(false);
+              router.replace('/(tabs)');
+            }
+            return;
+          }
+        } catch (localError) {
+          console.error('❌ Local storage fallback failed:', localError);
+        }
+        
         if (mounted) {
           setIsAuthenticated(false);
           setIsLoading(false);
@@ -110,43 +125,47 @@ export default function RootLayout() {
     // Initial auth check
     checkAuthState();
 
-    // Listen for auth changes
+    // Listen for auth changes with error handling
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`🔐 Auth state changed: ${event}`);
       
       if (!mounted) return;
 
-      switch (event) {
-        case 'SIGNED_IN':
-          if (session?.user) {
-            console.log('✅ User signed in:', session.user.email);
-            setIsAuthenticated(true);
-            
-            // Check onboarding status
-            const currentUser = await getCurrentUser();
-            if (!currentUser || !currentUser.name || !currentUser.role) {
-              router.replace('/onboarding');
-            } else {
-              router.replace('/(tabs)');
+      try {
+        switch (event) {
+          case 'SIGNED_IN':
+            if (session?.user) {
+              console.log('✅ User signed in:', session.user.email);
+              setIsAuthenticated(true);
+              
+              // Check onboarding status
+              const currentUser = await getCurrentUser();
+              if (!currentUser || !currentUser.name || !currentUser.role) {
+                router.replace('/onboarding');
+              } else {
+                router.replace('/(tabs)');
+              }
             }
-          }
-          break;
-          
-        case 'SIGNED_OUT':
-          console.log('👋 User signed out');
-          setIsAuthenticated(false);
-          router.replace('/auth/login');
-          break;
-          
-        case 'TOKEN_REFRESHED':
-          console.log('🔄 Token refreshed');
-          if (session?.user) {
-            setIsAuthenticated(true);
-          }
-          break;
-          
-        default:
-          console.log(`🔐 Auth event: ${event}`);
+            break;
+            
+          case 'SIGNED_OUT':
+            console.log('👋 User signed out');
+            setIsAuthenticated(false);
+            router.replace('/auth/login');
+            break;
+            
+          case 'TOKEN_REFRESHED':
+            console.log('🔄 Token refreshed');
+            if (session?.user) {
+              setIsAuthenticated(true);
+            }
+            break;
+            
+          default:
+            console.log(`🔐 Auth event: ${event}`);
+        }
+      } catch (error) {
+        console.error('❌ Auth state change error:', error);
       }
       
       setIsLoading(false);
@@ -164,14 +183,10 @@ export default function RootLayout() {
 
     const inAuthGroup = segments[0] === 'auth';
     const inOnboarding = segments[0] === 'onboarding';
-    const inTabs = segments[0] === '(tabs)';
 
     if (!isAuthenticated && !inAuthGroup) {
       console.log('🔄 Redirecting to login...');
       router.replace('/auth/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      console.log('🔄 User authenticated, checking onboarding...');
-      // Will be handled by the auth state change listener
     }
   }, [isAuthenticated, segments, isLoading]);
 
@@ -193,10 +208,12 @@ export default function RootLayout() {
           <StatusBar style="auto" />
           
           {/* Connection Status - only show when disconnected */}
-          <ConnectionStatus 
-            showWhenConnected={false}
-            compact={true}
-          />
+          {!connectionStatus.isConnected && (
+            <ConnectionStatus 
+              showWhenConnected={false}
+              compact={true}
+            />
+          )}
           
           <Slot />
         </SafeAreaProvider>

@@ -166,7 +166,7 @@ const RegisterScreen: React.FC = () => {
         if (result.needsEmailVerification) {
           Alert.alert(
             'Account Created! 🎉',
-            'Please check your email and click the verification link to complete your registration. You can now sign in.',
+            'Please check your email and click the verification link to complete your registration. You can now sign in with your credentials.',
             [
               {
                 text: 'Go to Sign In',
@@ -181,18 +181,36 @@ const RegisterScreen: React.FC = () => {
             [
               {
                 text: 'Get Started',
-                onPress: () => router.replace('/(tabs)')
+                onPress: () => {
+                  // Navigation will be handled by auth state listener
+                  router.replace('/(tabs)');
+                }
               }
             ]
           );
         }
       } else {
-        Alert.alert('Account Creation Failed', result.error || 'Please try again.');
+        console.error('❌ Account creation failed:', result.error);
+        
+        // Provide more specific error messages
+        let errorMessage = result.error || 'Please try again.';
+        if (errorMessage.includes('already registered')) {
+          errorMessage = 'This email is already registered. Please try signing in instead.';
+        } else if (errorMessage.includes('invalid email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (errorMessage.includes('weak password')) {
+          errorMessage = 'Please choose a stronger password with at least 6 characters.';
+        }
+        
+        Alert.alert('Account Creation Failed', errorMessage);
       }
       
     } catch (error) {
       console.error('❌ Error creating account:', error);
-      Alert.alert('Error', 'Failed to create account. Please try again.');
+      Alert.alert(
+        'Connection Error', 
+        'Unable to create account. Please check your internet connection and try again.'
+      );
     } finally {
       setIsLoading(false);
     }

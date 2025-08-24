@@ -1,240 +1,187 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring,
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
   withTiming,
-  withRepeat,
-  withSequence,
+  withSpring,
 } from 'react-native-reanimated';
 import Icon from './Icon';
 import { connectionService } from '../utils/connectionService';
-import { colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
+import { colors, spacing, borderRadius } from '../styles/commonStyles';
 
 interface ConnectionStatusProps {
   showWhenConnected?: boolean;
   compact?: boolean;
-  onPress?: () => void;
 }
 
-interface ConnectionStatus {
-  isConnected: boolean;
-  lastChecked: string;
-  consecutiveFailures: number;
-  lastError?: string;
-}
-
-const ConnectionStatusComponent: React.FC<ConnectionStatusProps> = ({
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   showWhenConnected = false,
   compact = false,
-  onPress
 }) => {
-  const [status, setStatus] = useState<ConnectionStatus>(connectionService.getConnectionStatus());
+  const insets = useSafeAreaInsets();
+  const [connectionStatus, setConnectionStatus] = useState(connectionService.getConnectionStatus());
   const [isRetrying, setIsRetrying] = useState(false);
-  
+
+  // Animation values
   const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.8);
-  const pulseScale = useSharedValue(1);
+  const translateY = useSharedValue(-50);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
 
   useEffect(() => {
-    // Subscribe to connection status changes
-    const unsubscribe = connectionService.addConnectionListener((newStatus) => {
-      setStatus(newStatus);
-      
-      // Animate in when status changes
-      opacity.value = withTiming(1, { duration: 300 });
-      scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+    const unsubscribe = connectionService.addConnectionListener((status) => {
+      setConnectionStatus(status);
     });
-
-    // Initial animation
-    if (!status.isConnected || showWhenConnected) {
-      opacity.value = withTiming(1, { duration: 300 });
-      scale.value = withSpring(1, { damping: 15, stiffness: 150 });
-    }
 
     return unsubscribe;
   }, []);
 
   useEffect(() => {
-    // Pulse animation for disconnected state
-    if (!status.isConnected) {
-      pulseScale.value = withRepeat(
-        withSequence(
-          withTiming(1.1, { duration: 1000 }),
-          withTiming(1, { duration: 1000 })
-        ),
-        -1,
-        true
-      );
+    const shouldShow = !connectionStatus.isConnected || showWhenConnected;
+    
+    if (shouldShow) {
+      opacity.value = withTiming(1, { duration: 300 });
+      translateY.value = withSpring(0, { damping: 20, stiffness: 100 });
     } else {
-      pulseScale.value = withTiming(1, { duration: 300 });
+      opacity.value = withTiming(0, { duration: 300 });
+      translateY.value = withTiming(-50, { duration: 300 });
     }
-  }, [status.isConnected]);
+  }, [connectionStatus.isConnected, showWhenConnected]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { scale: scale.value },
-      { scale: pulseScale.value }
-    ],
-  }));
-
-  const handlePress = async () => {
-    if (onPress) {
-      onPress();
-      return;
-    }
-
-    if (!status.isConnected) {
-      setIsRetrying(true);
-      try {
-        await connectionService.forceReconnect();
-      } catch (error) {
-        console.error('❌ Manual reconnection failed:', error);
-      } finally {
-        setIsRetrying(false);
-      }
+  const handleRetry = async () => {
+    if (isRetrying) return;
+    
+    setIsRetrying(true);
+    try {
+      console.log('🔄 Manual reconnection attempt...');
+      await connectionService.forceReconnect();
+    } catch (error) {
+      console.error('❌ Manual reconnection failed:', error);
+    } finally {
+      setIsRetrying(false);
     }
   };
 
   const getStatusColor = () => {
-    if (isRetrying) return colors.warning;
-    return status.isConnected ? colors.success : colors.error;
-  };
-
-  const getStatusIcon = () => {
-    if (isRetrying) return 'refresh';
-    return status.isConnected ? 'wifi' : 'wifi-off';
+    if (connectionStatus.isConnected) {
+      return colors.success || '#10B981';
+    }
+    return colors.error || '#EF4444';
   };
 
   const getStatusText = () => {
-    if (isRetrying) return 'Reconnecting...';
-    if (status.isConnected) return 'Connected';
-    if (status.consecutiveFailures > 0) {
-      return `Connection lost (${status.consecutiveFailures} failures)`;
+    if (connectionStatus.isConnected) {
+      return 'Connected';
     }
-    return 'Disconnected';
-  };
-
-  const getStatusSubtext = () => {
-    if (compact) return null;
     
-    if (isRetrying) return 'Please wait...';
-    if (status.isConnected) return 'All systems operational';
-    if (status.lastError) return status.lastError;
-    return 'Tap to retry connection';
+    if (connectionStatus.consecutiveFailures > 0) {
+      return `Connection lost (${connectionStatus.consecutiveFailures} failures)`;
+    }
+    
+    return 'Connection lost';
   };
 
-  // Don't show if connected and showWhenConnected is false
-  if (status.isConnected && !showWhenConnected) {
+  const getStatusIcon = () => {
+    if (isRetrying) {
+      return 'refresh';
+    }
+    
+    if (connectionStatus.isConnected) {
+      return 'wifi';
+    }
+    
+    return 'wifi-off';
+  };
+
+  // Don't render if connected and not showing when connected
+  if (connectionStatus.isConnected && !showWhenConnected) {
     return null;
   }
 
   return (
-    <Animated.View style={[animatedStyle]}>
-      <TouchableOpacity
-        onPress={handlePress}
-        disabled={isRetrying}
-        style={[styles.container, compact && styles.compactContainer]}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={[getStatusColor(), `${getStatusColor()}80`]}
-          style={[styles.gradient, compact && styles.compactGradient]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={[styles.content, compact && styles.compactContent]}>
-            <View style={styles.iconContainer}>
-              <Icon 
-                name={getStatusIcon()} 
-                size={compact ? 16 : 20} 
-                color={colors.white} 
-              />
-            </View>
-            
-            <View style={styles.textContainer}>
-              <Text style={[styles.statusText, compact && styles.compactStatusText]}>
-                {getStatusText()}
-              </Text>
-              
-              {!compact && getStatusSubtext() && (
-                <Text style={styles.subtextText}>
-                  {getStatusSubtext()}
-                </Text>
-              )}
-            </View>
-
-            {!status.isConnected && !isRetrying && (
-              <View style={styles.actionContainer}>
-                <Icon 
-                  name="refresh" 
-                  size={compact ? 14 : 16} 
-                  color={colors.white} 
-                />
-              </View>
-            )}
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
+    <Animated.View style={[
+      styles.container,
+      { 
+        paddingTop: insets.top + spacing.sm,
+        backgroundColor: getStatusColor(),
+      },
+      compact && styles.compact,
+      animatedStyle,
+    ]}>
+      <View style={styles.content}>
+        <Icon 
+          name={getStatusIcon() as any} 
+          size={compact ? 16 : 20} 
+          color={colors.white} 
+        />
+        
+        <Text style={[
+          styles.text,
+          compact && styles.compactText,
+        ]}>
+          {getStatusText()}
+        </Text>
+        
+        {!connectionStatus.isConnected && (
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={handleRetry}
+            disabled={isRetrying}
+          >
+            <Text style={styles.retryText}>
+              {isRetrying ? 'Retrying...' : 'Retry'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    ...shadows.medium,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  compactContainer: {
-    marginHorizontal: spacing.sm,
-    marginVertical: spacing.xs,
-  },
-  gradient: {
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-  },
-  compactGradient: {
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
+  compact: {
+    paddingVertical: spacing.xs,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
-  compactContent: {
-    // Same as content for now
-  },
-  iconContainer: {
-    marginRight: spacing.sm,
-  },
-  textContainer: {
-    flex: 1,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '600',
+  text: {
     color: colors.white,
-    marginBottom: spacing.xs,
-  },
-  compactStatusText: {
     fontSize: 14,
-    marginBottom: 0,
+    fontWeight: '500',
   },
-  subtextText: {
+  compactText: {
     fontSize: 12,
-    color: colors.white,
-    opacity: 0.8,
   },
-  actionContainer: {
-    marginLeft: spacing.sm,
+  retryButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  retryText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
-export default ConnectionStatusComponent;
+export default ConnectionStatus;
