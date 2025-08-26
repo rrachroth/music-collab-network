@@ -12,8 +12,8 @@ interface ButtonProps {
   loading?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
-  variant?: 'primary' | 'secondary' | 'outline';
-  size?: 'small' | 'medium' | 'large';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'gradient';
+  size?: 'sm' | 'md' | 'lg' | 'small' | 'medium' | 'large';
   icon?: React.ReactNode;
 }
 
@@ -32,12 +32,16 @@ const Button: React.FC<ButtonProps> = ({
   const buttonText = text || title || 'Button';
 
   const getButtonStyle = () => {
-    const baseStyle = [styles.button, styles[size]];
+    // Normalize size
+    const normalizedSize = size === 'sm' ? 'small' : size === 'md' ? 'medium' : size === 'lg' ? 'large' : size;
+    const baseStyle = [styles.button, styles[normalizedSize]];
     
     if (variant === 'outline') {
       baseStyle.push(styles.outlineButton);
     } else if (variant === 'secondary') {
       baseStyle.push(styles.secondaryButton);
+    } else if (variant === 'ghost') {
+      baseStyle.push(styles.ghostButton);
     }
     
     if (disabled) {
@@ -48,12 +52,16 @@ const Button: React.FC<ButtonProps> = ({
   };
 
   const getTextStyle = () => {
-    const baseStyle = [styles.text, styles[`${size}Text`]];
+    // Normalize size
+    const normalizedSize = size === 'sm' ? 'small' : size === 'md' ? 'medium' : size === 'lg' ? 'large' : size;
+    const baseStyle = [styles.text, styles[`${normalizedSize}Text`]];
     
     if (variant === 'outline') {
       baseStyle.push(styles.outlineText);
     } else if (variant === 'secondary') {
       baseStyle.push(styles.secondaryText);
+    } else if (variant === 'ghost') {
+      baseStyle.push(styles.ghostText);
     }
     
     if (disabled) {
@@ -79,7 +87,10 @@ const Button: React.FC<ButtonProps> = ({
     </>
   );
 
-  if (variant === 'primary' && !disabled) {
+  if ((variant === 'primary' || variant === 'gradient') && !disabled) {
+    // Normalize size
+    const normalizedSize = size === 'sm' ? 'small' : size === 'md' ? 'medium' : size === 'lg' ? 'large' : size;
+    
     return (
       <TouchableOpacity
         style={[getButtonStyle(), style]}
@@ -88,8 +99,8 @@ const Button: React.FC<ButtonProps> = ({
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={[styles.gradient, styles[size]]}
+          colors={colors.gradientPrimary}
+          style={[styles.gradient, styles[normalizedSize]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
@@ -152,6 +163,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  ghostButton: {
+    backgroundColor: 'transparent',
+  },
   
   // Text styles
   text: {
@@ -175,6 +189,9 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: colors.text,
+  },
+  ghostText: {
+    color: colors.textMuted,
   },
   
   // Disabled states

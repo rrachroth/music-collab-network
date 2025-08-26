@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react';
-import { User, Project } from '../utils/storage';
+import React, { useState, useEffect } from 'react';
+import { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { StyleSheet } from 'react-native';
-import React from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
-import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import { Text, View, TextInput, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import Icon from './Icon';
 import Button from './Button';
+import { User, Project } from '../utils/storage';
+import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
 
 interface CreateProjectModalProps {
   visible: boolean;
@@ -45,6 +45,7 @@ const TIMELINE_OPTIONS = [
 ];
 
 export default function CreateProjectModal({ visible, onClose, onSubmit, currentUser }: CreateProjectModalProps) {
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -87,6 +88,8 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
   };
 
   const handleSubmit = async () => {
+    console.log('📋 Submitting project creation...');
+    
     if (!title.trim()) {
       Alert.alert('Missing Title', 'Please enter a project title');
       return;
@@ -114,6 +117,7 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
 
     try {
       setLoading(true);
+      console.log('📋 Creating project with data:', { title, description, selectedGenres, budget, timeline });
       
       const projectData: Partial<Project> = {
         title: title.trim(),
@@ -124,6 +128,7 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
       };
 
       await onSubmit(projectData);
+      console.log('✅ Project created successfully');
       resetForm();
     } catch (error) {
       console.error('❌ Error creating project:', error);
@@ -147,20 +152,18 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
       transparent
       animationType="none"
       onRequestClose={handleClose}
+      statusBarTranslucent
     >
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { paddingTop: insets.top }]}>
         <Animated.View style={[styles.modal, modalAnimatedStyle]}>
-          <LinearGradient
-            colors={colors.gradientBackground}
-            style={styles.modalGradient}
-          >
+          <View style={styles.modalContainer}>
             {/* Header */}
             <View style={styles.header}>
-              <Text style={[commonStyles.heading, { marginBottom: 0 }]}>
+              <Text style={styles.headerTitle}>
                 Create Project
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Icon name="close" size={24} color={colors.textMuted} />
+                <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -275,21 +278,20 @@ export default function CreateProjectModal({ visible, onClose, onSubmit, current
               <Button
                 text="Cancel"
                 onPress={handleClose}
-                variant="ghost"
+                variant="outline"
                 size="md"
                 style={{ flex: 1, marginRight: spacing.md }}
               />
               <Button
-                text="Create Project"
+                text={loading ? "Creating..." : "Create Project"}
                 onPress={handleSubmit}
-                variant="gradient"
+                variant="primary"
                 size="md"
-                loading={loading}
                 disabled={loading}
                 style={{ flex: 2 }}
               />
             </View>
-          </LinearGradient>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -307,13 +309,14 @@ const styles = StyleSheet.create({
   modal: {
     width: '100%',
     maxWidth: 500,
-    maxHeight: '90%',
+    maxHeight: '85%',
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
     ...shadows.lg,
   },
-  modalGradient: {
+  modalContainer: {
     flex: 1,
+    backgroundColor: colors.backgroundCard,
   },
   header: {
     flexDirection: 'row',
@@ -322,11 +325,17 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.backgroundCard,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.text,
   },
   closeButton: {
     padding: spacing.sm,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: colors.backgroundAlt,
   },
   content: {
     flex: 1,
@@ -342,11 +351,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   input: {
+    backgroundColor: colors.backgroundAlt,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    color: colors.text,
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     marginBottom: 0,
   },
   textArea: {
     height: 100,
     paddingTop: spacing.md,
+    textAlignVertical: 'top',
     marginBottom: 0,
   },
   genreGrid: {
@@ -355,7 +373,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   genreChip: {
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.full,
@@ -372,13 +390,13 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   genreTextSelected: {
-    color: colors.text,
+    color: colors.white,
   },
   optionsGrid: {
     gap: spacing.sm,
   },
   optionChip: {
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
@@ -395,12 +413,13 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   optionTextSelected: {
-    color: colors.text,
+    color: colors.white,
   },
   footer: {
     flexDirection: 'row',
     padding: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.backgroundCard,
   },
 });

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -95,25 +96,28 @@ const LandingScreen: React.FC = () => {
   };
 
   const handleGetStarted = () => {
+    console.log('🚀 Get Started button pressed');
     if (backendStatus === 'error') {
       Alert.alert(
         'Backend Issues Detected',
         'Some features may not work properly. Would you like to run diagnostics first?',
         [
           { text: 'Run Diagnostics', onPress: () => router.push('/backend-setup') },
-          { text: 'Continue Anyway', onPress: () => router.push('/auth/login'), style: 'destructive' }
+          { text: 'Continue Anyway', onPress: () => router.push('/auth/register'), style: 'destructive' }
         ]
       );
     } else {
-      router.push('/auth/login');
+      router.push('/auth/register');
     }
   };
 
   const handleSignIn = () => {
+    console.log('🔑 Sign In button pressed');
     router.push('/auth/login');
   };
 
   const handleCreateAccount = () => {
+    console.log('📝 Create Account button pressed');
     router.push('/auth/register');
   };
 
@@ -137,99 +141,116 @@ const LandingScreen: React.FC = () => {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={StyleSheet.absoluteFillObject}
       />
       
-      <Animated.View style={[styles.content, animatedStyle]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>🎵</Text>
-          <Text style={styles.appName}>NextDrop</Text>
-          <Text style={styles.tagline}>
-            The professional network for musicians, producers, and music industry collaborators
-          </Text>
-          
-          {backendStatus === 'error' && (
-            <TouchableOpacity
-              style={styles.warningBanner}
-              onPress={handleBackendSetup}
-            >
-              <Icon name="warning" size={20} color={colors.warning || '#F59E0B'} />
-              <Text style={styles.warningText}>
-                Backend issues detected - Tap to diagnose
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Features */}
-        <View style={styles.featuresContainer}>
-          <FeatureCard
-            icon="people"
-            title="Discover Talent"
-            description="Swipe through profiles of musicians and find your perfect collaborator"
-            gradient={['#FF6B6B', '#FF8E53']}
-            onPress={() => {}}
-            delay={0}
-          />
-          
-          <FeatureCard
-            icon="musical-notes"
-            title="Collaborate"
-            description="Work on projects together and split revenue automatically"
-            gradient={['#4ECDC4', '#44A08D']}
-            onPress={() => {}}
-            delay={200}
-          />
-          
-          <FeatureCard
-            icon="trending-up"
-            title="Grow Your Career"
-            description="Build your reputation and connect with industry professionals"
-            gradient={['#A8E6CF', '#7FCDCD']}
-            onPress={() => {}}
-            delay={400}
-          />
-        </View>
-
-        {/* Actions */}
-        <View style={styles.actionsContainer}>
-          <Button
-            text="Get Started"
-            onPress={handleGetStarted}
-            style={styles.primaryButton}
-          />
-          
-          <View style={styles.secondaryActions}>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleSignIn}
-            >
-              <Text style={styles.secondaryButtonText}>Sign In</Text>
-            </TouchableOpacity>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { 
+            paddingTop: insets.top + spacing.lg,
+            paddingBottom: insets.bottom + spacing.xl,
+          }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={[styles.content, animatedStyle]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.logo}>🎵</Text>
+            <Text style={styles.appName}>NextDrop</Text>
+            <Text style={styles.tagline}>
+              The professional network for musicians, producers, and music industry collaborators
+            </Text>
             
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleCreateAccount}
-            >
-              <Text style={styles.secondaryButtonText}>Create Account</Text>
-            </TouchableOpacity>
+            {backendStatus === 'error' && (
+              <TouchableOpacity
+                style={styles.warningBanner}
+                onPress={handleBackendSetup}
+              >
+                <Icon name="warning" size={20} color={colors.warning || '#F59E0B'} />
+                <Text style={styles.warningText}>
+                  Backend issues detected - Tap to diagnose
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
-          
-          {backendStatus === 'error' && (
-            <TouchableOpacity
-              style={styles.diagnosticsButton}
-              onPress={handleBackendSetup}
-            >
-              <Icon name="settings" size={16} color={colors.white} />
-              <Text style={styles.diagnosticsButtonText}>Run Diagnostics</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </Animated.View>
+
+          {/* Features */}
+          <View style={styles.featuresContainer}>
+            <FeatureCard
+              icon="people"
+              title="Discover Talent"
+              description="Swipe through profiles of musicians and find your perfect collaborator"
+              gradient={['#FF6B6B', '#FF8E53']}
+              onPress={() => {}}
+              delay={0}
+            />
+            
+            <FeatureCard
+              icon="musical-notes"
+              title="Collaborate"
+              description="Work on projects together and split revenue automatically"
+              gradient={['#4ECDC4', '#44A08D']}
+              onPress={() => {}}
+              delay={200}
+            />
+            
+            <FeatureCard
+              icon="trending-up"
+              title="Grow Your Career"
+              description="Build your reputation and connect with industry professionals"
+              gradient={['#A8E6CF', '#7FCDCD']}
+              onPress={() => {}}
+              delay={400}
+            />
+          </View>
+
+          {/* Actions */}
+          <View style={styles.actionsContainer}>
+            <Button
+              text="Get Started"
+              onPress={handleGetStarted}
+              variant="primary"
+              size="large"
+              style={styles.primaryButton}
+            />
+            
+            <View style={styles.secondaryActions}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleSignIn}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.secondaryButtonText}>Sign In</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleCreateAccount}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.secondaryButtonText}>Create Account</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {backendStatus === 'error' && (
+              <TouchableOpacity
+                style={styles.diagnosticsButton}
+                onPress={handleBackendSetup}
+                activeOpacity={0.8}
+              >
+                <Icon name="settings" size={16} color={colors.white} />
+                <Text style={styles.diagnosticsButtonText}>Run Diagnostics</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 };
@@ -278,6 +299,13 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#667eea',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -295,11 +323,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xl * 2,
+    marginBottom: spacing.xl,
   },
   logo: {
     fontSize: 80,
@@ -310,6 +338,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.white,
     marginBottom: spacing.md,
+    fontFamily: 'Poppins_700Bold',
   },
   tagline: {
     fontSize: 16,
@@ -317,6 +346,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: spacing.lg,
+    fontFamily: 'Inter_400Regular',
   },
   warningBanner: {
     flexDirection: 'row',
@@ -333,9 +363,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   featuresContainer: {
-    flex: 1,
     gap: spacing.lg,
     marginBottom: spacing.xl,
   },
@@ -356,15 +386,18 @@ const styles = StyleSheet.create({
     color: colors.white,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
+    fontFamily: 'Poppins_600SemiBold',
   },
   featureDescription: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     lineHeight: 20,
+    fontFamily: 'Inter_400Regular',
   },
   actionsContainer: {
     gap: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   primaryButton: {
     backgroundColor: colors.white,
@@ -381,11 +414,13 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   secondaryButtonText: {
     color: colors.white,
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
   diagnosticsButton: {
     flexDirection: 'row',
@@ -402,6 +437,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
 });
 

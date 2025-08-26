@@ -232,26 +232,36 @@ export default function ProjectsScreen() {
 
   const handleCreateProject = async () => {
     try {
-      console.log('📋 Creating new project');
+      console.log('📋 Creating new project - button pressed');
       
-      // Check project posting limits
-      const { canPost, reason } = await SubscriptionService.canPostProject();
-      if (!canPost) {
-        Alert.alert(
-          'Project Limit Reached 📋',
-          reason || 'You have reached your monthly project limit.',
-          [
-            { text: 'Maybe Later', style: 'cancel' },
-            { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
-          ]
-        );
+      if (!currentUser) {
+        Alert.alert('Error', 'Please complete your profile first');
         return;
       }
       
+      // Check project posting limits
+      try {
+        const { canPost, reason } = await SubscriptionService.canPostProject();
+        if (!canPost) {
+          Alert.alert(
+            'Project Limit Reached 📋',
+            reason || 'You have reached your monthly project limit.',
+            [
+              { text: 'Maybe Later', style: 'cancel' },
+              { text: 'Upgrade to Premium', onPress: () => setShowSubscriptionModal(true) }
+            ]
+          );
+          return;
+        }
+      } catch (subscriptionError) {
+        console.warn('⚠️ Subscription check failed, allowing creation:', subscriptionError);
+      }
+      
+      console.log('📋 Opening create project modal');
       setShowCreateModal(true);
     } catch (error) {
-      console.error('❌ Error checking project limits:', error);
-      setShowCreateModal(true); // Allow creation anyway
+      console.error('❌ Error in handleCreateProject:', error);
+      Alert.alert('Error', 'Failed to open project creation. Please try again.');
     }
   };
 

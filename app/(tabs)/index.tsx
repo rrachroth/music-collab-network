@@ -95,13 +95,13 @@ export default function HomeScreen() {
 
   if (!user) {
     return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
+      <View style={styles.loadingContainer}>
         <LinearGradient
           colors={colors.gradientBackground}
           style={StyleSheet.absoluteFill}
         />
         <Icon name="musical-note" size={80} color={colors.primary} />
-        <Text style={[commonStyles.text, { marginTop: spacing.lg }]}>Loading NextDrop...</Text>
+        <Text style={styles.loadingText}>Loading NextDrop...</Text>
       </View>
     );
   }
@@ -194,8 +194,10 @@ export default function HomeScreen() {
               Start discovering amazing artists and create music together
             </Text>
             <Button
-              title="Start Discovering"
+              text="Start Discovering"
               onPress={handleDiscover}
+              variant="primary"
+              size="md"
               style={styles.ctaButton}
             />
           </LinearGradient>
@@ -223,12 +225,16 @@ function FeatureCard({ icon, title, description, gradient, onPress, delay }: Fea
 
   return (
     <Animated.View style={cardAnimatedStyle}>
-      <TouchableOpacity style={styles.featureCard} onPress={onPress}>
+      <TouchableOpacity 
+        style={styles.featureCard} 
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
         <LinearGradient
           colors={gradient}
           style={styles.featureIcon}
         >
-          <Icon name={icon} size={28} color={colors.text} />
+          <Icon name={icon} size={28} color={colors.white} />
         </LinearGradient>
         <View style={styles.featureContent}>
           <Text style={styles.featureTitle}>{title}</Text>
@@ -245,10 +251,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: colors.text,
+    marginTop: spacing.lg,
+    fontFamily: 'Inter_500Medium',
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
   },
   header: {
@@ -258,13 +277,14 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
   welcomeSubtitle: {
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 24,
@@ -275,7 +295,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
     marginBottom: spacing.lg,
     textAlign: 'center',
@@ -304,12 +324,13 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   featureDescription: {
     fontSize: 14,
+    fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
     lineHeight: 20,
   },
@@ -324,13 +345,14 @@ const styles = StyleSheet.create({
   },
   ctaTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins_700Bold',
     color: colors.text,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
   ctaSubtitle: {
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     color: colors.text,
     textAlign: 'center',
     opacity: 0.9,
@@ -339,7 +361,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   ctaButton: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.backgroundCard,
     minWidth: 200,
   },
 });
