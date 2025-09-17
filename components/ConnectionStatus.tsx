@@ -56,7 +56,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       opacity.value = withTiming(0, { duration: 300 });
       translateY.value = withTiming(-50, { duration: 300 });
     }
-  }, [connectionStatus.isConnected, connectionStatus.consecutiveFailures, showWhenConnected]);
+  }, [connectionStatus.isConnected, connectionStatus.consecutiveFailures, showWhenConnected, opacity, translateY]);
 
   const handleRetry = async () => {
     if (isRetrying) return;

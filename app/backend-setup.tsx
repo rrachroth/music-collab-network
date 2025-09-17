@@ -65,7 +65,7 @@ const BackendSetupScreen: React.FC = () => {
     setTimeout(() => {
       runDiagnostics();
     }, 500);
-  }, []);
+  }, [fadeIn, slideUp]);
 
   const runInitialization = async () => {
     setIsInitializing(true);
