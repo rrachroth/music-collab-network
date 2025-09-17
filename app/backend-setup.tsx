@@ -4,9 +4,10 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
-  ScrollView,
   TouchableOpacity,
+  ScrollView,
+  Alert,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,23 +23,19 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
-interface CheckResult {
+interface DiagnosticResult {
   name: string;
-  status: 'pending' | 'success' | 'error';
+  status: 'checking' | 'success' | 'error' | 'warning';
   message: string;
+  details?: string;
+  action?: string;
 }
 
 const BackendSetupScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const [checks, setChecks] = useState<CheckResult[]>([
-    { name: 'Database Connection', status: 'pending', message: 'Testing connection...' },
-    { name: 'Profiles Table', status: 'pending', message: 'Checking table...' },
-    { name: 'Projects Table', status: 'pending', message: 'Checking table...' },
-    { name: 'User Limits Table', status: 'pending', message: 'Checking table...' },
-    { name: 'Authentication', status: 'pending', message: 'Testing auth...' },
-  ]);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [allPassed, setAllPassed] = useState(false);
+  const [overallStatus, setOverallStatus] = useState<'idle' | 'running' | 'complete'>('idle');
 
   // Animation values
   const fadeIn = useSharedValue(0);
@@ -54,278 +51,351 @@ const BackendSetupScreen: React.FC = () => {
     slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
   }, []);
 
-  const updateCheck = (index: number, status: 'success' | 'error', message: string) => {
-    setChecks(prev => prev.map((check, i) => 
-      i === index ? { ...check, status, message } : check
-    ));
-  };
-
   const runDiagnostics = async () => {
     setIsRunning(true);
-    setAllPassed(false);
-    
-    // Reset all checks
-    setChecks(prev => prev.map(check => ({ ...check, status: 'pending' as const })));
+    setOverallStatus('running');
+    setDiagnostics([]);
+
+    const results: DiagnosticResult[] = [];
+
+    // Test 1: Basic connectivity
+    results.push({
+      name: 'Internet Connectivity',
+      status: 'checking',
+      message: 'Testing internet connection...',
+    });
+    setDiagnostics([...results]);
 
     try {
-      // 1. Test database connection
-      console.log('🔍 Testing database connection...');
-      try {
-        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
-        if (error) {
-          updateCheck(0, 'error', `Connection failed: ${error.message}`);
-        } else {
-          updateCheck(0, 'success', 'Database connection successful');
-        }
-      } catch (error) {
-        updateCheck(0, 'error', `Connection error: ${error}`);
-      }
-
-      // 2. Test profiles table
-      console.log('🔍 Testing profiles table...');
-      try {
-        const { data, error } = await supabase.from('profiles').select('*').limit(1);
-        if (error) {
-          updateCheck(1, 'error', `Profiles table error: ${error.message}`);
-        } else {
-          updateCheck(1, 'success', 'Profiles table accessible');
-        }
-      } catch (error) {
-        updateCheck(1, 'error', `Profiles table error: ${error}`);
-      }
-
-      // 3. Test projects table
-      console.log('🔍 Testing projects table...');
-      try {
-        const { data, error } = await supabase.from('projects').select('*').limit(1);
-        if (error) {
-          updateCheck(2, 'error', `Projects table error: ${error.message}`);
-        } else {
-          updateCheck(2, 'success', 'Projects table accessible');
-        }
-      } catch (error) {
-        updateCheck(2, 'error', `Projects table error: ${error}`);
-      }
-
-      // 4. Test user_limits table
-      console.log('🔍 Testing user_limits table...');
-      try {
-        const { data, error } = await supabase.from('user_limits').select('*').limit(1);
-        if (error) {
-          updateCheck(3, 'error', `User limits table error: ${error.message}`);
-        } else {
-          updateCheck(3, 'success', 'User limits table accessible');
-        }
-      } catch (error) {
-        updateCheck(3, 'error', `User limits table error: ${error}`);
-      }
-
-      // 5. Test authentication
-      console.log('🔍 Testing authentication...');
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          updateCheck(4, 'error', `Auth error: ${error.message}`);
-        } else {
-          updateCheck(4, 'success', session ? 'User authenticated' : 'Auth system working');
-        }
-      } catch (error) {
-        updateCheck(4, 'error', `Auth error: ${error}`);
-      }
-
-      // Check if all passed
-      setTimeout(() => {
-        setChecks(current => {
-          const allSuccess = current.every(check => check.status === 'success');
-          setAllPassed(allSuccess);
-          return current;
-        });
-      }, 1000);
-
+      const response = await fetch('https://www.google.com', { method: 'HEAD' });
+      results[0] = {
+        name: 'Internet Connectivity',
+        status: response.ok ? 'success' : 'error',
+        message: response.ok ? 'Internet connection is working' : 'Internet connection failed',
+        details: response.ok ? undefined : `Status: ${response.status}`,
+      };
     } catch (error) {
-      console.error('❌ Diagnostics failed:', error);
-      Alert.alert('Diagnostics Failed', 'An unexpected error occurred during diagnostics.');
-    } finally {
-      setIsRunning(false);
+      results[0] = {
+        name: 'Internet Connectivity',
+        status: 'error',
+        message: 'Internet connection failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+    setDiagnostics([...results]);
+
+    // Test 2: Supabase URL accessibility
+    results.push({
+      name: 'Supabase URL Access',
+      status: 'checking',
+      message: 'Testing Supabase endpoint...',
+    });
+    setDiagnostics([...results]);
+
+    try {
+      const response = await fetch('https://tioevqidrridspbsjlqb.supabase.co/rest/v1/', {
+        method: 'HEAD',
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
+        },
+      });
+
+      if (response.ok) {
+        results[1] = {
+          name: 'Supabase URL Access',
+          status: 'success',
+          message: 'Supabase endpoint is accessible',
+        };
+      } else if (response.status === 503) {
+        results[1] = {
+          name: 'Supabase URL Access',
+          status: 'error',
+          message: 'Supabase project appears to be paused or inactive',
+          details: 'Status 503: Service Unavailable',
+          action: 'Go to your Supabase dashboard and restore/unpause the project',
+        };
+      } else {
+        results[1] = {
+          name: 'Supabase URL Access',
+          status: 'error',
+          message: `Supabase endpoint returned error ${response.status}`,
+          details: `HTTP Status: ${response.status}`,
+        };
+      }
+    } catch (error) {
+      results[1] = {
+        name: 'Supabase URL Access',
+        status: 'error',
+        message: 'Cannot reach Supabase endpoint',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+    setDiagnostics([...results]);
+
+    // Test 3: Supabase Auth
+    results.push({
+      name: 'Supabase Authentication',
+      status: 'checking',
+      message: 'Testing authentication service...',
+    });
+    setDiagnostics([...results]);
+
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        results[2] = {
+          name: 'Supabase Authentication',
+          status: 'error',
+          message: 'Authentication service error',
+          details: error.message,
+        };
+      } else {
+        results[2] = {
+          name: 'Supabase Authentication',
+          status: 'success',
+          message: 'Authentication service is working',
+          details: data.session ? 'Active session found' : 'No active session (normal)',
+        };
+      }
+    } catch (error) {
+      results[2] = {
+        name: 'Supabase Authentication',
+        status: 'error',
+        message: 'Authentication service failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+    setDiagnostics([...results]);
+
+    // Test 4: Database access
+    results.push({
+      name: 'Database Access',
+      status: 'checking',
+      message: 'Testing database connection...',
+    });
+    setDiagnostics([...results]);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('count', { count: 'exact', head: true });
+
+      if (error) {
+        results[3] = {
+          name: 'Database Access',
+          status: 'error',
+          message: 'Database query failed',
+          details: error.message,
+        };
+      } else {
+        results[3] = {
+          name: 'Database Access',
+          status: 'success',
+          message: 'Database is accessible',
+          details: `Profiles table exists`,
+        };
+      }
+    } catch (error) {
+      results[3] = {
+        name: 'Database Access',
+        status: 'error',
+        message: 'Database connection failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+    setDiagnostics([...results]);
+
+    setIsRunning(false);
+    setOverallStatus('complete');
+
+    // Show summary
+    const errorCount = results.filter(r => r.status === 'error').length;
+    const warningCount = results.filter(r => r.status === 'warning').length;
+
+    if (errorCount === 0 && warningCount === 0) {
+      Alert.alert(
+        'Diagnostics Complete',
+        'All tests passed! Your backend connection should be working properly.',
+        [{ text: 'Great!', onPress: () => router.back() }]
+      );
+    } else {
+      Alert.alert(
+        'Issues Found',
+        `Found ${errorCount} error(s) and ${warningCount} warning(s). Check the results below for details.`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
-  const handleContinueAnyway = () => {
-    Alert.alert(
-      'Continue with Limited Functionality?',
-      'Some backend features may not work properly. The app will use local storage as a fallback.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Continue', 
-          onPress: () => router.replace('/auth/login'),
-          style: 'destructive'
-        }
-      ]
-    );
-  };
-
-  const handleRetrySetup = () => {
-    Alert.alert(
-      'Database Setup Required',
-      'It looks like the database tables need to be created. Please contact support or check the setup documentation.',
-      [
-        { text: 'OK' },
-        { 
-          text: 'Continue Anyway', 
-          onPress: handleContinueAnyway,
-          style: 'destructive'
-        }
-      ]
-    );
-  };
-
-  const testAuthFlow = async () => {
-    Alert.alert(
-      'Test Authentication Flow',
-      'This will test the sign-in process with invalid credentials to verify error handling works correctly.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Test', 
-          onPress: async () => {
-            try {
-              console.log('🧪 Testing auth flow...');
-              
-              // Import AuthService dynamically to avoid circular imports
-              const { AuthService } = await import('../utils/authService');
-              
-              // Test sign in with invalid credentials (should fail gracefully)
-              const result = await AuthService.signIn('test@example.com', 'wrongpassword');
-              
-              if (!result.success) {
-                Alert.alert(
-                  'Auth Test Result ✅', 
-                  `Authentication service is working correctly.\n\nExpected error received: ${result.error}`
-                );
-              } else {
-                Alert.alert(
-                  'Auth Test Result ⚠️', 
-                  'Unexpected success with invalid credentials. This may indicate a configuration issue.'
-                );
-              }
-            } catch (error) {
-              Alert.alert(
-                'Auth Test Failed ❌', 
-                `Error during authentication test: ${error instanceof Error ? error.message : 'Unknown error'}`
-              );
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: DiagnosticResult['status']) => {
     switch (status) {
+      case 'checking':
+        return 'refresh';
       case 'success':
         return 'checkmark-circle';
       case 'error':
         return 'close-circle';
+      case 'warning':
+        return 'warning';
       default:
-        return 'time';
+        return 'help-circle';
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: DiagnosticResult['status']) => {
     switch (status) {
+      case 'checking':
+        return colors.primary;
       case 'success':
         return colors.success || '#10B981';
       case 'error':
         return colors.error || '#EF4444';
+      case 'warning':
+        return colors.warning || '#F59E0B';
       default:
         return colors.textSecondary;
     }
   };
 
+  const openSupabaseDashboard = () => {
+    Linking.openURL('https://supabase.com/dashboard/project/tioevqidrridspbsjlqb');
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={StyleSheet.absoluteFillObject}
       />
       
-      <ScrollView
+      <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { 
+            paddingTop: insets.top + spacing.lg,
+            paddingBottom: insets.bottom + spacing.xl,
+          }
+        ]}
+        showsVerticalScrollIndicator={false}
       >
         <Animated.View style={[styles.content, animatedStyle]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Backend Setup</Text>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Icon name="arrow-back" size={24} color={colors.white} />
+            </TouchableOpacity>
+            
+            <Text style={styles.title}>Backend Diagnostics</Text>
             <Text style={styles.subtitle}>
-              Let&apos;s check if everything is working properly
+              Let's check what's causing the connection issues
             </Text>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={openSupabaseDashboard}
+              activeOpacity={0.8}
+            >
+              <Icon name="open" size={20} color={colors.white} />
+              <Text style={styles.quickActionText}>Open Supabase Dashboard</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Diagnostics */}
           <View style={styles.diagnosticsContainer}>
-            {checks.map((check, index) => (
-              <View key={index} style={styles.checkItem}>
-                <Icon
-                  name={getStatusIcon(check.status) as any}
-                  size={24}
-                  color={getStatusColor(check.status)}
-                />
-                <View style={styles.checkContent}>
-                  <Text style={styles.checkName}>{check.name}</Text>
-                  <Text style={[
-                    styles.checkMessage,
-                    { color: getStatusColor(check.status) }
-                  ]}>
-                    {check.message}
-                  </Text>
-                </View>
+            <Button
+              text={isRunning ? 'Running Diagnostics...' : 'Run Diagnostics'}
+              onPress={runDiagnostics}
+              variant="primary"
+              size="large"
+              disabled={isRunning}
+              style={styles.runButton}
+            />
+
+            {diagnostics.length > 0 && (
+              <View style={styles.resultsContainer}>
+                <Text style={styles.resultsTitle}>Diagnostic Results</Text>
+                
+                {diagnostics.map((result, index) => (
+                  <View key={index} style={styles.resultCard}>
+                    <View style={styles.resultHeader}>
+                      <Icon
+                        name={getStatusIcon(result.status) as any}
+                        size={24}
+                        color={getStatusColor(result.status)}
+                      />
+                      <Text style={styles.resultName}>{result.name}</Text>
+                    </View>
+                    
+                    <Text style={styles.resultMessage}>{result.message}</Text>
+                    
+                    {result.details && (
+                      <Text style={styles.resultDetails}>{result.details}</Text>
+                    )}
+                    
+                    {result.action && (
+                      <View style={styles.actionContainer}>
+                        <Icon name="information-circle" size={16} color={colors.warning || '#F59E0B'} />
+                        <Text style={styles.actionText}>{result.action}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
+          </View>
+
+          {/* Common Solutions */}
+          <View style={styles.solutionsContainer}>
+            <Text style={styles.solutionsTitle}>Common Solutions</Text>
+            
+            <View style={styles.solutionCard}>
+              <Icon name="pause" size={24} color={colors.warning || '#F59E0B'} />
+              <View style={styles.solutionContent}>
+                <Text style={styles.solutionTitle}>Project Paused</Text>
+                <Text style={styles.solutionDescription}>
+                  If your Supabase project is paused, go to your dashboard and click "Restore project"
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.solutionCard}>
+              <Icon name="wifi-off" size={24} color={colors.error || '#EF4444'} />
+              <View style={styles.solutionContent}>
+                <Text style={styles.solutionTitle}>Network Issues</Text>
+                <Text style={styles.solutionDescription}>
+                  Check your internet connection and try switching between WiFi and mobile data
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.solutionCard}>
+              <Icon name="key" size={24} color={colors.primary} />
+              <View style={styles.solutionContent}>
+                <Text style={styles.solutionTitle}>API Key Issues</Text>
+                <Text style={styles.solutionDescription}>
+                  Verify that your Supabase URL and API key are correct in the app configuration
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Actions */}
           <View style={styles.actionsContainer}>
             <Button
-              text={isRunning ? 'Running Diagnostics...' : 'Run Diagnostics'}
-              onPress={runDiagnostics}
-              disabled={isRunning}
-              style={styles.diagnosticsButton}
+              text="Continue Anyway"
+              onPress={() => router.back()}
+              variant="secondary"
+              size="large"
             />
-
-            {allPassed && (
-              <Button
-                text="Continue to App"
-                onPress={() => router.replace('/auth/login')}
-                style={styles.continueButton}
-              />
-            )}
-
-            <Button
-              text="Test Auth Flow"
-              onPress={testAuthFlow}
-              style={styles.testButton}
-              variant="outline"
-            />
-
-            {!isRunning && !allPassed && checks.some(c => c.status === 'error') && (
-              <>
-                <Button
-                  text="Setup Database"
-                  onPress={handleRetrySetup}
-                  style={styles.setupButton}
-                  variant="outline"
-                />
-                
-                <TouchableOpacity
-                  style={styles.skipButton}
-                  onPress={handleContinueAnyway}
-                >
-                  <Text style={styles.skipText}>Continue with Limited Features</Text>
-                </TouchableOpacity>
-              </>
-            )}
           </View>
         </Animated.View>
       </ScrollView>
@@ -336,6 +406,7 @@ const BackendSetupScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#667eea',
   },
   scrollView: {
     flex: 1,
@@ -345,76 +416,149 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xl * 2,
+    marginBottom: spacing.xl,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    padding: spacing.sm,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    fontFamily: 'Poppins_700Bold',
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: 'Inter_400Regular',
   },
-  diagnosticsContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+  quickActions: {
     marginBottom: spacing.xl,
   },
-  checkItem: {
+  quickActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    gap: spacing.sm,
   },
-  checkContent: {
+  quickActionText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  diagnosticsContainer: {
+    marginBottom: spacing.xl,
+  },
+  runButton: {
+    backgroundColor: colors.white,
+    marginBottom: spacing.lg,
+  },
+  resultsContainer: {
+    gap: spacing.md,
+  },
+  resultsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: spacing.md,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  resultCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  resultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  resultMessage: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontFamily: 'Inter_400Regular',
+  },
+  resultDetails: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'Inter_400Regular',
+    fontStyle: 'italic',
+  },
+  actionContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    padding: spacing.sm,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderRadius: borderRadius.md,
+  },
+  actionText: {
+    fontSize: 12,
+    color: colors.white,
+    fontFamily: 'Inter_500Medium',
     flex: 1,
-    marginLeft: spacing.md,
   },
-  checkName: {
+  solutionsContainer: {
+    marginBottom: spacing.xl,
+  },
+  solutionsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: spacing.md,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  solutionCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  solutionContent: {
+    flex: 1,
+  },
+  solutionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.white,
     marginBottom: spacing.xs,
+    fontFamily: 'Inter_600SemiBold',
   },
-  checkMessage: {
+  solutionDescription: {
     fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 20,
+    fontFamily: 'Inter_400Regular',
   },
   actionsContainer: {
-    gap: spacing.lg,
-  },
-  diagnosticsButton: {
-    backgroundColor: colors.primary,
-  },
-  continueButton: {
-    backgroundColor: colors.success || '#10B981',
-  },
-  setupButton: {
-    borderColor: colors.white,
-    borderWidth: 2,
-  },
-  testButton: {
-    borderColor: colors.warning || '#F59E0B',
-    borderWidth: 2,
-  },
-  skipButton: {
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  skipText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textDecorationLine: 'underline',
+    gap: spacing.md,
   },
 });
 

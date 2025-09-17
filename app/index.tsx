@@ -40,6 +40,7 @@ const LandingScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'ready' | 'error'>('checking');
+  const [errorDetails, setErrorDetails] = useState<string>('');
 
   // Animation values
   const fadeIn = useSharedValue(0);
@@ -58,34 +59,65 @@ const LandingScreen: React.FC = () => {
     try {
       console.log('🔍 Checking initial app state...');
       
-      // Quick backend health check
+      // Enhanced backend health check with better error reporting
       try {
-        const healthPromise = supabase.from('profiles').select('count', { count: 'exact', head: true });
+        console.log('🏥 Running backend health check...');
+        
+        const healthPromise = fetch('https://tioevqidrridspbsjlqb.supabase.co/rest/v1/', {
+          method: 'HEAD',
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
+          },
+        });
+        
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Health check timeout')), 5000)
+          setTimeout(() => reject(new Error('Health check timeout after 8 seconds')), 8000)
         );
         
-        const { error } = await Promise.race([healthPromise, timeoutPromise]);
+        const response = await Promise.race([healthPromise, timeoutPromise]);
         
-        if (error) {
-          console.warn('⚠️ Backend health check failed:', error.message);
-          setBackendStatus('error');
-        } else {
+        if (response.ok) {
           console.log('✅ Backend health check passed');
           setBackendStatus('ready');
+          setErrorDetails('');
+        } else {
+          const errorMsg = `Backend returned status ${response.status}`;
+          console.warn('⚠️ Backend health check failed:', errorMsg);
+          setBackendStatus('error');
+          
+          if (response.status === 503) {
+            setErrorDetails('The database service is temporarily unavailable. It may be paused or under maintenance.');
+          } else if (response.status === 404) {
+            setErrorDetails('The database service could not be found. Please check the configuration.');
+          } else {
+            setErrorDetails(`Backend service error (Status: ${response.status}). Please try again later.`);
+          }
         }
       } catch (healthError) {
         console.warn('⚠️ Backend health check error:', healthError);
         setBackendStatus('error');
+        
+        if (healthError instanceof Error) {
+          if (healthError.message.includes('timeout')) {
+            setErrorDetails('Connection timeout. The database service may be paused or unreachable.');
+          } else if (healthError.message.includes('Network request failed')) {
+            setErrorDetails('Network connection failed. Please check your internet connection.');
+          } else {
+            setErrorDetails(`Connection error: ${healthError.message}`);
+          }
+        } else {
+          setErrorDetails('Unknown connection error occurred.');
+        }
       }
 
-      // Start animations
+      // Start animations regardless of backend status
       fadeIn.value = withTiming(1, { duration: 1000 });
       slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
       
     } catch (error) {
       console.error('❌ Initial state check failed:', error);
       setBackendStatus('error');
+      setErrorDetails('App initialization failed. Please restart the app.');
       
       // Still show the landing page
       fadeIn.value = withTiming(1, { duration: 1000 });
@@ -99,10 +131,15 @@ const LandingScreen: React.FC = () => {
     console.log('🚀 Get Started button pressed');
     if (backendStatus === 'error') {
       Alert.alert(
-        'Backend Issues Detected',
-        'Some features may not work properly. Would you like to run diagnostics first?',
+        'Backend Connection Issues',
+        `${errorDetails}\n\nWould you like to:\n• Run diagnostics to check the issue\n• Continue with limited functionality\n• Retry the connection`,
         [
           { text: 'Run Diagnostics', onPress: () => router.push('/backend-setup') },
+          { text: 'Retry Connection', onPress: () => {
+            setIsCheckingAuth(true);
+            setBackendStatus('checking');
+            checkInitialState();
+          }},
           { text: 'Continue Anyway', onPress: () => router.push('/auth/register'), style: 'destructive' }
         ]
       );
@@ -113,7 +150,18 @@ const LandingScreen: React.FC = () => {
 
   const handleSignIn = () => {
     console.log('🔑 Sign In button pressed');
-    router.push('/auth/login');
+    if (backendStatus === 'error') {
+      Alert.alert(
+        'Connection Issues',
+        `${errorDetails}\n\nYou can still try to sign in, but some features may not work properly.`,
+        [
+          { text: 'Try Anyway', onPress: () => router.push('/auth/login') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      router.push('/auth/login');
+    }
   };
 
   const handleCreateAccount = () => {
@@ -123,6 +171,14 @@ const LandingScreen: React.FC = () => {
 
   const handleBackendSetup = () => {
     router.push('/backend-setup');
+  };
+
+  const retryConnection = () => {
+    console.log('🔄 Retrying connection...');
+    setIsCheckingAuth(true);
+    setBackendStatus('checking');
+    setErrorDetails('');
+    checkInitialState();
   };
 
   if (isCheckingAuth) {
@@ -135,8 +191,9 @@ const LandingScreen: React.FC = () => {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>🎵</Text>
           <Text style={styles.loadingSubtext}>Loading NextDrop...</Text>
+          <Text style={styles.loadingDetails}>Checking backend connection...</Text>
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -168,15 +225,39 @@ const LandingScreen: React.FC = () => {
             </Text>
             
             {backendStatus === 'error' && (
-              <TouchableOpacity
-                style={styles.warningBanner}
-                onPress={handleBackendSetup}
-              >
-                <Icon name="warning" size={20} color={colors.warning || '#F59E0B'} />
-                <Text style={styles.warningText}>
-                  Backend issues detected - Tap to diagnose
+              <View style={styles.errorContainer}>
+                <TouchableOpacity
+                  style={styles.warningBanner}
+                  onPress={handleBackendSetup}
+                >
+                  <Icon name="warning" size={20} color={colors.warning || '#F59E0B'} />
+                  <Text style={styles.warningText}>
+                    Backend Connection Issues
+                  </Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.errorDetails}>
+                  {errorDetails}
                 </Text>
-              </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={retryConnection}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="refresh" size={16} color={colors.white} />
+                  <Text style={styles.retryButtonText}>Retry Connection</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            {backendStatus === 'ready' && (
+              <View style={styles.successBanner}>
+                <Icon name="checkmark-circle" size={20} color={colors.success || '#10B981'} />
+                <Text style={styles.successText}>
+                  All systems operational
+                </Text>
+              </View>
             )}
           </View>
 
@@ -245,7 +326,7 @@ const LandingScreen: React.FC = () => {
                 activeOpacity={0.8}
               >
                 <Icon name="settings" size={16} color={colors.white} />
-                <Text style={styles.diagnosticsButtonText}>Run Diagnostics</Text>
+                <Text style={styles.diagnosticsButtonText}>Run Full Diagnostics</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -320,6 +401,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.white,
     fontWeight: '500',
+    marginBottom: spacing.sm,
+  },
+  loadingDetails: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '400',
   },
   content: {
     flex: 1,
@@ -348,6 +435,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     fontFamily: 'Inter_400Regular',
   },
+  errorContainer: {
+    marginTop: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,10 +448,51 @@ const styles = StyleSheet.create({
     borderColor: colors.warning || '#F59E0B',
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    marginTop: spacing.lg,
     gap: spacing.sm,
   },
   warningText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  errorDetails: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: spacing.md,
+    fontFamily: 'Inter_400Regular',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderWidth: 1,
+    borderColor: colors.success || '#10B981',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  successText: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '500',

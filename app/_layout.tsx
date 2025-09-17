@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { View, Platform } from 'react-native';
+import { View, Platform, Alert } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -21,6 +21,7 @@ export default function RootLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [initialRoute, setInitialRoute] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -41,7 +42,7 @@ export default function RootLayout() {
     console.log('🚀 NextDrop app starting...');
   }, []);
 
-  // Simplified authentication state management
+  // Enhanced authentication state management with better error handling
   useEffect(() => {
     let mounted = true;
 
@@ -49,16 +50,64 @@ export default function RootLayout() {
       try {
         console.log('🔐 Initializing authentication...');
         
-        // Quick session check with shorter timeout
+        // First, test if Supabase is accessible
+        try {
+          const healthCheck = await Promise.race([
+            fetch('https://tioevqidrridspbsjlqb.supabase.co/rest/v1/', {
+              method: 'HEAD',
+              headers: {
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
+              },
+            }),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('Health check timeout')), 8000)
+            )
+          ]);
+
+          if (!healthCheck.ok) {
+            throw new Error(`Supabase health check failed: ${healthCheck.status}`);
+          }
+          
+          console.log('✅ Supabase health check passed');
+        } catch (healthError) {
+          console.error('❌ Supabase health check failed:', healthError);
+          
+          if (mounted) {
+            setConnectionError('Database connection failed. The service may be temporarily unavailable.');
+            
+            // Try to use local storage as fallback
+            try {
+              const localUser = await getCurrentUser();
+              if (localUser && localUser.email && localUser.isOnboarded) {
+                console.log('✅ Using local user as fallback during connection issues');
+                setIsAuthenticated(true);
+                setInitialRoute('/(tabs)');
+                setIsLoading(false);
+                return;
+              }
+            } catch (localError) {
+              console.error('❌ Local fallback also failed:', localError);
+            }
+            
+            // Show connection error but still allow app to function
+            setIsAuthenticated(false);
+            setInitialRoute('/');
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // If health check passed, proceed with normal auth flow
         const { data: { session }, error } = await Promise.race([
           supabase.auth.getSession(),
           new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error('Session timeout')), 5000)
+            setTimeout(() => reject(new Error('Session timeout')), 10000)
           )
         ]);
 
         if (error) {
           console.warn('⚠️ Session check error:', error.message);
+          setConnectionError(`Authentication error: ${error.message}`);
         }
 
         if (session?.user && !error) {
@@ -69,6 +118,7 @@ export default function RootLayout() {
           
           if (mounted) {
             setIsAuthenticated(true);
+            setConnectionError(null);
             
             if (!currentUser || !currentUser.name || !currentUser.role) {
               setInitialRoute('/onboarding');
@@ -86,24 +136,22 @@ export default function RootLayout() {
       } catch (error) {
         console.warn('⚠️ Auth initialization failed:', error);
         
-        // Fallback: check local storage
-        try {
-          const localUser = await getCurrentUser();
-          if (localUser && localUser.email && localUser.isOnboarded) {
-            console.log('✅ Using local user as fallback');
-            if (mounted) {
+        if (mounted) {
+          setConnectionError(`Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          
+          // Fallback: check local storage
+          try {
+            const localUser = await getCurrentUser();
+            if (localUser && localUser.email && localUser.isOnboarded) {
+              console.log('✅ Using local user as fallback');
               setIsAuthenticated(true);
               setInitialRoute('/(tabs)');
-            }
-          } else {
-            if (mounted) {
+            } else {
               setIsAuthenticated(false);
               setInitialRoute('/');
             }
-          }
-        } catch (localError) {
-          console.error('❌ Local fallback failed:', localError);
-          if (mounted) {
+          } catch (localError) {
+            console.error('❌ Local fallback failed:', localError);
             setIsAuthenticated(false);
             setInitialRoute('/');
           }
@@ -118,7 +166,7 @@ export default function RootLayout() {
     // Initialize auth state
     initializeAuth();
 
-    // Listen for auth changes
+    // Listen for auth changes with error handling
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`🔐 Auth event: ${event}`);
       
@@ -130,6 +178,7 @@ export default function RootLayout() {
             if (session?.user) {
               console.log('✅ User signed in:', session.user.email);
               setIsAuthenticated(true);
+              setConnectionError(null);
               
               const currentUser = await getCurrentUser();
               if (!currentUser || !currentUser.name || !currentUser.role) {
@@ -143,16 +192,18 @@ export default function RootLayout() {
           case 'SIGNED_OUT':
             console.log('👋 User signed out');
             setIsAuthenticated(false);
+            setConnectionError(null);
             router.replace('/');
             break;
             
           case 'TOKEN_REFRESHED':
             console.log('🔄 Token refreshed');
-            // Don't change navigation on token refresh
+            setConnectionError(null);
             break;
         }
       } catch (error) {
         console.error('❌ Auth state change error:', error);
+        setConnectionError(`Auth state error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
 
@@ -177,6 +228,36 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, isLoading]);
 
+  // Show connection error alert when there's a persistent issue
+  useEffect(() => {
+    if (connectionError && !isLoading) {
+      console.log('⚠️ Showing connection error to user:', connectionError);
+      
+      Alert.alert(
+        'Connection Issue',
+        `${connectionError}\n\nThe app will continue to work with limited functionality using local data.`,
+        [
+          {
+            text: 'Retry Connection',
+            onPress: () => {
+              setConnectionError(null);
+              setIsLoading(true);
+              // Trigger re-initialization
+              setTimeout(() => {
+                setIsLoading(false);
+              }, 1000);
+            }
+          },
+          {
+            text: 'Continue Offline',
+            style: 'cancel',
+            onPress: () => setConnectionError(null)
+          }
+        ]
+      );
+    }
+  }, [connectionError, isLoading]);
+
   if (!fontsLoaded || isLoading) {
     return null;
   }
@@ -187,7 +268,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <StatusBar style="auto" />
           
-          {/* Connection Status - only show for persistent issues */}
+          {/* Enhanced Connection Status */}
           <ConnectionStatus 
             showWhenConnected={false}
             compact={true}
