@@ -131,21 +131,28 @@ const LandingScreen: React.FC = () => {
     console.log('🚀 Get Started button pressed');
     if (backendStatus === 'error') {
       Alert.alert(
-        'Backend Connection Issues',
-        `${errorDetails}\n\nWould you like to:\n• Run diagnostics to check the issue\n• Continue with limited functionality\n• Retry the connection`,
+        'Project Initialization Required',
+        'Your NextDrop project needs to be initialized before you can start using it. This is a one-time setup process.\n\nWould you like to:',
         [
-          { text: 'Run Diagnostics', onPress: () => router.push('/backend-setup') },
-          { text: 'Retry Connection', onPress: () => {
-            setIsCheckingAuth(true);
-            setBackendStatus('checking');
-            checkInitialState();
-          }},
-          { text: 'Continue Anyway', onPress: () => router.push('/auth/register'), style: 'destructive' }
+          { text: 'Initialize Now', onPress: () => router.push('/backend-setup') },
+          { text: 'Learn More', onPress: () => showInitializationInfo() },
+          { text: 'Skip for Now', onPress: () => router.push('/auth/register'), style: 'destructive' }
         ]
       );
     } else {
       router.push('/auth/register');
     }
+  };
+
+  const showInitializationInfo = () => {
+    Alert.alert(
+      'About Project Initialization',
+      'NextDrop requires a one-time setup to:\n\n• Verify your database connection\n• Check all required tables exist\n• Validate security policies\n• Prepare for deployment\n\nThis ensures your app works perfectly for users!',
+      [
+        { text: 'Initialize Now', onPress: () => router.push('/backend-setup') },
+        { text: 'Maybe Later', style: 'cancel' }
+      ]
+    );
   };
 
   const handleSignIn = () => {
@@ -232,21 +239,21 @@ const LandingScreen: React.FC = () => {
                 >
                   <Icon name="warning" size={20} color={colors.warning || '#F59E0B'} />
                   <Text style={styles.warningText}>
-                    Backend Connection Issues
+                    Project Initialization Required
                   </Text>
                 </TouchableOpacity>
                 
                 <Text style={styles.errorDetails}>
-                  {errorDetails}
+                  {errorDetails || 'Your project needs to be initialized before deployment. This is normal for new projects.'}
                 </Text>
                 
                 <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={retryConnection}
+                  style={styles.setupButton}
+                  onPress={handleBackendSetup}
                   activeOpacity={0.8}
                 >
-                  <Icon name="refresh" size={16} color={colors.white} />
-                  <Text style={styles.retryButtonText}>Retry Connection</Text>
+                  <Icon name="settings" size={16} color={colors.white} />
+                  <Text style={styles.setupButtonText}>Initialize Project</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -255,7 +262,7 @@ const LandingScreen: React.FC = () => {
               <View style={styles.successBanner}>
                 <Icon name="checkmark-circle" size={20} color={colors.success || '#10B981'} />
                 <Text style={styles.successText}>
-                  All systems operational
+                  Ready for deployment! 🚀
                 </Text>
               </View>
             )}
@@ -476,6 +483,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   retryButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  setupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  setupButtonText: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '600',

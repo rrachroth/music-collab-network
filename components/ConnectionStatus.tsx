@@ -15,11 +15,13 @@ import { colors, spacing, borderRadius } from '../styles/commonStyles';
 interface ConnectionStatusProps {
   showWhenConnected?: boolean;
   compact?: boolean;
+  showDeploymentStatus?: boolean;
 }
 
 const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   showWhenConnected = false,
   compact = false,
+  showDeploymentStatus = false,
 }) => {
   const insets = useSafeAreaInsets();
   const [connectionStatus, setConnectionStatus] = useState(connectionService.getConnectionStatus());
@@ -53,7 +55,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       opacity.value = withTiming(0, { duration: 300 });
       translateY.value = withTiming(-50, { duration: 300 });
     }
-  }, [connectionStatus.isConnected, connectionStatus.consecutiveFailures, showWhenConnected, opacity, translateY]);
+  }, [connectionStatus.isConnected, connectionStatus.consecutiveFailures, showWhenConnected]);
 
   const handleRetry = async () => {
     if (isRetrying) return;

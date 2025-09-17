@@ -180,4 +180,94 @@ export async function withRetry<T>(
   throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`);
 }
 
-console.log('🚀 Supabase client initialized with simplified connection monitoring');
+// Deployment readiness check
+export async function checkDeploymentReadiness(): Promise<{
+  ready: boolean;
+  issues: string[];
+  score: number;
+}> {
+  const issues: string[] = [];
+  let score = 0;
+
+  try {
+    // Test 1: Basic connectivity (25 points)
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+        method: 'HEAD',
+        headers: { 'apikey': SUPABASE_PUBLISHABLE_KEY },
+      });
+      
+      if (response.ok) {
+        score += 25;
+      } else {
+        issues.push('Supabase endpoint not accessible');
+      }
+    } catch (error) {
+      issues.push('Cannot reach Supabase endpoint');
+    }
+
+    // Test 2: Authentication service (25 points)
+    try {
+      const { error } = await supabase.auth.getSession();
+      if (!error) {
+        score += 25;
+      } else {
+        issues.push('Authentication service error');
+      }
+    } catch (error) {
+      issues.push('Authentication service failed');
+    }
+
+    // Test 3: Database access (25 points)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .select('count', { count: 'exact', head: true });
+      
+      if (!error) {
+        score += 25;
+      } else {
+        issues.push('Database access failed');
+      }
+    } catch (error) {
+      issues.push('Cannot access database');
+    }
+
+    // Test 4: Schema validation (25 points)
+    try {
+      const requiredTables = ['profiles', 'projects', 'matches', 'messages'];
+      let tablesExist = 0;
+      
+      for (const table of requiredTables) {
+        try {
+          const { error } = await supabase
+            .from(table)
+            .select('count', { count: 'exact', head: true });
+          
+          if (!error) tablesExist++;
+        } catch {
+          // Table doesn't exist
+        }
+      }
+      
+      if (tablesExist === requiredTables.length) {
+        score += 25;
+      } else {
+        issues.push(`Missing ${requiredTables.length - tablesExist} required tables`);
+      }
+    } catch (error) {
+      issues.push('Schema validation failed');
+    }
+
+  } catch (error) {
+    issues.push('Deployment check failed');
+  }
+
+  return {
+    ready: score >= 90, // 90% or higher is considered ready
+    issues,
+    score
+  };
+}
+
+console.log('🚀 Supabase client initialized with deployment readiness checks');

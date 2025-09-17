@@ -272,6 +272,7 @@ export default function RootLayout() {
           <ConnectionStatus 
             showWhenConnected={false}
             compact={true}
+            showDeploymentStatus={true}
           />
           
           <Slot />
