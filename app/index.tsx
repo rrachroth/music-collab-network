@@ -193,7 +193,7 @@ const LandingScreen: React.FC = () => {
           <Text style={styles.loadingSubtext}>Loading NextDrop...</Text>
           <Text style={styles.loadingDetails}>Checking backend connection...</Text>
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
@@ -355,7 +355,7 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
   useEffect(() => {
     cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
     cardScale.value = withDelay(delay, withSpring(1, { damping: 20, stiffness: 100 }));
-  }, [delay]);
+  }, [delay, cardOpacity, cardScale]);
 
   return (
     <Animated.View style={[cardAnimatedStyle]}>

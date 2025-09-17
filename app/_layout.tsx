@@ -211,7 +211,7 @@ export default function RootLayout() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   // Handle initial navigation
   useEffect(() => {
@@ -219,7 +219,7 @@ export default function RootLayout() {
       console.log('🔄 Initial navigation to:', initialRoute);
       router.replace(initialRoute);
     }
-  }, [isLoading, initialRoute, segments]);
+  }, [isLoading, initialRoute, segments, router]);
 
   // Hide splash screen when ready
   useEffect(() => {

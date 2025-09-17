@@ -18,7 +18,7 @@ class ConnectionService {
   };
   
   private healthCheckInterval?: NodeJS.Timeout;
-  private listeners: Array<(status: ConnectionStatus) => void> = [];
+  private listeners: ((status: ConnectionStatus) => void)[] = [];
 
   private constructor() {
     this.initializeConnection();

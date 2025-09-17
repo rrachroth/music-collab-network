@@ -33,7 +33,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 // Simplified connection monitoring
 class SupabaseConnectionManager {
   private static instance: SupabaseConnectionManager;
-  private connectionListeners: Array<(connected: boolean) => void> = [];
+  private connectionListeners: ((connected: boolean) => void)[] = [];
   private isConnected = true; // Start optimistic
   private lastCheck = 0;
   private checkInterval = 60000; // Check every minute
