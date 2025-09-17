@@ -1,3 +1,4 @@
+
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Audio } from 'expo-av';
@@ -22,7 +23,7 @@ export const requestPermissions = async (): Promise<boolean> => {
     if (cameraStatus !== 'granted' || libraryStatus !== 'granted' || audioStatus !== 'granted') {
       Alert.alert(
         'Permissions Required',
-        'MusicLinked needs access to your camera, media library, and microphone to upload highlights and record audio.',
+        'NextDrop needs access to your camera, media library, and microphone to upload highlights and record audio.',
         [{ text: 'OK' }]
       );
       return false;
@@ -53,8 +54,8 @@ export const pickImage = async (options: MediaPickerOptions = {}): Promise<Media
       const mediaFile: MediaFile = {
         id: generateId(),
         uri: asset.uri,
-        type: asset.type === 'video' ? 'video' : 'audio',
-        title: `Media ${Date.now()}`,
+        type: 'image', // Fixed: should be 'image' for images
+        title: `Image ${Date.now()}`,
         duration: asset.duration || 0,
         uploadedAt: getCurrentTimestamp(),
       };
@@ -150,19 +151,24 @@ export const recordAudio = async (): Promise<MediaFile | null> => {
         {
           text: 'Stop',
           onPress: async () => {
-            await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            if (uri) {
-              const mediaFile: MediaFile = {
-                id: generateId(),
-                uri,
-                type: 'audio',
-                title: `Recording ${Date.now()}`,
-                duration: 0, // Would get actual duration from recording
-                uploadedAt: getCurrentTimestamp(),
-              };
-              return mediaFile;
+            try {
+              await recording.stopAndUnloadAsync();
+              const uri = recording.getURI();
+              if (uri) {
+                const mediaFile: MediaFile = {
+                  id: generateId(),
+                  uri,
+                  type: 'audio',
+                  title: `Recording ${Date.now()}`,
+                  duration: 0, // Would get actual duration from recording
+                  uploadedAt: getCurrentTimestamp(),
+                };
+                return mediaFile;
+              }
+            } catch (error) {
+              console.error('❌ Error stopping recording:', error);
             }
+            return null;
           }
         }
       ]
@@ -192,7 +198,7 @@ export const takePhoto = async (options: MediaPickerOptions = {}): Promise<Media
       const mediaFile: MediaFile = {
         id: generateId(),
         uri: asset.uri,
-        type: 'video', // Camera can capture both
+        type: 'image', // Fixed: should be 'image' for photos
         title: `Photo ${Date.now()}`,
         duration: 0,
         uploadedAt: getCurrentTimestamp(),
