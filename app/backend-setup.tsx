@@ -64,7 +64,7 @@ const BackendSetupScreen: React.FC = () => {
     // Auto-run diagnostics on load
     setTimeout(() => {
       runDiagnostics();
-    }, 1000);
+    }, 500);
   }, []);
 
   const runInitialization = async () => {
@@ -436,10 +436,11 @@ const BackendSetupScreen: React.FC = () => {
     if (errorCount === 0 && warningCount === 0) {
       Alert.alert(
         'All Systems Operational! 🎉',
-        'Your NextDrop project is fully functional and ready for deployment. All diagnostics passed successfully.',
+        'Your NextDrop project is fully functional and ready for deployment. All diagnostics passed successfully.\n\nYour app is no longer "initializing" - it\'s ready to use!',
         [
-          { text: 'Initialize Project', onPress: () => runInitialization() },
-          { text: 'Continue Testing', style: 'cancel' }
+          { text: 'Continue to App', onPress: () => router.push('/(tabs)') },
+          { text: 'Run Full Setup', onPress: () => runInitialization() },
+          { text: 'Stay Here', style: 'cancel' }
         ]
       );
     } else {

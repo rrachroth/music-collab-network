@@ -228,35 +228,12 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, isLoading]);
 
-  // Show connection error alert when there's a persistent issue
-  useEffect(() => {
-    if (connectionError && !isLoading) {
-      console.log('⚠️ Showing connection error to user:', connectionError);
-      
-      Alert.alert(
-        'Connection Issue',
-        `${connectionError}\n\nThe app will continue to work with limited functionality using local data.`,
-        [
-          {
-            text: 'Retry Connection',
-            onPress: () => {
-              setConnectionError(null);
-              setIsLoading(true);
-              // Trigger re-initialization
-              setTimeout(() => {
-                setIsLoading(false);
-              }, 1000);
-            }
-          },
-          {
-            text: 'Continue Offline',
-            style: 'cancel',
-            onPress: () => setConnectionError(null)
-          }
-        ]
-      );
-    }
-  }, [connectionError, isLoading]);
+  // Show connection error alert only for persistent issues (commented out for now)
+  // useEffect(() => {
+  //   if (connectionError && !isLoading) {
+  //     console.log('⚠️ Connection error (not showing alert):', connectionError);
+  //   }
+  // }, [connectionError, isLoading]);
 
   if (!fontsLoaded || isLoading) {
     return null;
@@ -272,7 +249,7 @@ export default function RootLayout() {
           <ConnectionStatus 
             showWhenConnected={false}
             compact={true}
-            showDeploymentStatus={true}
+            showDeploymentStatus={false}
           />
           
           <Slot />

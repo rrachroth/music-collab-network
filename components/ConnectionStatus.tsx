@@ -45,8 +45,9 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   }, []);
 
   useEffect(() => {
-    // Only show if disconnected AND there have been multiple failures
-    const shouldShow = (!connectionStatus.isConnected && connectionStatus.consecutiveFailures > 1) || showWhenConnected;
+    // Only show if disconnected AND there have been multiple failures (more than 3)
+    const shouldShow = (!connectionStatus.isConnected && connectionStatus.consecutiveFailures > 3) || 
+                      (showWhenConnected && connectionStatus.isConnected);
     
     if (shouldShow) {
       opacity.value = withTiming(1, { duration: 300 });
@@ -102,8 +103,9 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     return 'wifi-off';
   };
 
-  // Don't render if connected and not showing when connected
-  if (connectionStatus.isConnected && !showWhenConnected) {
+  // Don't render if connected and not showing when connected, or if failures are minimal
+  if ((connectionStatus.isConnected && !showWhenConnected) || 
+      (!connectionStatus.isConnected && connectionStatus.consecutiveFailures <= 3)) {
     return null;
   }
 
