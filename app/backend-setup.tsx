@@ -313,7 +313,7 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
-  }, [setIsRunning, setOverallStatus, setDiagnostics, setDeploymentReady]);
+  }, []);
 
   const runInitialization = useCallback(async () => {
     setIsInitializing(true);
@@ -469,7 +469,7 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
-  }, [setIsInitializing, setOverallStatus, setInitSteps, setDeploymentReady, deploymentReady]);
+  }, [deploymentReady]);
 
   const handleDeploy = useCallback(() => {
     Alert.alert(
