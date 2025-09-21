@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -57,7 +57,7 @@ const BackendSetupScreen: React.FC = () => {
     transform: [{ translateY: slideUp.value }],
   }));
 
-  const runDiagnostics = async () => {
+  const runDiagnostics = useCallback(async () => {
     setIsRunning(true);
     setOverallStatus('running');
     setDiagnostics([]);
@@ -285,7 +285,7 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
-  };
+  }, []);
 
   useEffect(() => {
     fadeIn.value = withTiming(1, { duration: 800 });

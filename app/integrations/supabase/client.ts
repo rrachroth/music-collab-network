@@ -55,6 +55,7 @@ export const checkDeploymentReadiness = async (): Promise<{
   ready: boolean;
   issues: string[];
   warnings: string[];
+  score?: number;
 }> => {
   const issues: string[] = [];
   const warnings: string[] = [];
@@ -119,14 +120,18 @@ export const checkDeploymentReadiness = async (): Promise<{
   }
   
   const ready = issues.length === 0;
+  const totalChecks = 10; // Approximate number of checks
+  const passedChecks = totalChecks - issues.length - (warnings.length * 0.5);
+  const score = Math.round((passedChecks / totalChecks) * 100);
   
   console.log('🔍 Deployment Readiness Check:', {
     ready,
     issues: issues.length,
     warnings: warnings.length,
+    score,
   });
   
-  return { ready, issues, warnings };
+  return { ready, issues, warnings, score };
 };
 
 // Initialize app data if needed

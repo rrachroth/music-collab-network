@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -51,7 +51,7 @@ const LandingScreen: React.FC = () => {
     transform: [{ translateY: slideUp.value }],
   }));
 
-  const checkInitialState = async () => {
+  const checkInitialState = useCallback(async () => {
     try {
       console.log('🔍 Checking initial app state...');
       
@@ -153,7 +153,7 @@ const LandingScreen: React.FC = () => {
     } finally {
       setIsCheckingAuth(false);
     }
-  };
+  }, [fadeIn, slideUp]);
 
   useEffect(() => {
     checkInitialState();
