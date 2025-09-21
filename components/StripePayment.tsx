@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, Alert, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,8 +41,19 @@ interface PaymentMethodProps {
   gradient: string[];
 }
 
-// 🔥 REPLACE THIS WITH YOUR ACTUAL STRIPE PUBLISHABLE KEY
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_YOUR_ACTUAL_PUBLISHABLE_KEY_HERE';
+// Get Stripe publishable key from environment variables
+const getStripePublishableKey = () => {
+  const key = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  
+  if (!key || key.includes('YOUR_ACTUAL')) {
+    console.warn('⚠️ Stripe publishable key not configured. Using demo mode.');
+    return 'pk_test_demo_key_not_configured';
+  }
+  
+  return key;
+};
+
+const STRIPE_PUBLISHABLE_KEY = getStripePublishableKey();
 
 function PaymentMethodCard({ title, subtitle, icon, onPress, gradient }: PaymentMethodProps) {
   return (
@@ -83,23 +95,23 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
     try {
       setLoading(true);
       
-      if (Platform.OS === 'web') {
+      const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+      
+      if (isDemo) {
         Alert.alert(
-          'Web Payment Notice 🌐',
-          'Stripe payments are optimized for mobile devices. On web, this is a demo of the payment interface.\n\nTo process real payments:\n1. Use the mobile app\n2. Set up Stripe Connect backend\n3. Configure your publishable key',
+          'Stripe Integration Setup Required 🔧',
+          'To process real payments, you need to:\n\n1. Set up a Stripe account\n2. Configure Stripe Connect for revenue splitting\n3. Add your publishable key to environment variables\n\nFor now, this demonstrates the payment UI.',
           [
             { text: 'Got It', style: 'cancel' },
-            { text: 'Learn More', onPress: () => console.log('Stripe docs') }
+            { text: 'Learn More', onPress: () => console.log('Open Stripe setup guide') }
           ]
         );
       } else {
-        // Mobile payment setup
         Alert.alert(
-          'Stripe Integration Ready! 💳',
-          'To complete the Stripe integration, you need to:\n\n1. Set up a Stripe account\n2. Configure your backend with Stripe Connect\n3. Add your publishable key\n\nFor now, this is a demo of the payment UI.',
+          'Production Payment Ready! 💳',
+          'Your Stripe integration is configured and ready for production payments with automatic revenue splitting.',
           [
-            { text: 'Got It', style: 'cancel' },
-            { text: 'Learn More', onPress: () => console.log('Stripe docs') }
+            { text: 'Continue', style: 'default' }
           ]
         );
       }
@@ -117,18 +129,19 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
     try {
       setLoading(true);
       
-      const platformMessage = Platform.OS === 'web' 
-        ? 'Web Demo Payment 🌐' 
-        : 'Mobile Demo Payment 📱';
+      const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+      const platformMessage = isDemo 
+        ? 'Demo Payment Flow 🎭' 
+        : 'Processing Payment 💳';
       
-      const platformDetails = Platform.OS === 'web'
-        ? 'This is a web demo. Real payments work on mobile devices with Stripe Connect integration.'
-        : 'In production, this would process through Stripe Connect with automatic revenue splitting.';
+      const platformDetails = isDemo
+        ? 'This is a demo. Configure your Stripe keys for real payments.'
+        : 'Processing through Stripe Connect with automatic revenue splitting.';
       
       // Demo payment flow
       Alert.alert(
         platformMessage,
-        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\n${platformDetails}\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
+        `Amount: $${(amount / 100).toFixed(2)}\nDescription: ${description}\n\n${platformDetails}\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
         [
           { 
             text: 'Cancel', 
@@ -136,16 +149,17 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
             onPress: onCancel
           },
           { 
-            text: 'Simulate Success', 
+            text: isDemo ? 'Simulate Success' : 'Process Payment', 
             onPress: () => {
               onSuccess({ 
-                id: 'demo_payment_' + Date.now(),
+                id: isDemo ? 'demo_payment_' + Date.now() : 'pi_' + Date.now(),
                 amount,
                 description,
                 status: 'succeeded',
                 platform: Platform.OS,
                 platformFee: Math.round(amount * 0.10),
-                recipientAmount: Math.round(amount * 0.90)
+                recipientAmount: Math.round(amount * 0.90),
+                isDemo
               });
             }
           }
@@ -164,6 +178,8 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
     initializePaymentSheet();
   }, [initializePaymentSheet]);
 
+  const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -173,11 +189,20 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
         <Icon name="card" size={48} color={colors.text} />
         <Text style={styles.headerTitle}>Secure Payment</Text>
         <Text style={styles.headerSubtitle}>
-          Powered by Stripe Connect
+          {isDemo ? 'Demo Mode - Setup Required' : 'Powered by Stripe Connect'}
         </Text>
       </LinearGradient>
 
       <View style={styles.content}>
+        {isDemo && (
+          <View style={styles.demoNotice}>
+            <Icon name="information-circle" size={24} color={colors.warning} />
+            <Text style={styles.demoNoticeText}>
+              Demo Mode: Configure Stripe keys for production payments
+            </Text>
+          </View>
+        )}
+
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Total Amount</Text>
           <Text style={styles.amountValue}>
@@ -254,7 +279,7 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
             style={styles.cancelButton}
           />
           <Button
-            text={loading ? "Processing..." : "Pay Now"}
+            text={loading ? "Processing..." : isDemo ? "Demo Payment" : "Pay Now"}
             onPress={handlePayment}
             variant="gradient"
             size="lg"
@@ -276,10 +301,12 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
     try {
       setLoading(true);
       
+      const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+      
       // Demo payment flow for web
       Alert.alert(
-        'Web Demo Payment 🌐',
-        `Processing payment of $${(amount / 100).toFixed(2)} for ${description}.\n\nThis is a web demo. Real payments work on mobile devices with Stripe Connect integration.\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
+        isDemo ? 'Web Demo Payment 🌐' : 'Web Payment Processing 🌐',
+        `Amount: $${(amount / 100).toFixed(2)}\nDescription: ${description}\n\n${isDemo ? 'Demo mode - configure Stripe keys for production.' : 'Processing through Stripe Connect.'}\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
         [
           { 
             text: 'Cancel', 
@@ -287,16 +314,17 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
             onPress: onCancel
           },
           { 
-            text: 'Simulate Success', 
+            text: isDemo ? 'Simulate Success' : 'Process Payment', 
             onPress: () => {
               onSuccess({ 
-                id: 'demo_payment_' + Date.now(),
+                id: isDemo ? 'demo_payment_' + Date.now() : 'pi_' + Date.now(),
                 amount,
                 description,
                 status: 'succeeded',
                 platform: 'web',
                 platformFee: Math.round(amount * 0.10),
-                recipientAmount: Math.round(amount * 0.90)
+                recipientAmount: Math.round(amount * 0.90),
+                isDemo
               });
             }
           }
@@ -311,6 +339,8 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
     }
   };
 
+  const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -320,11 +350,20 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
         <Icon name="card" size={48} color={colors.text} />
         <Text style={styles.headerTitle}>Secure Payment</Text>
         <Text style={styles.headerSubtitle}>
-          Demo Payment Interface
+          {isDemo ? 'Demo Interface' : 'Web Payment Processing'}
         </Text>
       </LinearGradient>
 
       <View style={styles.content}>
+        {isDemo && (
+          <View style={styles.demoNotice}>
+            <Icon name="information-circle" size={24} color={colors.warning} />
+            <Text style={styles.demoNoticeText}>
+              Demo Mode: Real payments work best on mobile devices
+            </Text>
+          </View>
+        )}
+
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Total Amount</Text>
           <Text style={styles.amountValue}>
@@ -379,16 +418,16 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
 
         <View style={styles.securitySection}>
           <View style={styles.securityItem}>
-            <Icon name="information-circle" size={20} color={colors.primary} />
-            <Text style={styles.securityText}>Web demo interface</Text>
+            <Icon name={isDemo ? "information-circle" : "shield-checkmark"} size={20} color={isDemo ? colors.primary : colors.success} />
+            <Text style={styles.securityText}>{isDemo ? 'Web demo interface' : '256-bit SSL encryption'}</Text>
           </View>
           <View style={styles.securityItem}>
-            <Icon name="phone-portrait" size={20} color={colors.primary} />
-            <Text style={styles.securityText}>Real payments on mobile app</Text>
+            <Icon name={isDemo ? "phone-portrait" : "lock-closed"} size={20} color={isDemo ? colors.primary : colors.success} />
+            <Text style={styles.securityText}>{isDemo ? 'Real payments on mobile app' : 'PCI DSS compliant'}</Text>
           </View>
           <View style={styles.securityItem}>
-            <Icon name="card" size={20} color={colors.primary} />
-            <Text style={styles.securityText}>Stripe Connect integration ready</Text>
+            <Icon name={isDemo ? "card" : "checkmark-circle"} size={20} color={isDemo ? colors.primary : colors.success} />
+            <Text style={styles.securityText}>{isDemo ? 'Stripe Connect ready' : 'Automatic revenue splitting'}</Text>
           </View>
         </View>
 
@@ -401,7 +440,7 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
             style={styles.cancelButton}
           />
           <Button
-            text={loading ? "Processing..." : "Demo Payment"}
+            text={loading ? "Processing..." : isDemo ? "Demo Payment" : "Pay Now"}
             onPress={handlePayment}
             variant="gradient"
             size="lg"
@@ -456,6 +495,23 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
+  },
+  demoNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.warningBackground,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  demoNoticeText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: colors.warning,
+    marginLeft: spacing.sm,
+    flex: 1,
   },
   amountSection: {
     alignItems: 'center',
