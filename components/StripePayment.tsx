@@ -10,16 +10,12 @@ import Icon from './Icon';
 let StripeProvider: any = null;
 let useStripe: any = null;
 
-// Use dynamic import to avoid lint error and web compatibility issues
+// Use conditional require to avoid web compatibility issues
 if (Platform.OS !== 'web') {
   try {
-    // Use import() instead of require() to fix lint warning
-    import('@stripe/stripe-react-native').then((StripeModule) => {
-      StripeProvider = StripeModule.StripeProvider;
-      useStripe = StripeModule.useStripe;
-    }).catch((error) => {
-      console.warn('Stripe React Native not available:', error);
-    });
+    const StripeModule = require('@stripe/stripe-react-native');
+    StripeProvider = StripeModule.StripeProvider;
+    useStripe = StripeModule.useStripe;
   } catch (error) {
     console.warn('Stripe React Native not available:', error);
   }
@@ -84,7 +80,7 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
   const [loading, setLoading] = useState(false);
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
   
-  // Always call useStripe hook unconditionally to fix lint error
+  // Only call useStripe if it exists - this component should only render when it's available
   const stripe = useStripe();
   
   // Extract methods from stripe if available
@@ -454,19 +450,24 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
   );
 }
 
-export default function StripePayment(props: StripePaymentProps) {
-  // On web, render without StripeProvider to avoid native module errors
-  if (Platform.OS === 'web' || !StripeProvider) {
-    return <WebStripePayment {...props} />;
+// Wrapper component that handles conditional rendering
+function StripePaymentWrapper(props: StripePaymentProps) {
+  // Check if we're on mobile and Stripe is available
+  const shouldUseMobileStripe = Platform.OS !== 'web' && StripeProvider && useStripe;
+  
+  if (shouldUseMobileStripe) {
+    return (
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+        <MobileStripePayment {...props} />
+      </StripeProvider>
+    );
   }
   
-  // On mobile, use StripeProvider and MobileStripePayment
-  return (
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-      <MobileStripePayment {...props} />
-    </StripeProvider>
-  );
+  // Fallback to web version
+  return <WebStripePayment {...props} />;
 }
+
+export default StripePaymentWrapper;
 
 const styles = StyleSheet.create({
   container: {
