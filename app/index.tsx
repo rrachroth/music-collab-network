@@ -51,10 +51,6 @@ const LandingScreen: React.FC = () => {
     transform: [{ translateY: slideUp.value }],
   }));
 
-  useEffect(() => {
-    checkInitialState();
-  }, []);
-
   const checkInitialState = async () => {
     try {
       console.log('🔍 Checking initial app state...');
@@ -158,6 +154,10 @@ const LandingScreen: React.FC = () => {
       setIsCheckingAuth(false);
     }
   };
+
+  useEffect(() => {
+    checkInitialState();
+  }, [checkInitialState]);
 
   const handleGetStarted = () => {
     console.log('🚀 Get Started button pressed');

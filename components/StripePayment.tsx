@@ -10,12 +10,16 @@ import Icon from './Icon';
 let StripeProvider: any = null;
 let useStripe: any = null;
 
-// Use conditional require to avoid web compatibility issues
+// Use conditional import to avoid web compatibility issues
 if (Platform.OS !== 'web') {
   try {
-    const StripeModule = require('@stripe/stripe-react-native');
-    StripeProvider = StripeModule.StripeProvider;
-    useStripe = StripeModule.useStripe;
+    // Use dynamic import instead of require()
+    import('@stripe/stripe-react-native').then((StripeModule) => {
+      StripeProvider = StripeModule.StripeProvider;
+      useStripe = StripeModule.useStripe;
+    }).catch((error) => {
+      console.warn('Stripe React Native not available:', error);
+    });
   } catch (error) {
     console.warn('Stripe React Native not available:', error);
   }
