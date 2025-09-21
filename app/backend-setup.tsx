@@ -313,7 +313,7 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
-  }, []);
+  }, [setIsRunning, setOverallStatus, setDiagnostics, setDeploymentReady]);
 
   const runInitialization = useCallback(async () => {
     setIsInitializing(true);
@@ -469,6 +469,18 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
+  }, [setIsInitializing, setOverallStatus, setInitSteps, setDeploymentReady, deploymentReady]);
+
+  const handleDeploy = useCallback(() => {
+    Alert.alert(
+      'Ready to Deploy! 🚀',
+      'Your MusicLinked project is fully initialized and ready for deployment. You can now:\n\n• Deploy to Expo Go for testing\n• Build for app stores\n• Share with beta testers\n\nAll backend services including Stripe payments are operational!',
+      [
+        { text: 'Deploy to Expo', onPress: openExpoDeployment },
+        { text: 'Build for Stores', onPress: openEASBuild },
+        { text: 'Continue Development', style: 'cancel' }
+      ]
+    );
   }, []);
 
   useEffect(() => {
@@ -481,17 +493,12 @@ const BackendSetupScreen: React.FC = () => {
     }, 500);
   }, [fadeIn, slideUp, runDiagnostics]);
 
-  const handleDeploy = () => {
-    Alert.alert(
-      'Ready to Deploy! 🚀',
-      'Your MusicLinked project is fully initialized and ready for deployment. You can now:\n\n• Deploy to Expo Go for testing\n• Build for app stores\n• Share with beta testers\n\nAll backend services including Stripe payments are operational!',
-      [
-        { text: 'Deploy to Expo', onPress: openExpoDeployment },
-        { text: 'Build for Stores', onPress: openEASBuild },
-        { text: 'Continue Development', style: 'cancel' }
-      ]
-    );
-  };
+  useEffect(() => {
+    // This effect handles deployment readiness changes and deploy functionality
+    if (deploymentReady) {
+      console.log('Project is ready for deployment');
+    }
+  }, [deploymentReady, handleDeploy]);
 
   const openExpoDeployment = () => {
     Alert.alert(
