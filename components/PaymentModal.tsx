@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, StyleSheet, Alert, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import React, { useState, useEffect } from 'react';
+import { View, Text, Modal, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -9,90 +10,138 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
+import { PaymentService } from '../utils/paymentService';
+import StripePayment from './StripePayment';
 import Button from './Button';
 import Icon from './Icon';
-import StripePayment from './StripePayment';
 
 interface PaymentModalProps {
   visible: boolean;
   onClose: () => void;
+  onSuccess?: (paymentResult: any) => void;
   amount: number;
   description: string;
-  recipientName?: string;
-  onSuccess?: (paymentResult: any) => void;
+  recipientId?: string;
+  projectId?: string;
+  paymentType?: 'project' | 'subscription';
+  title?: string;
+  subtitle?: string;
 }
 
 export default function PaymentModal({ 
   visible, 
   onClose, 
-  amount, 
-  description, 
-  recipientName,
-  onSuccess 
+  onSuccess,
+  amount,
+  description,
+  recipientId,
+  projectId,
+  paymentType = 'project',
+  title,
+  subtitle,
 }: PaymentModalProps) {
   const insets = useSafeAreaInsets();
-  const [showStripePayment, setShowStripePayment] = useState(false);
-  
+  const [showPayment, setShowPayment] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Animation values
   const modalOpacity = useSharedValue(0);
-  const modalScale = useSharedValue(0.9);
+  const modalScale = useSharedValue(0.8);
 
-  const modalAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: modalOpacity.value,
-      transform: [{ scale: modalScale.value }],
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: modalOpacity.value,
+    transform: [{ scale: modalScale.value }],
+  }));
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       modalOpacity.value = withTiming(1, { duration: 300 });
-      modalScale.value = withSpring(1, { damping: 15 });
+      modalScale.value = withSpring(1, { damping: 20, stiffness: 100 });
     } else {
       modalOpacity.value = withTiming(0, { duration: 200 });
-      modalScale.value = withTiming(0.9, { duration: 200 });
+      modalScale.value = withTiming(0.8, { duration: 200 });
+      setShowPayment(false);
     }
   }, [visible, modalOpacity, modalScale]);
 
-  const handlePaymentSuccess = (paymentResult: any) => {
-    console.log('✅ Payment successful:', paymentResult);
-    
-    Alert.alert(
-      'Payment Successful! 🎉',
-      `Your payment of $${(amount / 100).toFixed(2)} has been processed successfully.${recipientName ? ` ${recipientName} will receive their share automatically.` : ''}`,
-      [
-        {
-          text: 'Great!',
-          onPress: () => {
-            onSuccess?.(paymentResult);
-            onClose();
+  const validation = PaymentService.validatePaymentAmount(amount);
+
+  const handleProceedToPayment = () => {
+    if (!validation.valid) {
+      Alert.alert('Invalid Amount', validation.error || 'Please check the payment amount');
+      return;
+    }
+    setShowPayment(true);
+  };
+
+  const handlePaymentSuccess = async (paymentResult: any) => {
+    try {
+      setLoading(true);
+      
+      console.log('Payment successful:', paymentResult);
+      
+      // Show success message
+      Alert.alert(
+        'Payment Successful! 🎉',
+        `Your payment of ${PaymentService.formatAmount(amount)} has been processed successfully.${
+          paymentType === 'project' 
+            ? '\n\nThe recipient will receive their share after our platform fee.'
+            : '\n\nYour premium features are now active!'
+        }`,
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              setShowPayment(false);
+              onClose();
+              onSuccess?.(paymentResult);
+            }
           }
-        }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('Error handling payment success:', error);
+      Alert.alert(
+        'Payment Processed',
+        'Your payment was successful! The transaction is being processed.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaymentError = (error: string) => {
+    console.error('Payment error:', error);
+    Alert.alert(
+      'Payment Failed',
+      `We couldn't process your payment: ${error}\n\nPlease try again or contact support if the issue persists.`,
+      [
+        { text: 'Try Again', onPress: () => setShowPayment(false) },
+        { text: 'Cancel', style: 'cancel', onPress: onClose }
       ]
     );
   };
 
-  const handlePaymentError = (error: string) => {
-    console.error('❌ Payment error:', error);
-    Alert.alert('Payment Failed', error);
-  };
-
-  if (showStripePayment) {
+  if (showPayment) {
     return (
       <Modal
         visible={visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={onClose}
+        onRequestClose={() => setShowPayment(false)}
       >
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-          <StripePayment
-            amount={amount}
-            description={description}
-            onSuccess={handlePaymentSuccess}
-            onError={handlePaymentError}
-            onCancel={() => setShowStripePayment(false)}
-          />
-        </View>
+        <StripePayment
+          amount={amount}
+          description={description}
+          recipientId={recipientId}
+          projectId={projectId}
+          paymentType={paymentType}
+          onSuccess={handlePaymentSuccess}
+          onError={handlePaymentError}
+          onCancel={() => setShowPayment(false)}
+        />
       </Modal>
     );
   }
@@ -101,90 +150,151 @@ export default function PaymentModal({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[styles.modal, modalAnimatedStyle]}>
+        <Animated.View style={[styles.modal, animatedStyle, { paddingTop: insets.top }]}>
           <LinearGradient
-            colors={colors.gradientBackground}
-            style={styles.modalContent}
+            colors={colors.gradientPrimary}
+            style={styles.header}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerIcon}>
-                <Icon name="card" size={32} color={colors.primary} />
-              </View>
-              <Text style={styles.title}>Payment Required</Text>
+            <View style={styles.headerContent}>
+              <Icon name="card" size={32} color={colors.white} />
+              <Text style={styles.title}>
+                {title || (paymentType === 'subscription' ? 'Subscription Payment' : 'Project Payment')}
+              </Text>
               <Text style={styles.subtitle}>
-                {Platform.OS === 'web' ? 'Demo payment interface' : 'Secure payment powered by Stripe'}
+                {subtitle || 'Review your payment details before proceeding'}
               </Text>
-            </View>
-
-            {/* Payment Details */}
-            <View style={styles.paymentDetails}>
-              <View style={styles.amountRow}>
-                <Text style={styles.amountLabel}>Amount:</Text>
-                <Text style={styles.amountValue}>
-                  ${(amount / 100).toFixed(2)}
-                </Text>
-              </View>
-              
-              <View style={styles.descriptionRow}>
-                <Text style={styles.descriptionLabel}>For:</Text>
-                <Text style={styles.descriptionValue}>{description}</Text>
-              </View>
-
-              {recipientName && (
-                <View style={styles.recipientRow}>
-                  <Text style={styles.recipientLabel}>Recipient:</Text>
-                  <Text style={styles.recipientValue}>{recipientName}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Revenue Split Info */}
-            <View style={styles.revenueSplitInfo}>
-              <View style={styles.revenueSplitHeader}>
-                <Icon name="pie-chart" size={20} color={colors.primary} />
-                <Text style={styles.revenueSplitTitle}>Automatic Revenue Split</Text>
-              </View>
-              <Text style={styles.revenueSplitText}>
-                Platform fee: 15% • Artist share: 85%
-              </Text>
-              <Text style={styles.revenueSplitSubtext}>
-                Payments are processed securely and split automatically
-              </Text>
-            </View>
-
-            {/* Actions */}
-            <View style={styles.actions}>
               <Button
-                text="Cancel"
+                text="✕"
                 onPress={onClose}
-                variant="outline"
-                size="lg"
-                style={styles.cancelButton}
+                variant="ghost"
+                size="sm"
+                style={styles.closeButton}
               />
-              <Button
-                text={Platform.OS === 'web' ? 'Demo Payment' : 'Pay with Stripe'}
-                onPress={() => setShowStripePayment(true)}
-                variant="gradient"
-                size="lg"
-                style={styles.payButton}
-                icon={<Icon name="card" size={20} color={colors.text} />}
-                iconPosition="left"
-              />
-            </View>
-
-            {/* Security Notice */}
-            <View style={styles.securityNotice}>
-              <Icon name="shield-checkmark" size={16} color={colors.success} />
-              <Text style={styles.securityText}>
-                Your payment information is encrypted and secure
-              </Text>
             </View>
           </LinearGradient>
+
+          <View style={styles.content}>
+            {/* Payment Summary */}
+            <View style={styles.summarySection}>
+              <Text style={styles.sectionTitle}>Payment Summary</Text>
+              
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Description:</Text>
+                  <Text style={styles.summaryValue}>{description}</Text>
+                </View>
+                
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Total Amount:</Text>
+                  <Text style={[styles.summaryValue, styles.amountText]}>
+                    {PaymentService.formatAmount(amount)}
+                  </Text>
+                </View>
+                
+                {validation.valid && (
+                  <>
+                    <View style={styles.divider} />
+                    
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.feeLabel}>Platform Fee (10%):</Text>
+                      <Text style={[styles.feeValue, { color: colors.primary }]}>
+                        {PaymentService.formatAmount(validation.breakdown?.platformFee || 0)}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.feeLabel}>
+                        {paymentType === 'subscription' ? 'Subscription:' : 'Recipient Gets:'}
+                      </Text>
+                      <Text style={[styles.feeValue, { color: colors.success }]}>
+                        {PaymentService.formatAmount(
+                          paymentType === 'subscription' 
+                            ? amount 
+                            : validation.breakdown?.recipientAmount || 0
+                        )}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+
+            {/* Error Display */}
+            {!validation.valid && (
+              <View style={styles.errorSection}>
+                <View style={styles.errorCard}>
+                  <Icon name="warning" size={24} color={colors.error} />
+                  <Text style={styles.errorText}>{validation.error}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Payment Features */}
+            <View style={styles.featuresSection}>
+              <Text style={styles.sectionTitle}>Secure Payment Features</Text>
+              
+              <View style={styles.featuresList}>
+                <View style={styles.featureItem}>
+                  <Icon name="shield-checkmark" size={20} color={colors.success} />
+                  <Text style={styles.featureText}>256-bit SSL encryption</Text>
+                </View>
+                
+                <View style={styles.featureItem}>
+                  <Icon name="lock-closed" size={20} color={colors.success} />
+                  <Text style={styles.featureText}>PCI DSS compliant</Text>
+                </View>
+                
+                <View style={styles.featureItem}>
+                  <Icon name="checkmark-circle" size={20} color={colors.success} />
+                  <Text style={styles.featureText}>Automatic revenue splitting</Text>
+                </View>
+                
+                <View style={styles.featureItem}>
+                  <Icon name="refresh" size={20} color={colors.success} />
+                  <Text style={styles.featureText}>Instant processing</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Payment Type Info */}
+            {paymentType === 'subscription' && (
+              <View style={styles.infoSection}>
+                <View style={styles.infoCard}>
+                  <Icon name="information-circle" size={24} color={colors.primary} />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoTitle}>Monthly Subscription</Text>
+                    <Text style={styles.infoDescription}>
+                      This is a recurring monthly subscription. You can cancel anytime from your profile settings.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={[styles.actions, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <Button
+              text="Cancel"
+              onPress={onClose}
+              variant="outline"
+              size="lg"
+              style={styles.cancelButton}
+            />
+            <Button
+              text={validation.valid ? "Proceed to Payment" : "Invalid Amount"}
+              onPress={handleProceedToPayment}
+              variant="gradient"
+              size="lg"
+              disabled={!validation.valid || loading}
+              loading={loading}
+              style={styles.proceedButton}
+            />
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -192,163 +302,180 @@ export default function PaymentModal({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modal: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: borderRadius.xl,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '85%',
     overflow: 'hidden',
-    ...shadows.lg,
-  },
-  modalContent: {
-    padding: spacing.xl,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
   },
-  headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.backgroundCard,
+  headerContent: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 2,
-    borderColor: colors.primary,
   },
   title: {
     fontSize: 24,
     fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
+    color: colors.white,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   subtitle: {
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
+    lineHeight: 24,
   },
-  paymentDetails: {
+  closeButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
+  summarySection: {
+    marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  summaryCard: {
     backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
     borderWidth: 1,
     borderColor: colors.borderLight,
+    ...shadows.sm,
   },
-  amountRow: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  amountLabel: {
-    fontSize: 16,
-    fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
-  },
-  amountValue: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.primary,
-  },
-  descriptionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: spacing.sm,
   },
-  descriptionLabel: {
-    fontSize: 14,
+  summaryLabel: {
+    fontSize: 16,
     fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
-    marginRight: spacing.md,
+    color: colors.text,
   },
-  descriptionValue: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+  summaryValue: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
     color: colors.text,
     flex: 1,
     textAlign: 'right',
   },
-  recipientRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  amountText: {
+    fontSize: 20,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.primary,
   },
-  recipientLabel: {
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: spacing.md,
+  },
+  feeLabel: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
-  recipientValue: {
+  feeValue: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
+  },
+  errorSection: {
+    marginBottom: spacing.lg,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.errorBackground,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.error,
+    gap: spacing.md,
+  },
+  errorText: {
+    fontSize: 16,
+    fontFamily: 'Inter_500Medium',
+    color: colors.error,
+    flex: 1,
+  },
+  featuresSection: {
+    marginBottom: spacing.xl,
+  },
+  featuresList: {
+    gap: spacing.md,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  featureText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
     color: colors.text,
   },
-  revenueSplitInfo: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.xl,
+  infoSection: {
+    marginBottom: spacing.lg,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.borderLight,
+    gap: spacing.md,
   },
-  revenueSplitHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+  infoContent: {
+    flex: 1,
   },
-  revenueSplitTitle: {
-    fontSize: 14,
+  infoTitle: {
+    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginLeft: spacing.xs,
-  },
-  revenueSplitText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-    color: colors.primary,
     marginBottom: spacing.xs,
   },
-  revenueSplitSubtext: {
-    fontSize: 12,
+  infoDescription: {
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
+    lineHeight: 20,
   },
   actions: {
     flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
     gap: spacing.md,
-    marginBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
   },
   cancelButton: {
     flex: 1,
   },
-  payButton: {
+  proceedButton: {
     flex: 2,
-  },
-  securityNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  securityText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    marginLeft: spacing.xs,
   },
 });

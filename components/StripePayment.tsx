@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Alert, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
+import { PaymentService } from '../utils/paymentService';
+import { getStripePublishableKey, isStripeConfigured } from '../utils/config';
 import Button from './Button';
 import Icon from './Icon';
 
@@ -28,7 +30,10 @@ if (Platform.OS !== 'web') {
 interface StripePaymentProps {
   amount: number;
   description: string;
-  onSuccess: (paymentIntent: any) => void;
+  recipientId?: string;
+  projectId?: string;
+  paymentType?: 'project' | 'subscription';
+  onSuccess: (paymentResult: any) => void;
   onError: (error: string) => void;
   onCancel: () => void;
 }
@@ -40,20 +45,6 @@ interface PaymentMethodProps {
   onPress: () => void;
   gradient: string[];
 }
-
-// Get Stripe publishable key from environment variables
-const getStripePublishableKey = () => {
-  const key = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-  
-  if (!key || key.includes('YOUR_ACTUAL')) {
-    console.warn('⚠️ Stripe publishable key not configured. Using demo mode.');
-    return 'pk_test_demo_key_not_configured';
-  }
-  
-  return key;
-};
-
-const STRIPE_PUBLISHABLE_KEY = getStripePublishableKey();
 
 function PaymentMethodCard({ title, subtitle, icon, onPress, gradient }: PaymentMethodProps) {
   return (
@@ -80,9 +71,19 @@ function PaymentMethodCard({ title, subtitle, icon, onPress, gradient }: Payment
 }
 
 // Mobile-specific component that uses Stripe hooks
-function MobileStripePayment({ amount, description, onSuccess, onError, onCancel }: StripePaymentProps) {
+function MobileStripePayment({ 
+  amount, 
+  description, 
+  recipientId, 
+  projectId, 
+  paymentType = 'project',
+  onSuccess, 
+  onError, 
+  onCancel 
+}: StripePaymentProps) {
   const [loading, setLoading] = useState(false);
   const [paymentSheetEnabled, setPaymentSheetEnabled] = useState(false);
+  const [paymentIntent, setPaymentIntent] = useState<any>(null);
   
   // Only call useStripe if it exists - this component should only render when it's available
   const stripe = useStripe();
@@ -95,9 +96,9 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
     try {
       setLoading(true);
       
-      const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+      const isConfigured = isStripeConfigured();
       
-      if (isDemo) {
+      if (!isConfigured) {
         Alert.alert(
           'Stripe Integration Setup Required 🔧',
           'To process real payments, you need to:\n\n1. Set up a Stripe account\n2. Configure Stripe Connect for revenue splitting\n3. Add your publishable key to environment variables\n\nFor now, this demonstrates the payment UI.',
@@ -106,65 +107,134 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
             { text: 'Learn More', onPress: () => console.log('Open Stripe setup guide') }
           ]
         );
+        setPaymentSheetEnabled(true);
+        return;
+      }
+
+      // Validate payment amount
+      const validation = PaymentService.validatePaymentAmount(amount);
+      if (!validation.valid) {
+        onError(validation.error || 'Invalid payment amount');
+        return;
+      }
+
+      // Create payment intent using our service
+      let paymentResult;
+      if (paymentType === 'subscription') {
+        paymentResult = await PaymentService.processSubscriptionPayment(recipientId || '');
       } else {
-        Alert.alert(
-          'Production Payment Ready! 💳',
-          'Your Stripe integration is configured and ready for production payments with automatic revenue splitting.',
-          [
-            { text: 'Continue', style: 'default' }
-          ]
+        paymentResult = await PaymentService.createProjectPayment(
+          projectId || '',
+          '', // Will be filled by the service
+          recipientId || '',
+          amount,
+          description
         );
       }
+
+      if (!paymentResult.success) {
+        onError(paymentResult.error || 'Failed to create payment');
+        return;
+      }
+
+      setPaymentIntent(paymentResult.paymentIntent);
+
+      // Initialize Stripe payment sheet
+      if (initPaymentSheet && paymentResult.paymentIntent?.client_secret) {
+        const { error } = await initPaymentSheet({
+          merchantDisplayName: 'MusicLinked',
+          paymentIntentClientSecret: paymentResult.paymentIntent.client_secret,
+          defaultBillingDetails: {
+            name: 'User',
+          },
+        });
+
+        if (error) {
+          console.error('Payment sheet initialization error:', error);
+          onError('Failed to initialize payment');
+        } else {
+          setPaymentSheetEnabled(true);
+          Alert.alert(
+            'Payment Ready! 💳',
+            `Your payment of ${PaymentService.formatAmount(amount)} is ready to process.\n\n💰 Platform Fee (10%): ${PaymentService.formatAmount(validation.breakdown?.platformFee || 0)}\n💵 Recipient Gets: ${PaymentService.formatAmount(validation.breakdown?.recipientAmount || 0)}`,
+            [{ text: 'Continue', style: 'default' }]
+          );
+        }
+      } else {
+        setPaymentSheetEnabled(true);
+      }
       
-      setPaymentSheetEnabled(true);
     } catch (error) {
       console.error('Payment sheet initialization failed:', error);
       onError('Failed to initialize payment');
     } finally {
       setLoading(false);
     }
-  }, [onError]);
+  }, [amount, description, recipientId, projectId, paymentType, onError, initPaymentSheet]);
 
   const handlePayment = async () => {
     try {
       setLoading(true);
       
-      const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
-      const platformMessage = isDemo 
-        ? 'Demo Payment Flow 🎭' 
-        : 'Processing Payment 💳';
+      const isConfigured = isStripeConfigured();
       
-      const platformDetails = isDemo
-        ? 'This is a demo. Configure your Stripe keys for real payments.'
-        : 'Processing through Stripe Connect with automatic revenue splitting.';
-      
-      // Demo payment flow
-      Alert.alert(
-        platformMessage,
-        `Amount: $${(amount / 100).toFixed(2)}\nDescription: ${description}\n\n${platformDetails}\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
-        [
-          { 
-            text: 'Cancel', 
-            style: 'cancel',
-            onPress: onCancel
-          },
-          { 
-            text: isDemo ? 'Simulate Success' : 'Process Payment', 
-            onPress: () => {
-              onSuccess({ 
-                id: isDemo ? 'demo_payment_' + Date.now() : 'pi_' + Date.now(),
-                amount,
-                description,
-                status: 'succeeded',
-                platform: Platform.OS,
-                platformFee: Math.round(amount * 0.10),
-                recipientAmount: Math.round(amount * 0.90),
-                isDemo
-              });
+      if (!isConfigured) {
+        // Demo payment flow
+        const validation = PaymentService.validatePaymentAmount(amount);
+        Alert.alert(
+          'Demo Payment Flow 🎭',
+          `Amount: ${PaymentService.formatAmount(amount)}\nDescription: ${description}\n\nThis is a demo. Configure your Stripe keys for real payments.\n\n💰 Platform Fee (10%): ${PaymentService.formatAmount(validation.breakdown?.platformFee || 0)}\n💵 Recipient Gets: ${PaymentService.formatAmount(validation.breakdown?.recipientAmount || 0)}`,
+          [
+            { 
+              text: 'Cancel', 
+              style: 'cancel',
+              onPress: onCancel
+            },
+            { 
+              text: 'Simulate Success', 
+              onPress: () => {
+                onSuccess({ 
+                  id: 'demo_payment_' + Date.now(),
+                  amount,
+                  description,
+                  status: 'succeeded',
+                  platform: Platform.OS,
+                  platformFee: validation.breakdown?.platformFee || 0,
+                  recipientAmount: validation.breakdown?.recipientAmount || 0,
+                  isDemo: true
+                });
+              }
             }
+          ]
+        );
+        return;
+      }
+
+      // Real Stripe payment
+      if (presentPaymentSheet && paymentIntent) {
+        const { error } = await presentPaymentSheet();
+
+        if (error) {
+          if (error.code === 'Canceled') {
+            onCancel();
+          } else {
+            console.error('Payment error:', error);
+            onError(error.message || 'Payment failed');
           }
-        ]
-      );
+        } else {
+          // Payment succeeded
+          onSuccess({
+            id: paymentIntent.id,
+            amount: paymentIntent.amount,
+            description,
+            status: 'succeeded',
+            platform: Platform.OS,
+            isDemo: false
+          });
+        }
+      } else {
+        onError('Payment system not ready');
+      }
       
     } catch (error) {
       console.error('Payment failed:', error);
@@ -178,7 +248,8 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
     initializePaymentSheet();
   }, [initializePaymentSheet]);
 
-  const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+  const isConfigured = isStripeConfigured();
+  const validation = PaymentService.validatePaymentAmount(amount);
 
   return (
     <View style={styles.container}>
@@ -189,12 +260,12 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
         <Icon name="card" size={48} color={colors.text} />
         <Text style={styles.headerTitle}>Secure Payment</Text>
         <Text style={styles.headerSubtitle}>
-          {isDemo ? 'Demo Mode - Setup Required' : 'Powered by Stripe Connect'}
+          {isConfigured ? 'Powered by Stripe Connect' : 'Demo Mode - Setup Required'}
         </Text>
       </LinearGradient>
 
       <View style={styles.content}>
-        {isDemo && (
+        {!isConfigured && (
           <View style={styles.demoNotice}>
             <Icon name="information-circle" size={24} color={colors.warning} />
             <Text style={styles.demoNoticeText}>
@@ -203,28 +274,45 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
           </View>
         )}
 
+        {!validation.valid && (
+          <View style={styles.errorNotice}>
+            <Icon name="warning" size={24} color={colors.error} />
+            <Text style={styles.errorNoticeText}>
+              {validation.error}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Total Amount</Text>
           <Text style={styles.amountValue}>
-            ${(amount / 100).toFixed(2)}
+            {PaymentService.formatAmount(amount)}
           </Text>
           <Text style={styles.amountDescription}>{description}</Text>
           
           {/* Revenue Split Display */}
-          <View style={styles.revenueSplit}>
-            <View style={styles.splitItem}>
-              <Text style={styles.splitLabel}>Platform Fee (10%):</Text>
-              <Text style={[styles.splitValue, { color: colors.primary }]}>
-                ${((amount * 0.10) / 100).toFixed(2)}
-              </Text>
+          {validation.valid && (
+            <View style={styles.revenueSplit}>
+              <View style={styles.splitItem}>
+                <Text style={styles.splitLabel}>Platform Fee (10%):</Text>
+                <Text style={[styles.splitValue, { color: colors.primary }]}>
+                  {PaymentService.formatAmount(validation.breakdown?.platformFee || 0)}
+                </Text>
+              </View>
+              <View style={styles.splitItem}>
+                <Text style={styles.splitLabel}>
+                  {paymentType === 'subscription' ? 'Subscription:' : 'Recipient Gets:'}
+                </Text>
+                <Text style={[styles.splitValue, { color: colors.success }]}>
+                  {PaymentService.formatAmount(
+                    paymentType === 'subscription' 
+                      ? amount 
+                      : validation.breakdown?.recipientAmount || 0
+                  )}
+                </Text>
+              </View>
             </View>
-            <View style={styles.splitItem}>
-              <Text style={styles.splitLabel}>Recipient Gets:</Text>
-              <Text style={[styles.splitValue, { color: colors.success }]}>
-                ${((amount * 0.90) / 100).toFixed(2)}
-              </Text>
-            </View>
-          </View>
+          )}
         </View>
 
         <View style={styles.paymentMethodsSection}>
@@ -279,12 +367,12 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
             style={styles.cancelButton}
           />
           <Button
-            text={loading ? "Processing..." : isDemo ? "Demo Payment" : "Pay Now"}
+            text={loading ? "Processing..." : isConfigured ? "Pay Now" : "Demo Payment"}
             onPress={handlePayment}
             variant="gradient"
             size="lg"
             loading={loading}
-            disabled={loading}
+            disabled={loading || !validation.valid}
             style={styles.payButton}
           />
         </View>
@@ -294,19 +382,34 @@ function MobileStripePayment({ amount, description, onSuccess, onError, onCancel
 }
 
 // Web-specific component that doesn't use Stripe hooks
-function WebStripePayment({ amount, description, onSuccess, onError, onCancel }: StripePaymentProps) {
+function WebStripePayment({ 
+  amount, 
+  description, 
+  recipientId, 
+  projectId, 
+  paymentType = 'project',
+  onSuccess, 
+  onError, 
+  onCancel 
+}: StripePaymentProps) {
   const [loading, setLoading] = useState(false);
 
   const handlePayment = async () => {
     try {
       setLoading(true);
       
-      const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+      const isConfigured = isStripeConfigured();
+      const validation = PaymentService.validatePaymentAmount(amount);
+      
+      if (!validation.valid) {
+        onError(validation.error || 'Invalid payment amount');
+        return;
+      }
       
       // Demo payment flow for web
       Alert.alert(
-        isDemo ? 'Web Demo Payment 🌐' : 'Web Payment Processing 🌐',
-        `Amount: $${(amount / 100).toFixed(2)}\nDescription: ${description}\n\n${isDemo ? 'Demo mode - configure Stripe keys for production.' : 'Processing through Stripe Connect.'}\n\n💰 Platform Fee (10%): $${((amount * 0.10) / 100).toFixed(2)}\n💵 Recipient Gets: $${((amount * 0.90) / 100).toFixed(2)}`,
+        isConfigured ? 'Web Payment Processing 🌐' : 'Web Demo Payment 🌐',
+        `Amount: ${PaymentService.formatAmount(amount)}\nDescription: ${description}\n\n${isConfigured ? 'Processing through Stripe Connect.' : 'Demo mode - configure Stripe keys for production.'}\n\n💰 Platform Fee (10%): ${PaymentService.formatAmount(validation.breakdown?.platformFee || 0)}\n💵 Recipient Gets: ${PaymentService.formatAmount(validation.breakdown?.recipientAmount || 0)}`,
         [
           { 
             text: 'Cancel', 
@@ -314,17 +417,17 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
             onPress: onCancel
           },
           { 
-            text: isDemo ? 'Simulate Success' : 'Process Payment', 
+            text: isConfigured ? 'Process Payment' : 'Simulate Success', 
             onPress: () => {
               onSuccess({ 
-                id: isDemo ? 'demo_payment_' + Date.now() : 'pi_' + Date.now(),
+                id: isConfigured ? 'pi_' + Date.now() : 'demo_payment_' + Date.now(),
                 amount,
                 description,
                 status: 'succeeded',
                 platform: 'web',
-                platformFee: Math.round(amount * 0.10),
-                recipientAmount: Math.round(amount * 0.90),
-                isDemo
+                platformFee: validation.breakdown?.platformFee || 0,
+                recipientAmount: validation.breakdown?.recipientAmount || 0,
+                isDemo: !isConfigured
               });
             }
           }
@@ -339,7 +442,8 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
     }
   };
 
-  const isDemo = STRIPE_PUBLISHABLE_KEY.includes('demo_key_not_configured');
+  const isConfigured = isStripeConfigured();
+  const validation = PaymentService.validatePaymentAmount(amount);
 
   return (
     <View style={styles.container}>
@@ -350,12 +454,12 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
         <Icon name="card" size={48} color={colors.text} />
         <Text style={styles.headerTitle}>Secure Payment</Text>
         <Text style={styles.headerSubtitle}>
-          {isDemo ? 'Demo Interface' : 'Web Payment Processing'}
+          {isConfigured ? 'Web Payment Processing' : 'Demo Interface'}
         </Text>
       </LinearGradient>
 
       <View style={styles.content}>
-        {isDemo && (
+        {!isConfigured && (
           <View style={styles.demoNotice}>
             <Icon name="information-circle" size={24} color={colors.warning} />
             <Text style={styles.demoNoticeText}>
@@ -364,28 +468,45 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
           </View>
         )}
 
+        {!validation.valid && (
+          <View style={styles.errorNotice}>
+            <Icon name="warning" size={24} color={colors.error} />
+            <Text style={styles.errorNoticeText}>
+              {validation.error}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Total Amount</Text>
           <Text style={styles.amountValue}>
-            ${(amount / 100).toFixed(2)}
+            {PaymentService.formatAmount(amount)}
           </Text>
           <Text style={styles.amountDescription}>{description}</Text>
           
           {/* Revenue Split Display */}
-          <View style={styles.revenueSplit}>
-            <View style={styles.splitItem}>
-              <Text style={styles.splitLabel}>Platform Fee (10%):</Text>
-              <Text style={[styles.splitValue, { color: colors.primary }]}>
-                ${((amount * 0.10) / 100).toFixed(2)}
-              </Text>
+          {validation.valid && (
+            <View style={styles.revenueSplit}>
+              <View style={styles.splitItem}>
+                <Text style={styles.splitLabel}>Platform Fee (10%):</Text>
+                <Text style={[styles.splitValue, { color: colors.primary }]}>
+                  {PaymentService.formatAmount(validation.breakdown?.platformFee || 0)}
+                </Text>
+              </View>
+              <View style={styles.splitItem}>
+                <Text style={styles.splitLabel}>
+                  {paymentType === 'subscription' ? 'Subscription:' : 'Recipient Gets:'}
+                </Text>
+                <Text style={[styles.splitValue, { color: colors.success }]}>
+                  {PaymentService.formatAmount(
+                    paymentType === 'subscription' 
+                      ? amount 
+                      : validation.breakdown?.recipientAmount || 0
+                  )}
+                </Text>
+              </View>
             </View>
-            <View style={styles.splitItem}>
-              <Text style={styles.splitLabel}>Recipient Gets:</Text>
-              <Text style={[styles.splitValue, { color: colors.success }]}>
-                ${((amount * 0.90) / 100).toFixed(2)}
-              </Text>
-            </View>
-          </View>
+          )}
         </View>
 
         <View style={styles.paymentMethodsSection}>
@@ -418,16 +539,16 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
 
         <View style={styles.securitySection}>
           <View style={styles.securityItem}>
-            <Icon name={isDemo ? "information-circle" : "shield-checkmark"} size={20} color={isDemo ? colors.primary : colors.success} />
-            <Text style={styles.securityText}>{isDemo ? 'Web demo interface' : '256-bit SSL encryption'}</Text>
+            <Icon name={isConfigured ? "shield-checkmark" : "information-circle"} size={20} color={isConfigured ? colors.success : colors.primary} />
+            <Text style={styles.securityText}>{isConfigured ? '256-bit SSL encryption' : 'Web demo interface'}</Text>
           </View>
           <View style={styles.securityItem}>
-            <Icon name={isDemo ? "phone-portrait" : "lock-closed"} size={20} color={isDemo ? colors.primary : colors.success} />
-            <Text style={styles.securityText}>{isDemo ? 'Real payments on mobile app' : 'PCI DSS compliant'}</Text>
+            <Icon name={isConfigured ? "lock-closed" : "phone-portrait"} size={20} color={isConfigured ? colors.success : colors.primary} />
+            <Text style={styles.securityText}>{isConfigured ? 'PCI DSS compliant' : 'Real payments on mobile app'}</Text>
           </View>
           <View style={styles.securityItem}>
-            <Icon name={isDemo ? "card" : "checkmark-circle"} size={20} color={isDemo ? colors.primary : colors.success} />
-            <Text style={styles.securityText}>{isDemo ? 'Stripe Connect ready' : 'Automatic revenue splitting'}</Text>
+            <Icon name={isConfigured ? "checkmark-circle" : "card"} size={20} color={isConfigured ? colors.success : colors.primary} />
+            <Text style={styles.securityText}>{isConfigured ? 'Automatic revenue splitting' : 'Stripe Connect ready'}</Text>
           </View>
         </View>
 
@@ -440,12 +561,12 @@ function WebStripePayment({ amount, description, onSuccess, onError, onCancel }:
             style={styles.cancelButton}
           />
           <Button
-            text={loading ? "Processing..." : isDemo ? "Demo Payment" : "Pay Now"}
+            text={loading ? "Processing..." : isConfigured ? "Pay Now" : "Demo Payment"}
             onPress={handlePayment}
             variant="gradient"
             size="lg"
             loading={loading}
-            disabled={loading}
+            disabled={loading || !validation.valid}
             style={styles.payButton}
           />
         </View>
@@ -461,7 +582,7 @@ function StripePaymentWrapper(props: StripePaymentProps) {
   
   if (shouldUseMobileStripe) {
     return (
-      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+      <StripeProvider publishableKey={getStripePublishableKey()}>
         <MobileStripePayment {...props} />
       </StripeProvider>
     );
@@ -515,6 +636,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
     color: colors.warning,
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
+  errorNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.errorBackground,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  errorNoticeText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: colors.error,
     marginLeft: spacing.sm,
     flex: 1,
   },

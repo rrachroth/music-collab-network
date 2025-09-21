@@ -1,3 +1,4 @@
+
 import { supabase } from '../app/integrations/supabase/client';
 import { SubscriptionService } from './subscriptionService';
 
@@ -8,6 +9,20 @@ export interface PaymentIntent {
   recipientAmount: number;
   description: string;
   recipientId: string;
+  clientSecret?: string;
+}
+
+export interface PaymentResult {
+  success: boolean;
+  paymentIntent?: any;
+  payment?: any;
+  breakdown?: {
+    total: number;
+    platformFee: number;
+    recipientAmount: number;
+    platformFeePercentage: number;
+  };
+  error?: string;
 }
 
 export class PaymentService {
@@ -27,70 +42,127 @@ export class PaymentService {
     };
   }
 
-  // Create a payment intent for a project
+  // Create a payment intent for a project using Stripe
   static async createProjectPayment(
     projectId: string,
     payerId: string,
     recipientId: string,
     amount: number,
     description: string
-  ): Promise<PaymentIntent> {
+  ): Promise<PaymentResult> {
     try {
-      const { platformFee, recipientAmount } = this.calculatePaymentSplit(amount);
+      console.log('Creating project payment:', {
+        projectId,
+        payerId,
+        recipientId,
+        amount,
+        description,
+      });
 
-      // Create payment record in database
-      const { data: payment, error } = await supabase
-        .from('payments')
-        .insert({
-          project_id: projectId,
-          payer_id: payerId,
-          recipient_id: recipientId,
-          total_amount: amount,
-          platform_fee: platformFee,
-          recipient_amount: recipientAmount,
-          status: 'pending',
-        })
-        .select()
-        .single();
+      // Get current user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('Authentication required');
+      }
 
-      if (error) throw error;
+      // Call the Edge Function to create payment intent
+      const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+        body: {
+          amount,
+          description,
+          recipientId,
+          projectId,
+          metadata: {
+            payment_type: 'project',
+            payer_id: payerId,
+          },
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to create payment intent');
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Payment creation failed');
+      }
+
+      console.log('Payment intent created successfully:', data);
 
       return {
-        id: payment.id,
-        amount,
-        platformFee,
-        recipientAmount,
-        description,
-        recipientId,
+        success: true,
+        paymentIntent: data.paymentIntent,
+        payment: data.payment,
+        breakdown: data.breakdown,
       };
     } catch (error) {
       console.error('Error creating project payment:', error);
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 
-  // Process subscription payment
-  static async processSubscriptionPayment(userId: string): Promise<PaymentIntent> {
+  // Process subscription payment using Stripe
+  static async processSubscriptionPayment(userId: string): Promise<PaymentResult> {
     try {
-      const subscriptionAmount = 1200; // $12.00 in cents
-      const { platformFee, recipientAmount } = this.calculatePaymentSplit(subscriptionAmount);
+      console.log('Processing subscription payment for user:', userId);
 
-      // For subscription, the platform keeps 100% (no recipient)
+      // Get current user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('Authentication required');
+      }
+
+      // Call the Edge Function to create subscription payment
+      const { data, error } = await supabase.functions.invoke('create-subscription', {
+        body: {
+          planType: 'premium',
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Subscription edge function error:', error);
+        throw new Error(error.message || 'Failed to create subscription');
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Subscription creation failed');
+      }
+
+      console.log('Subscription payment created successfully:', data);
+
       return {
-        id: `subscription_${Date.now()}`,
-        amount: subscriptionAmount,
-        platformFee: subscriptionAmount, // Platform keeps all subscription revenue
-        recipientAmount: 0,
-        description: 'Muse Premium Subscription - Monthly',
-        recipientId: '', // No recipient for subscriptions
+        success: true,
+        paymentIntent: data.paymentIntent,
+        payment: data.subscription,
+        breakdown: {
+          total: data.subscription.amount,
+          platformFee: data.subscription.amount, // Platform keeps all subscription revenue
+          recipientAmount: 0,
+          platformFeePercentage: 100,
+        },
       };
     } catch (error) {
       console.error('Error processing subscription payment:', error);
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 
-  // Complete payment after successful Stripe transaction
+  // Complete payment after successful Stripe transaction (called by webhook)
   static async completePayment(
     paymentId: string,
     stripePaymentIntentId: string,
@@ -101,7 +173,6 @@ export class PaymentService {
         .from('payments')
         .update({
           status: 'completed',
-          stripe_payment_intent_id: stripePaymentIntentId,
           stripe_transfer_id: stripeTransferId,
           updated_at: new Date().toISOString(),
         })
@@ -180,6 +251,139 @@ export class PaymentService {
         projectRevenue: 0,
         monthlyRevenue: 0,
       };
+    }
+  }
+
+  // Test Stripe connection and configuration
+  static async testStripeConnection(): Promise<{
+    success: boolean;
+    message: string;
+    details?: any;
+  }> {
+    try {
+      // Get current user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        return {
+          success: false,
+          message: 'Authentication required to test Stripe connection',
+        };
+      }
+
+      // Test creating a small payment intent
+      const testResult = await this.createProjectPayment(
+        'test-project-id',
+        session.user.id,
+        'test-recipient-id',
+        100, // $1.00
+        'Test payment intent - Stripe connection test'
+      );
+
+      if (testResult.success) {
+        return {
+          success: true,
+          message: 'Stripe connection successful! Payment processing is ready.',
+          details: {
+            paymentIntentId: testResult.paymentIntent?.id,
+            amount: testResult.breakdown?.total,
+            platformFee: testResult.breakdown?.platformFee,
+          },
+        };
+      } else {
+        return {
+          success: false,
+          message: testResult.error || 'Stripe connection test failed',
+        };
+      }
+    } catch (error) {
+      console.error('Stripe connection test error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error during Stripe test',
+      };
+    }
+  }
+
+  // Validate payment amount and calculate fees
+  static validatePaymentAmount(amount: number): {
+    valid: boolean;
+    error?: string;
+    breakdown?: {
+      total: number;
+      platformFee: number;
+      recipientAmount: number;
+      platformFeePercentage: number;
+    };
+  } {
+    if (!amount || amount <= 0) {
+      return {
+        valid: false,
+        error: 'Amount must be greater than 0',
+      };
+    }
+
+    if (amount < 50) { // Minimum $0.50
+      return {
+        valid: false,
+        error: 'Minimum payment amount is $0.50',
+      };
+    }
+
+    if (amount > 100000) { // Maximum $1,000.00
+      return {
+        valid: false,
+        error: 'Maximum payment amount is $1,000.00',
+      };
+    }
+
+    const { platformFee, recipientAmount } = this.calculatePaymentSplit(amount);
+
+    return {
+      valid: true,
+      breakdown: {
+        total: amount,
+        platformFee,
+        recipientAmount,
+        platformFeePercentage: this.PLATFORM_FEE_PERCENTAGE,
+      },
+    };
+  }
+
+  // Format amount for display
+  static formatAmount(amountInCents: number): string {
+    return `$${(amountInCents / 100).toFixed(2)}`;
+  }
+
+  // Get payment status display text
+  static getPaymentStatusText(status: string): string {
+    switch (status) {
+      case 'pending':
+        return 'Processing...';
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      case 'refunded':
+        return 'Refunded';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  // Get payment status color
+  static getPaymentStatusColor(status: string): string {
+    switch (status) {
+      case 'pending':
+        return '#F59E0B'; // Warning yellow
+      case 'completed':
+        return '#10B981'; // Success green
+      case 'failed':
+        return '#EF4444'; // Error red
+      case 'refunded':
+        return '#6B7280'; // Gray
+      default:
+        return '#6B7280'; // Gray
     }
   }
 }

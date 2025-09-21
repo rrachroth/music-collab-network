@@ -114,7 +114,31 @@ export const logConfiguration = () => {
     PLATFORM: Platform.OS,
     STRIPE_CONFIGURED: isStripeConfigured(),
     FEATURES: ENV.FEATURES,
+    PLATFORM_FEE: `${ENV.PLATFORM_FEE_PERCENTAGE}%`,
+    SUBSCRIPTION_PRICE: `$${(ENV.SUBSCRIPTION_PRICE / 100).toFixed(2)}`,
   });
+};
+
+// Stripe configuration helpers
+export const getStripeConfig = () => {
+  return {
+    publishableKey: getStripePublishableKey(),
+    isConfigured: isStripeConfigured(),
+    testMode: !isProduction(),
+    platformFeePercentage: ENV.PLATFORM_FEE_PERCENTAGE,
+    subscriptionPrice: ENV.SUBSCRIPTION_PRICE,
+  };
+};
+
+// Payment configuration
+export const getPaymentConfig = () => {
+  return {
+    platformFeePercentage: ENV.PLATFORM_FEE_PERCENTAGE,
+    subscriptionPrice: ENV.SUBSCRIPTION_PRICE,
+    currency: 'usd',
+    minimumAmount: 50, // $0.50
+    maximumAmount: 100000, // $1,000.00
+  };
 };
 
 // Export default configuration

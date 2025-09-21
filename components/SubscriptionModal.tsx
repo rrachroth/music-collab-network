@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, StyleSheet, Alert, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -8,12 +10,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PaymentService } from '../utils/paymentService';
+import { SubscriptionService, SUBSCRIPTION_PLANS } from '../utils/subscriptionService';
+import StripePayment from './StripePayment';
 import Button from './Button';
 import Icon from './Icon';
-import StripePayment from './StripePayment';
-import { SubscriptionService, SUBSCRIPTION_PLANS } from '../utils/subscriptionService';
-import { PaymentService } from '../utils/paymentService';
 
 interface SubscriptionModalProps {
   visible: boolean;
@@ -48,15 +49,16 @@ function FeatureComparison({ feature, free, premium, icon }: FeatureComparisonPr
 }
 
 export default function SubscriptionModal({ visible, onClose, onSuccess }: SubscriptionModalProps) {
+  const insets = useSafeAreaInsets();
   const [showPayment, setShowPayment] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
-  
+
+  // Animation values
   const modalOpacity = useSharedValue(0);
   const modalScale = useSharedValue(0.8);
-  const insets = useSafeAreaInsets();
 
-  const modalStyle = useAnimatedStyle(() => ({
+  const animatedStyle = useAnimatedStyle(() => ({
     opacity: modalOpacity.value,
     transform: [{ scale: modalScale.value }],
   }));
@@ -64,13 +66,14 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
   useEffect(() => {
     if (visible) {
       modalOpacity.value = withTiming(1, { duration: 300 });
-      modalScale.value = withSpring(1, { damping: 20, stiffness: 300 });
+      modalScale.value = withSpring(1, { damping: 20, stiffness: 100 });
       loadSubscriptionStatus();
     } else {
       modalOpacity.value = withTiming(0, { duration: 200 });
       modalScale.value = withTiming(0.8, { duration: 200 });
+      setShowPayment(false);
     }
-  }, [visible, modalOpacity, modalScale]); // Added missing dependencies
+  }, [visible, modalOpacity, modalScale]);
 
   const loadSubscriptionStatus = async () => {
     try {
@@ -84,12 +87,13 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
   const handleUpgrade = () => {
     if (subscriptionStatus?.isPremium) {
       Alert.alert(
-        'Already Premium! 🎉',
-        'You already have an active Premium subscription with unlimited features.',
-        [{ text: 'Got It', style: 'default' }]
+        'Already Premium! 🌟',
+        'You already have a premium subscription. Enjoy unlimited access to all features!',
+        [{ text: 'Got it!' }]
       );
       return;
     }
+
     setShowPayment(true);
   };
 
@@ -97,48 +101,64 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
     try {
       setLoading(true);
       
-      // In a real implementation, you would:
-      // 1. Verify the payment with your backend
-      // 2. Update the user's subscription status
-      // 3. Handle Stripe Connect setup for revenue splitting
+      console.log('Subscription payment successful:', paymentResult);
       
-      // For demo purposes, we'll simulate the upgrade
-      await SubscriptionService.upgradeToPremium('demo_user_id', 'demo_stripe_customer_id');
-      
+      // The webhook will handle updating the subscription status
+      // For now, we'll show a success message
       Alert.alert(
-        'Upgrade Successful! 🎉',
-        'Welcome to NextDrop Premium! You now have unlimited project postings, likes, and applications. Your subscription will be processed through Stripe Connect.',
+        'Welcome to Premium! 🎉',
+        'Your subscription has been activated successfully. You now have unlimited access to all features!\n\n• Unlimited projects\n• Unlimited likes\n• Unlimited applications\n• Priority support',
         [
           {
-            text: 'Awesome!',
+            text: 'Start Using Premium',
             onPress: () => {
               setShowPayment(false);
-              onSuccess?.();
               onClose();
+              onSuccess?.();
             }
           }
         ]
       );
+
+      // Refresh subscription status
+      await loadSubscriptionStatus();
       
     } catch (error) {
-      console.error('Error processing upgrade:', error);
-      Alert.alert('Error', 'Failed to process upgrade. Please try again.');
+      console.error('Error handling payment success:', error);
+      Alert.alert(
+        'Payment Processed',
+        'Your payment was successful! Your premium features will be activated shortly.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handlePaymentError = (error: string) => {
-    Alert.alert('Payment Error', error);
-    setShowPayment(false);
+    console.error('Subscription payment error:', error);
+    Alert.alert(
+      'Payment Failed',
+      `We couldn't process your payment: ${error}\n\nPlease try again or contact support if the issue persists.`,
+      [
+        { text: 'Try Again', onPress: () => setShowPayment(false) },
+        { text: 'Cancel', style: 'cancel', onPress: onClose }
+      ]
+    );
   };
 
   if (showPayment) {
     return (
-      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPayment(false)}
+      >
         <StripePayment
           amount={SUBSCRIPTION_PLANS.PREMIUM.price}
-          description="NextDrop Premium Subscription - Monthly"
+          description="MusicLinked Premium Subscription - Monthly"
+          paymentType="subscription"
           onSuccess={handlePaymentSuccess}
           onError={handlePaymentError}
           onCancel={() => setShowPayment(false)}
@@ -155,66 +175,46 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[styles.modal, modalStyle, { paddingTop: insets.top }]}>
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            {/* Header */}
-            <LinearGradient
-              colors={colors.gradientPrimary}
-              style={styles.header}
-            >
-              <View style={styles.headerTop}>
-                <Text style={styles.headerTitle}>Upgrade to Premium</Text>
-                <Button
-                  text=""
-                  onPress={onClose}
-                  style={styles.closeButton}
-                  variant="ghost"
-                >
-                  <Icon name="close" size={24} color={colors.text} />
-                </Button>
-              </View>
-              <Text style={styles.headerSubtitle}>
-                Unlock unlimited features and support independent musicians
+        <Animated.View style={[styles.modal, animatedStyle, { paddingTop: insets.top }]}>
+          <LinearGradient
+            colors={colors.gradientPrimary}
+            style={styles.header}
+          >
+            <View style={styles.headerContent}>
+              <Text style={styles.title}>Upgrade to Premium</Text>
+              <Text style={styles.subtitle}>
+                Unlock unlimited features and take your music career to the next level
               </Text>
-            </LinearGradient>
+              <Button
+                text="✕"
+                onPress={onClose}
+                variant="ghost"
+                size="sm"
+                style={styles.closeButton}
+              />
+            </View>
+          </LinearGradient>
 
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Current Status */}
             {subscriptionStatus && (
               <View style={styles.statusSection}>
                 <View style={styles.statusCard}>
-                  <View style={styles.statusHeader}>
-                    <Icon 
-                      name={subscriptionStatus.isPremium ? "diamond" : "person"} 
-                      size={24} 
-                      color={subscriptionStatus.isPremium ? colors.warning : colors.primary} 
-                    />
+                  <Icon 
+                    name={subscriptionStatus.isPremium ? "star" : "person"} 
+                    size={24} 
+                    color={subscriptionStatus.isPremium ? colors.warning : colors.primary} 
+                  />
+                  <View style={styles.statusInfo}>
                     <Text style={styles.statusTitle}>
                       Current Plan: {subscriptionStatus.plan}
                     </Text>
+                    {subscriptionStatus.isPremium && subscriptionStatus.expiresAt && (
+                      <Text style={styles.statusExpiry}>
+                        Expires: {new Date(subscriptionStatus.expiresAt).toLocaleDateString()}
+                      </Text>
+                    )}
                   </View>
-                  
-                  {subscriptionStatus.usage && (
-                    <View style={styles.usageStats}>
-                      <View style={styles.usageStat}>
-                        <Text style={styles.usageLabel}>Projects this month</Text>
-                        <Text style={styles.usageValue}>
-                          {subscriptionStatus.isPremium 
-                            ? 'Unlimited' 
-                            : `${subscriptionStatus.usage.projectsPostedThisMonth}/${subscriptionStatus.limits.projectsPerMonth}`
-                          }
-                        </Text>
-                      </View>
-                      <View style={styles.usageStat}>
-                        <Text style={styles.usageLabel}>Likes today</Text>
-                        <Text style={styles.usageValue}>
-                          {subscriptionStatus.isPremium 
-                            ? 'Unlimited' 
-                            : `${subscriptionStatus.usage.likesUsedToday}/${subscriptionStatus.limits.likesPerDay}`
-                          }
-                        </Text>
-                      </View>
-                    </View>
-                  )}
                 </View>
               </View>
             )}
@@ -223,18 +223,20 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
             <View style={styles.pricingSection}>
               <View style={styles.priceCard}>
                 <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
+                  colors={colors.gradientPrimary}
                   style={styles.priceHeader}
                 >
-                  <Icon name="diamond" size={32} color="#000" />
-                  <Text style={styles.priceTitle}>Premium</Text>
-                  <Text style={styles.priceAmount}>$12/month</Text>
+                  <Icon name="star" size={32} color={colors.white} />
+                  <Text style={styles.planName}>Premium</Text>
+                  <Text style={styles.planPrice}>
+                    {PaymentService.formatAmount(SUBSCRIPTION_PLANS.PREMIUM.price)}/month
+                  </Text>
                 </LinearGradient>
                 
                 <View style={styles.priceFeatures}>
                   <View style={styles.priceFeature}>
                     <Icon name="checkmark-circle" size={20} color={colors.success} />
-                    <Text style={styles.priceFeatureText}>Unlimited project postings</Text>
+                    <Text style={styles.priceFeatureText}>Unlimited projects</Text>
                   </View>
                   <View style={styles.priceFeature}>
                     <Icon name="checkmark-circle" size={20} color={colors.success} />
@@ -248,10 +250,6 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
                     <Icon name="checkmark-circle" size={20} color={colors.success} />
                     <Text style={styles.priceFeatureText}>Advanced analytics</Text>
                   </View>
-                  <View style={styles.priceFeature}>
-                    <Icon name="checkmark-circle" size={20} color={colors.success} />
-                    <Text style={styles.priceFeatureText}>Revenue splitting tools</Text>
-                  </View>
                 </View>
               </View>
             </View>
@@ -261,97 +259,141 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Subsc
               <Text style={styles.comparisonTitle}>Feature Comparison</Text>
               
               <View style={styles.comparisonHeader}>
-                <Text style={styles.comparisonFeatureHeader}>Feature</Text>
-                <Text style={styles.comparisonPlanHeader}>Free</Text>
-                <Text style={styles.comparisonPlanHeader}>Premium</Text>
+                <Text style={styles.featureHeaderText}>Feature</Text>
+                <View style={styles.planHeaders}>
+                  <Text style={styles.planHeaderText}>Free</Text>
+                  <Text style={styles.planHeaderText}>Premium</Text>
+                </View>
               </View>
 
               <FeatureComparison
-                feature="Project Postings"
-                free="1/month"
+                feature="Projects per month"
+                free="1"
                 premium="Unlimited"
-                icon="briefcase"
+                icon="folder"
               />
+              
               <FeatureComparison
-                feature="Daily Likes"
-                free="5/day"
+                feature="Likes per day"
+                free="5"
                 premium="Unlimited"
                 icon="heart"
               />
+              
               <FeatureComparison
-                feature="Job Applications"
-                free="1/month"
+                feature="Applications per month"
+                free="1"
                 premium="Unlimited"
-                icon="briefcase"
+                icon="paper-plane"
               />
+              
               <FeatureComparison
-                feature="Revenue Splitting"
-                free={true}
-                premium={true}
-                icon="card"
-              />
-              <FeatureComparison
-                feature="Analytics Dashboard"
-                free={false}
-                premium={true}
-                icon="analytics"
-              />
-              <FeatureComparison
-                feature="Priority Support"
+                feature="Priority support"
                 free={false}
                 premium={true}
                 icon="headset"
               />
+              
               <FeatureComparison
-                feature="Advanced Matching"
+                feature="Advanced analytics"
                 free={false}
                 premium={true}
-                icon="people"
+                icon="analytics"
+              />
+              
+              <FeatureComparison
+                feature="Custom branding"
+                free={false}
+                premium="Coming soon"
+                icon="brush"
               />
             </View>
 
-            {/* Revenue Info */}
-            <View style={styles.revenueSection}>
-              <LinearGradient
-                colors={colors.gradientBackground}
-                style={styles.revenueCard}
-              >
-                <Icon name="information-circle" size={24} color={colors.primary} />
-                <Text style={styles.revenueTitle}>How Revenue Splitting Works</Text>
-                <Text style={styles.revenueText}>
-                  When you get paid for projects on NextDrop, we automatically handle the payment processing and take a 10% platform fee. The remaining 90% goes directly to you through Stripe Connect.
-                </Text>
-                <View style={styles.revenueExample}>
-                  <Text style={styles.revenueExampleTitle}>Example:</Text>
-                  <Text style={styles.revenueExampleText}>
-                    • Project payment: $100{'\n'}
-                    • Platform fee (10%): $10{'\n'}
-                    • You receive: $90
+            {/* Usage Stats */}
+            {subscriptionStatus?.usage && !subscriptionStatus.isPremium && (
+              <View style={styles.usageSection}>
+                <Text style={styles.usageTitle}>Your Current Usage</Text>
+                
+                <View style={styles.usageCard}>
+                  <View style={styles.usageItem}>
+                    <Icon name="folder" size={20} color={colors.primary} />
+                    <Text style={styles.usageText}>
+                      Projects: {subscriptionStatus.usage.projectsPostedThisMonth}/1 this month
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.usageItem}>
+                    <Icon name="heart" size={20} color={colors.primary} />
+                    <Text style={styles.usageText}>
+                      Likes: {subscriptionStatus.usage.likesUsedToday}/5 today
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.usageItem}>
+                    <Icon name="paper-plane" size={20} color={colors.primary} />
+                    <Text style={styles.usageText}>
+                      Applications: {subscriptionStatus.usage.applicationsThisMonth}/1 this month
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Benefits */}
+            <View style={styles.benefitsSection}>
+              <Text style={styles.benefitsTitle}>Why Upgrade?</Text>
+              
+              <View style={styles.benefitCard}>
+                <Icon name="rocket" size={24} color={colors.primary} />
+                <View style={styles.benefitContent}>
+                  <Text style={styles.benefitTitle}>Accelerate Your Career</Text>
+                  <Text style={styles.benefitDescription}>
+                    Connect with more artists, apply to unlimited projects, and build your network faster
                   </Text>
                 </View>
-              </LinearGradient>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actions}>
-              <Button
-                text="Maybe Later"
-                onPress={onClose}
-                variant="outline"
-                size="lg"
-                style={styles.laterButton}
-              />
-              <Button
-                text={subscriptionStatus?.isPremium ? "Already Premium!" : "Upgrade Now"}
-                onPress={handleUpgrade}
-                variant="gradient"
-                size="lg"
-                loading={loading}
-                disabled={loading || subscriptionStatus?.isPremium}
-                style={styles.upgradeButton}
-              />
+              </View>
+              
+              <View style={styles.benefitCard}>
+                <Icon name="trending-up" size={24} color={colors.success} />
+                <View style={styles.benefitContent}>
+                  <Text style={styles.benefitTitle}>Track Your Growth</Text>
+                  <Text style={styles.benefitDescription}>
+                    Get detailed analytics on your profile views, match rates, and collaboration success
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.benefitCard}>
+                <Icon name="shield-checkmark" size={24} color={colors.warning} />
+                <View style={styles.benefitContent}>
+                  <Text style={styles.benefitTitle}>Priority Support</Text>
+                  <Text style={styles.benefitDescription}>
+                    Get faster response times and dedicated support for all your questions
+                  </Text>
+                </View>
+              </View>
             </View>
           </ScrollView>
+
+          {/* Action Buttons */}
+          <View style={[styles.actions, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <Button
+              text="Maybe Later"
+              onPress={onClose}
+              variant="outline"
+              size="lg"
+              style={styles.laterButton}
+            />
+            <Button
+              text={subscriptionStatus?.isPremium ? "Already Premium ✓" : "Upgrade Now"}
+              onPress={handleUpgrade}
+              variant="gradient"
+              size="lg"
+              disabled={subscriptionStatus?.isPremium || loading}
+              loading={loading}
+              style={styles.upgradeButton}
+            />
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -369,43 +411,46 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '90%',
-    ...shadows.lg,
-  },
-  scrollView: {
-    flex: 1,
+    overflow: 'hidden',
   },
   header: {
-    padding: spacing.xl,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  headerContent: {
     alignItems: 'center',
-    marginBottom: spacing.sm,
   },
-  headerTitle: {
+  title: {
     fontSize: 24,
     fontFamily: 'Poppins_700Bold',
-    color: colors.text,
+    color: colors.white,
+    marginBottom: spacing.sm,
   },
-  headerSubtitle: {
+  subtitle: {
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
-    color: colors.text,
-    opacity: 0.9,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 24,
   },
   closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
   },
   statusSection: {
-    padding: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   statusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.backgroundCard,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
@@ -413,38 +458,23 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     ...shadows.sm,
   },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
+  statusInfo: {
+    marginLeft: spacing.md,
+    flex: 1,
   },
   statusTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    marginLeft: spacing.sm,
-  },
-  usageStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  usageStat: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  usageLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  usageValue: {
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
   },
+  statusExpiry: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
   pricingSection: {
-    padding: spacing.lg,
+    marginBottom: spacing.xl,
   },
   priceCard: {
     backgroundColor: colors.backgroundCard,
@@ -452,63 +482,68 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.borderLight,
-    ...shadows.sm,
+    ...shadows.md,
   },
   priceHeader: {
     alignItems: 'center',
-    padding: spacing.xl,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
-  priceTitle: {
+  planName: {
     fontSize: 20,
-    fontFamily: 'Poppins_700Bold',
-    color: '#000',
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.white,
     marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  priceAmount: {
+  planPrice: {
     fontSize: 32,
     fontFamily: 'Poppins_700Bold',
-    color: '#000',
-    marginTop: spacing.xs,
+    color: colors.white,
   },
   priceFeatures: {
     padding: spacing.lg,
+    gap: spacing.md,
   },
   priceFeature: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   priceFeatureText: {
     fontSize: 16,
     fontFamily: 'Inter_500Medium',
     color: colors.text,
-    marginLeft: spacing.sm,
   },
   comparisonSection: {
-    padding: spacing.lg,
+    marginBottom: spacing.xl,
   },
   comparisonTitle: {
     fontSize: 20,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Poppins_600SemiBold',
     color: colors.text,
     marginBottom: spacing.lg,
-    textAlign: 'center',
   },
   comparisonHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
   },
-  comparisonFeatureHeader: {
-    flex: 2,
-    fontSize: 14,
+  featureHeaderText: {
+    flex: 1,
+    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
   },
-  comparisonPlanHeader: {
+  planHeaders: {
+    flexDirection: 'row',
+    width: 120,
+  },
+  planHeaderText: {
     flex: 1,
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
@@ -519,23 +554,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   featureInfo: {
-    flex: 2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   featureText: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
     color: colors.text,
-    marginLeft: spacing.sm,
   },
   featureValues: {
-    flex: 1,
     flexDirection: 'row',
+    width: 120,
   },
   freeValue: {
     flex: 1,
@@ -548,55 +587,78 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
-    color: colors.success,
+    color: colors.primary,
     textAlign: 'center',
   },
-  revenueSection: {
-    padding: spacing.lg,
+  usageSection: {
+    marginBottom: spacing.xl,
   },
-  revenueCard: {
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-  },
-  revenueTitle: {
+  usageTitle: {
     fontSize: 18,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-    textAlign: 'center',
-  },
-  revenueText: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: colors.text,
-    textAlign: 'center',
-    lineHeight: 20,
     marginBottom: spacing.md,
   },
-  revenueExample: {
+  usageCard: {
     backgroundColor: colors.backgroundCard,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    width: '100%',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: spacing.md,
   },
-  revenueExampleTitle: {
+  usageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  usageText: {
     fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+  },
+  benefitsSection: {
+    marginBottom: spacing.xl,
+  },
+  benefitsTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.text,
+    marginBottom: spacing.lg,
+  },
+  benefitCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundCard,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: spacing.md,
+  },
+  benefitContent: {
+    flex: 1,
+  },
+  benefitTitle: {
+    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
     marginBottom: spacing.xs,
   },
-  revenueExampleText: {
-    fontSize: 12,
+  benefitDescription: {
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: colors.textMuted,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   actions: {
     flexDirection: 'row',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
     gap: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
   },
   laterButton: {
     flex: 1,
