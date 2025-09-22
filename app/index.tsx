@@ -267,14 +267,7 @@ const LandingScreen: React.FC = () => {
               </View>
             )}
             
-            {backendStatus === 'ready' && (
-              <View style={styles.successBanner}>
-                <Icon name="checkmark-circle" size={20} color={colors.success || '#10B981'} />
-                <Text style={styles.successText}>
-                  Ready for deployment! 🚀
-                </Text>
-              </View>
-            )}
+
           </View>
 
           {/* Features */}
@@ -512,23 +505,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
   },
-  successBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    borderColor: colors.success || '#10B981',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-  },
-  successText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'Inter_500Medium',
-  },
+
   featuresContainer: {
     gap: spacing.lg,
     marginBottom: spacing.xl,
