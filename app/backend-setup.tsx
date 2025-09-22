@@ -58,6 +58,190 @@ const BackendSetupScreen: React.FC = () => {
     transform: [{ translateY: slideUp.value }],
   }));
 
+  const openExpoDeployment = useCallback(() => {
+    Alert.alert(
+      'Expo Deployment',
+      'To deploy your app:\n\n1. Run "npx expo start" in your terminal\n2. Scan the QR code with Expo Go app\n3. Test your app on device\n\nYour backend and payment system are ready!',
+      [{ text: 'Got it!' }]
+    );
+  }, []);
+
+  const openEASBuild = useCallback(() => {
+    Alert.alert(
+      'EAS Build',
+      'To build for app stores:\n\n1. Install EAS CLI: npm install -g @expo/eas-cli\n2. Run "eas build --platform all"\n3. Follow the prompts\n\nYour backend and Stripe integration are configured and ready!',
+      [{ text: 'Got it!' }]
+    );
+  }, []);
+
+  const handleDeploy = useCallback(() => {
+    Alert.alert(
+      'Ready to Deploy! 🚀',
+      'Your MusicLinked project is fully initialized and ready for deployment. You can now:\n\n• Deploy to Expo Go for testing\n• Build for app stores\n• Share with beta testers\n\nAll backend services including Stripe payments are operational!',
+      [
+        { text: 'Deploy to Expo', onPress: openExpoDeployment },
+        { text: 'Build for Stores', onPress: openEASBuild },
+        { text: 'Continue Development', style: 'cancel' }
+      ]
+    );
+  }, [openExpoDeployment, openEASBuild]);
+
+  const runInitialization = useCallback(async () => {
+    setIsInitializing(true);
+    setOverallStatus('initializing');
+    setInitSteps([]);
+
+    const steps: InitializationStep[] = [
+      { name: 'Checking Project Status', status: 'pending', message: 'Verifying Supabase project...', progress: 0 },
+      { name: 'Database Schema', status: 'pending', message: 'Validating database tables...', progress: 0 },
+      { name: 'Payment System', status: 'pending', message: 'Testing Stripe integration...', progress: 0 },
+      { name: 'RLS Policies', status: 'pending', message: 'Checking security policies...', progress: 0 },
+      { name: 'Deployment Check', status: 'pending', message: 'Verifying deployment readiness...', progress: 0 },
+    ];
+
+    setInitSteps([...steps]);
+
+    // Step 1: Check project status
+    steps[0].status = 'running';
+    setInitSteps([...steps]);
+
+    try {
+      const response = await fetch('https://tioevqidrridspbsjlqb.supabase.co/rest/v1/', {
+        method: 'HEAD',
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
+        },
+      });
+
+      if (response.ok) {
+        steps[0].status = 'success';
+        steps[0].message = 'Project is active and healthy';
+        steps[0].progress = 100;
+      } else {
+        steps[0].status = 'error';
+        steps[0].message = `Project returned status ${response.status}`;
+        steps[0].progress = 0;
+      }
+    } catch (error) {
+      steps[0].status = 'error';
+      steps[0].message = 'Cannot reach project endpoint';
+      steps[0].progress = 0;
+    }
+    setInitSteps([...steps]);
+
+    // Step 2: Check database schema
+    steps[1].status = 'running';
+    setInitSteps([...steps]);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('count', { count: 'exact', head: true });
+
+      if (!error) {
+        steps[1].status = 'success';
+        steps[1].message = 'All required tables exist';
+        steps[1].progress = 100;
+      } else {
+        steps[1].status = 'error';
+        steps[1].message = 'Database schema incomplete';
+        steps[1].progress = 0;
+      }
+    } catch (error) {
+      steps[1].status = 'error';
+      steps[1].message = 'Cannot access database';
+      steps[1].progress = 0;
+    }
+    setInitSteps([...steps]);
+
+    // Step 3: Check payment system
+    steps[2].status = 'running';
+    setInitSteps([...steps]);
+
+    try {
+      const stripeTest = await PaymentService.testStripeConnection();
+      
+      if (stripeTest.success) {
+        steps[2].status = 'success';
+        steps[2].message = 'Stripe payment system operational';
+        steps[2].progress = 100;
+      } else {
+        steps[2].status = 'error';
+        steps[2].message = 'Payment system needs configuration';
+        steps[2].progress = 50;
+      }
+    } catch (error) {
+      steps[2].status = 'error';
+      steps[2].message = 'Payment system test failed';
+      steps[2].progress = 0;
+    }
+    setInitSteps([...steps]);
+
+    // Step 4: Check RLS policies
+    steps[3].status = 'running';
+    setInitSteps([...steps]);
+
+    try {
+      // Since we don't have this function, we'll assume policies are set up
+      steps[3].status = 'success';
+      steps[3].message = 'Row Level Security policies configured';
+      steps[3].progress = 100;
+    } catch (error) {
+      // This is expected since we don't have the RPC function
+      steps[3].status = 'success';
+      steps[3].message = 'Security policies assumed configured';
+      steps[3].progress = 100;
+    }
+    setInitSteps([...steps]);
+
+    // Step 5: Deployment readiness check
+    steps[4].status = 'running';
+    setInitSteps([...steps]);
+
+    try {
+      const deploymentCheck = await checkDeploymentReadiness();
+      
+      if (deploymentCheck.ready) {
+        steps[4].status = 'success';
+        steps[4].message = `Project ready for deployment! (Score: ${deploymentCheck.score}%)`;
+        steps[4].progress = 100;
+        setDeploymentReady(true);
+      } else {
+        steps[4].status = 'error';
+        steps[4].message = `Deployment issues found (Score: ${deploymentCheck.score}%)`;
+        steps[4].progress = deploymentCheck.score || 0;
+        setDeploymentReady(false);
+      }
+    } catch (error) {
+      steps[4].status = 'error';
+      steps[4].message = 'Deployment check failed';
+      steps[4].progress = 0;
+      setDeploymentReady(false);
+    }
+    setInitSteps([...steps]);
+
+    setIsInitializing(false);
+    setOverallStatus('complete');
+
+    // Show completion message
+    if (deploymentReady) {
+      Alert.alert(
+        'Initialization Complete! 🎉',
+        'Your MusicLinked project is fully initialized and ready for deployment. All systems including payment processing are operational.',
+        [
+          { text: 'Deploy Now', onPress: handleDeploy },
+          { text: 'Continue Testing', style: 'cancel' }
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Initialization Issues',
+        'Some initialization steps failed. Please review the results and fix any issues before deployment.',
+        [{ text: 'OK' }]
+      );
+    }
+  }, [deploymentReady, handleDeploy]);
+
   const runDiagnostics = useCallback(async () => {
     setIsRunning(true);
     setOverallStatus('running');
@@ -313,175 +497,7 @@ const BackendSetupScreen: React.FC = () => {
         [{ text: 'OK' }]
       );
     }
-  }, []);
-
-  const runInitialization = useCallback(async () => {
-    setIsInitializing(true);
-    setOverallStatus('initializing');
-    setInitSteps([]);
-
-    const steps: InitializationStep[] = [
-      { name: 'Checking Project Status', status: 'pending', message: 'Verifying Supabase project...', progress: 0 },
-      { name: 'Database Schema', status: 'pending', message: 'Validating database tables...', progress: 0 },
-      { name: 'Payment System', status: 'pending', message: 'Testing Stripe integration...', progress: 0 },
-      { name: 'RLS Policies', status: 'pending', message: 'Checking security policies...', progress: 0 },
-      { name: 'Deployment Check', status: 'pending', message: 'Verifying deployment readiness...', progress: 0 },
-    ];
-
-    setInitSteps([...steps]);
-
-    // Step 1: Check project status
-    steps[0].status = 'running';
-    setInitSteps([...steps]);
-
-    try {
-      const response = await fetch('https://tioevqidrridspbsjlqb.supabase.co/rest/v1/', {
-        method: 'HEAD',
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
-        },
-      });
-
-      if (response.ok) {
-        steps[0].status = 'success';
-        steps[0].message = 'Project is active and healthy';
-        steps[0].progress = 100;
-      } else {
-        steps[0].status = 'error';
-        steps[0].message = `Project returned status ${response.status}`;
-        steps[0].progress = 0;
-      }
-    } catch (error) {
-      steps[0].status = 'error';
-      steps[0].message = 'Cannot reach project endpoint';
-      steps[0].progress = 0;
-    }
-    setInitSteps([...steps]);
-
-    // Step 2: Check database schema
-    steps[1].status = 'running';
-    setInitSteps([...steps]);
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('count', { count: 'exact', head: true });
-
-      if (!error) {
-        steps[1].status = 'success';
-        steps[1].message = 'All required tables exist';
-        steps[1].progress = 100;
-      } else {
-        steps[1].status = 'error';
-        steps[1].message = 'Database schema incomplete';
-        steps[1].progress = 0;
-      }
-    } catch (error) {
-      steps[1].status = 'error';
-      steps[1].message = 'Cannot access database';
-      steps[1].progress = 0;
-    }
-    setInitSteps([...steps]);
-
-    // Step 3: Check payment system
-    steps[2].status = 'running';
-    setInitSteps([...steps]);
-
-    try {
-      const stripeTest = await PaymentService.testStripeConnection();
-      
-      if (stripeTest.success) {
-        steps[2].status = 'success';
-        steps[2].message = 'Stripe payment system operational';
-        steps[2].progress = 100;
-      } else {
-        steps[2].status = 'error';
-        steps[2].message = 'Payment system needs configuration';
-        steps[2].progress = 50;
-      }
-    } catch (error) {
-      steps[2].status = 'error';
-      steps[2].message = 'Payment system test failed';
-      steps[2].progress = 0;
-    }
-    setInitSteps([...steps]);
-
-    // Step 4: Check RLS policies
-    steps[3].status = 'running';
-    setInitSteps([...steps]);
-
-    try {
-      // Since we don't have this function, we'll assume policies are set up
-      steps[3].status = 'success';
-      steps[3].message = 'Row Level Security policies configured';
-      steps[3].progress = 100;
-    } catch (error) {
-      // This is expected since we don't have the RPC function
-      steps[3].status = 'success';
-      steps[3].message = 'Security policies assumed configured';
-      steps[3].progress = 100;
-    }
-    setInitSteps([...steps]);
-
-    // Step 5: Deployment readiness check
-    steps[4].status = 'running';
-    setInitSteps([...steps]);
-
-    try {
-      const deploymentCheck = await checkDeploymentReadiness();
-      
-      if (deploymentCheck.ready) {
-        steps[4].status = 'success';
-        steps[4].message = `Project ready for deployment! (Score: ${deploymentCheck.score}%)`;
-        steps[4].progress = 100;
-        setDeploymentReady(true);
-      } else {
-        steps[4].status = 'error';
-        steps[4].message = `Deployment issues found (Score: ${deploymentCheck.score}%)`;
-        steps[4].progress = deploymentCheck.score || 0;
-        setDeploymentReady(false);
-      }
-    } catch (error) {
-      steps[4].status = 'error';
-      steps[4].message = 'Deployment check failed';
-      steps[4].progress = 0;
-      setDeploymentReady(false);
-    }
-    setInitSteps([...steps]);
-
-    setIsInitializing(false);
-    setOverallStatus('complete');
-
-    // Show completion message
-    if (deploymentReady) {
-      Alert.alert(
-        'Initialization Complete! 🎉',
-        'Your MusicLinked project is fully initialized and ready for deployment. All systems including payment processing are operational.',
-        [
-          { text: 'Deploy Now', onPress: handleDeploy },
-          { text: 'Continue Testing', style: 'cancel' }
-        ]
-      );
-    } else {
-      Alert.alert(
-        'Initialization Issues',
-        'Some initialization steps failed. Please review the results and fix any issues before deployment.',
-        [{ text: 'OK' }]
-      );
-    }
-  }, [deploymentReady]);
-
-  const handleDeploy = useCallback(() => {
-    Alert.alert(
-      'Ready to Deploy! 🚀',
-      'Your MusicLinked project is fully initialized and ready for deployment. You can now:\n\n• Deploy to Expo Go for testing\n• Build for app stores\n• Share with beta testers\n\nAll backend services including Stripe payments are operational!',
-      [
-        { text: 'Deploy to Expo', onPress: openExpoDeployment },
-        { text: 'Build for Stores', onPress: openEASBuild },
-        { text: 'Continue Development', style: 'cancel' }
-      ]
-    );
-  }, []);
+  }, [runInitialization]);
 
   useEffect(() => {
     fadeIn.value = withTiming(1, { duration: 800 });
@@ -499,22 +515,6 @@ const BackendSetupScreen: React.FC = () => {
       console.log('Project is ready for deployment');
     }
   }, [deploymentReady, handleDeploy]);
-
-  const openExpoDeployment = () => {
-    Alert.alert(
-      'Expo Deployment',
-      'To deploy your app:\n\n1. Run "npx expo start" in your terminal\n2. Scan the QR code with Expo Go app\n3. Test your app on device\n\nYour backend and payment system are ready!',
-      [{ text: 'Got it!' }]
-    );
-  };
-
-  const openEASBuild = () => {
-    Alert.alert(
-      'EAS Build',
-      'To build for app stores:\n\n1. Install EAS CLI: npm install -g @expo/eas-cli\n2. Run "eas build --platform all"\n3. Follow the prompts\n\nYour backend and Stripe integration are configured and ready!',
-      [{ text: 'Got it!' }]
-    );
-  };
 
   const getStatusIcon = (status: DiagnosticResult['status']) => {
     switch (status) {
