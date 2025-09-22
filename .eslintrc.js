@@ -1,3 +1,4 @@
+
 // https://docs.expo.dev/guides/using-eslint/
 module.exports = {
   extends: [
@@ -51,9 +52,17 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['metro.config.js'],
+      files: ['*.js', '.eslintrc.js', 'babel.config.js', 'metro.config.js'],
+      parser: 'espree',
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'script'
+      },
       rules: {
-        '@typescript-eslint/no-var-requires': 'off'
+        '@typescript-eslint/no-var-requires': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/explicit-function-return-type': 'off'
       }
     }
   ]

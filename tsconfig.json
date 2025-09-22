@@ -1,3 +1,4 @@
+
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
@@ -18,7 +19,10 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "workbox-config.js"
+    "workbox-config.js",
+    ".eslintrc.js",
+    "babel.config.js",
+    "metro.config.js"
   ],
   "exclude": [
     "node_modules"
