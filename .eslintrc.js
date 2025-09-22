@@ -15,22 +15,20 @@ module.exports = {
     sourceType: 'module',
     ecmaFeatures: {
       jsx: true
-    }
+    },
+    project: './tsconfig.json'
   },
   ignorePatterns: ['/dist/*', '/public/*'],
   env: {
     browser: true,
+    node: true,
+    es6: true
   },
   settings: {
     'import/resolver': {
       typescript: {
         alwaysTryTypes: true,
-        project: './tsconfig.json',
-        extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
-      },
-      node: {
-        extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
-        moduleDirectory: ['node_modules', '.']
+        project: './tsconfig.json'
       }
     },
     react: {
