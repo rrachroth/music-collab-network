@@ -1,7 +1,45 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { ENV, validateEnvironment, logConfiguration } from '../../utils/config';
 import type { Database } from './types';
+
+// Environment configuration - inline to avoid import issues
+const ENV = {
+  SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://tioevqidrridspbsjlqb.supabase.co',
+  SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpb2V2cWlkcnJpZHNwYnNqbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0MjQ5NzAsImV4cCI6MjA2NzAwMDk3MH0.HqV7918kKK7noaX-QQg5syVsoYjWS-sgxKhD7lUE6Vw',
+  APP_ENV: process.env.EXPO_PUBLIC_APP_ENV || 'development',
+  APP_VERSION: '1.0.0',
+};
+
+// Validation functions
+const validateEnvironment = () => {
+  const errors: string[] = [];
+  
+  if (!ENV.SUPABASE_URL) {
+    errors.push('SUPABASE_URL is required');
+  }
+  
+  if (!ENV.SUPABASE_ANON_KEY) {
+    errors.push('SUPABASE_ANON_KEY is required');
+  }
+  
+  if (errors.length > 0) {
+    console.error('❌ Environment validation failed:', errors);
+    return false;
+  }
+  
+  console.log('✅ Environment validation passed');
+  return true;
+};
+
+// Log current configuration (without sensitive data)
+const logConfiguration = () => {
+  console.log('🔧 Supabase Configuration:', {
+    APP_ENV: ENV.APP_ENV,
+    APP_VERSION: ENV.APP_VERSION,
+    SUPABASE_URL_CONFIGURED: !!ENV.SUPABASE_URL,
+    SUPABASE_ANON_KEY_CONFIGURED: !!ENV.SUPABASE_ANON_KEY,
+  });
+};
 
 // Validate environment on startup
 validateEnvironment();
@@ -97,7 +135,7 @@ export const checkDeploymentReadiness = async (): Promise<{
       issues.push('Invalid Supabase URL configuration');
     }
     
-    if (ENV.APP_ENV === 'production' && !ENV.STRIPE_PUBLISHABLE_KEY.startsWith('pk_live_')) {
+    if (ENV.APP_ENV === 'production' && !process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith('pk_live_')) {
       warnings.push('Production environment should use live Stripe keys');
     }
     

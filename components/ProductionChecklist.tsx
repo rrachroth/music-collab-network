@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { commonStyles, colors, spacing, borderRadius, shadows } from '../styles/commonStyles';
 import { ENV, isProduction, isStripeConfigured } from '../utils/config';
 import { checkDeploymentReadiness } from '../app/integrations/supabase/client';
+import { runDeploymentChecks, DeploymentReport } from '../utils/deploymentChecker';
 import Icon from './Icon';
 import Button from './Button';
 
@@ -34,45 +35,22 @@ export default function ProductionChecklist({ onClose }: ProductionChecklistProp
     setLoading(true);
     
     try {
-      const deploymentCheck = await checkDeploymentReadiness();
+      // Run comprehensive deployment checks
+      const deploymentReport = runDeploymentChecks();
+      const supabaseCheck = await checkDeploymentReadiness();
       
-      const items: ChecklistItem[] = [
-        {
-          id: 'environment',
-          title: 'Environment Configuration',
-          description: `App environment: ${ENV.APP_ENV}`,
-          status: ENV.APP_ENV === 'production' ? 'complete' : 'warning',
-          required: true,
-        },
-        {
-          id: 'supabase',
-          title: 'Supabase Backend',
-          description: 'Database connection and tables',
-          status: deploymentCheck.ready ? 'complete' : 'error',
-          required: true,
-        },
-        {
-          id: 'stripe',
-          title: 'Stripe Integration',
-          description: 'Payment processing configuration',
-          status: isStripeConfigured() ? 'complete' : 'warning',
-          required: true,
-          action: 'Configure Stripe keys in environment variables',
-        },
-        {
-          id: 'app_config',
-          title: 'App Configuration',
-          description: 'Bundle ID, version, and metadata',
-          status: 'complete',
-          required: true,
-        },
-        {
-          id: 'permissions',
-          title: 'App Permissions',
-          description: 'Camera, microphone, and storage access',
-          status: 'complete',
-          required: true,
-        },
+      // Convert deployment checks to checklist items
+      const items: ChecklistItem[] = deploymentReport.checks.map(check => ({
+        id: check.id,
+        title: check.name,
+        description: check.message + (check.details ? ` (${check.details})` : ''),
+        status: check.status === 'pass' ? 'complete' : 
+                check.status === 'warning' ? 'warning' : 'error',
+        required: check.required,
+      }));
+
+      // Add additional production-specific checks
+      const additionalChecks: ChecklistItem[] = [
         {
           id: 'privacy_policy',
           title: 'Privacy Policy',
@@ -90,67 +68,73 @@ export default function ProductionChecklist({ onClose }: ProductionChecklistProp
           action: 'Create and publish terms of service',
         },
         {
-          id: 'app_icons',
-          title: 'App Icons & Assets',
-          description: 'Icons, splash screens, and store assets',
-          status: 'complete',
-          required: true,
-        },
-        {
-          id: 'testing',
+          id: 'production_testing',
           title: 'Production Testing',
           description: 'Test all features with production data',
           status: 'pending',
           required: true,
-          action: 'Run comprehensive testing',
+          action: 'Run comprehensive testing on real devices',
         },
         {
-          id: 'analytics',
-          title: 'Analytics & Monitoring',
-          description: 'Error tracking and user analytics',
-          status: ENV.FEATURES.ANALYTICS ? 'complete' : 'warning',
-          required: false,
-          action: 'Set up analytics and error monitoring',
+          id: 'app_store_assets',
+          title: 'App Store Assets',
+          description: 'Screenshots, descriptions, and metadata',
+          status: 'pending',
+          required: true,
+          action: 'Prepare app store listings',
         },
       ];
 
-      // Add deployment-specific issues
-      deploymentCheck.issues.forEach((issue, index) => {
-        items.push({
-          id: `issue_${index}`,
-          title: 'Deployment Issue',
-          description: issue,
-          status: 'error',
-          required: true,
-        });
-      });
+      const allItems = [...items, ...additionalChecks];
+      setChecklist(allItems);
 
-      deploymentCheck.warnings.forEach((warning, index) => {
-        items.push({
-          id: `warning_${index}`,
-          title: 'Deployment Warning',
-          description: warning,
-          status: 'warning',
-          required: false,
-        });
-      });
-
-      setChecklist(items);
-
-      // Determine overall status
-      const hasErrors = items.some(item => item.status === 'error');
-      const hasWarnings = items.some(item => item.status === 'warning' || item.status === 'pending');
-      
-      if (hasErrors) {
-        setOverallStatus('issues');
-      } else if (hasWarnings) {
+      // Determine overall status based on deployment report
+      if (deploymentReport.overall === 'ready') {
+        setOverallStatus('ready');
+      } else if (deploymentReport.overall === 'warning') {
         setOverallStatus('warnings');
       } else {
-        setOverallStatus('ready');
+        setOverallStatus('issues');
+      }
+
+      // Show deployment summary
+      console.log('🎯 Deployment Summary:', {
+        overall: deploymentReport.overall,
+        score: `${deploymentReport.score}%`,
+        passed: deploymentReport.passedChecks,
+        failed: deploymentReport.failedChecks,
+        warnings: deploymentReport.warningChecks,
+        total: deploymentReport.totalChecks,
+      });
+
+      // Show alert with results
+      if (deploymentReport.overall === 'ready') {
+        Alert.alert(
+          '🎉 Deployment Ready!',
+          `Your app scored ${deploymentReport.score}% and is ready for production deployment. All critical systems are properly configured.`,
+          [{ text: 'Excellent!', style: 'default' }]
+        );
+      } else if (deploymentReport.overall === 'warning') {
+        Alert.alert(
+          '⚠️ Ready with Warnings',
+          `Your app scored ${deploymentReport.score}% and can be deployed, but ${deploymentReport.warningChecks} warnings should be addressed for optimal performance.`,
+          [{ text: 'Got it', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          '❌ Issues Found',
+          `Your app scored ${deploymentReport.score}%. ${deploymentReport.failedChecks} critical issues must be resolved before production deployment.`,
+          [{ text: 'Fix Issues', style: 'default' }]
+        );
       }
 
     } catch (error) {
       console.error('Production check failed:', error);
+      Alert.alert(
+        'Check Failed',
+        'Unable to run production checks. Please try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
     } finally {
       setLoading(false);
     }

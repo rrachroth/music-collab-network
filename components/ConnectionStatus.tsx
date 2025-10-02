@@ -45,8 +45,8 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   }, []);
 
   useEffect(() => {
-    // Only show if disconnected AND there have been multiple failures (more than 3)
-    const shouldShow = (!connectionStatus.isConnected && connectionStatus.consecutiveFailures > 3) || 
+    // Only show if disconnected AND there have been multiple failures (more than 5)
+    const shouldShow = (!connectionStatus.isConnected && connectionStatus.consecutiveFailures > 5) || 
                       (showWhenConnected && connectionStatus.isConnected);
     
     if (shouldShow) {
@@ -105,7 +105,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
 
   // Don't render if connected and not showing when connected, or if failures are minimal
   if ((connectionStatus.isConnected && !showWhenConnected) || 
-      (!connectionStatus.isConnected && connectionStatus.consecutiveFailures <= 3)) {
+      (!connectionStatus.isConnected && connectionStatus.consecutiveFailures <= 5)) {
     return null;
   }
 

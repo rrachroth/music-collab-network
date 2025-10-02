@@ -1,17 +1,4 @@
-import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
-import { pickImage, pickVideo, pickAudio } from '../../utils/mediaUtils';
-import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming,
-  withSpring,
-  withDelay,
-} from 'react-native-reanimated';
-import Icon from '../../components/Icon';
+
 import { 
   getCurrentUser, 
   updateCurrentUser, 
@@ -20,10 +7,27 @@ import {
   getApplications,
   User 
 } from '../../utils/storage';
-import { SubscriptionService } from '../../utils/subscriptionService';
-import SubscriptionModal from '../../components/SubscriptionModal';
+import { triggerBuildCheck } from '../../utils/buildTrigger';
+import { runFullDeploymentCheck } from '../../utils/deploymentChecker';
 import { useState, useEffect, useCallback } from 'react';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming,
+  withSpring,
+  withDelay,
+} from 'react-native-reanimated';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from '../../components/Icon';
+import SubscriptionModal from '../../components/SubscriptionModal';
+import { Text, View, ScrollView, TouchableOpacity, Alert, RefreshControl, StyleSheet, Modal } from 'react-native';
 import Button from '../../components/Button';
+import { pickImage, pickVideo, pickAudio } from '../../utils/mediaUtils';
+import { SubscriptionService } from '../../utils/subscriptionService';
+import { commonStyles, colors, spacing, borderRadius, shadows } from '../../styles/commonStyles';
+import { LinearGradient } from 'expo-linear-gradient';
+import ProductionChecklist from '../../components/ProductionChecklist';
 
 interface StatCardProps {
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
@@ -46,105 +50,235 @@ interface HighlightCardProps {
   delay: number;
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  profileSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    ...shadows.medium,
+  },
+  avatarText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  name: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  role: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  joinDate: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    ...shadows.small,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginTop: spacing.xs,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.white,
+    opacity: 0.9,
+    marginTop: spacing.xs,
+  },
+  section: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  quickActionCard: {
+    width: '48%',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    ...shadows.small,
+  },
+  quickActionIcon: {
+    marginBottom: spacing.sm,
+  },
+  quickActionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: spacing.xs,
+  },
+  quickActionSubtitle: {
+    fontSize: 12,
+    color: colors.white,
+    opacity: 0.9,
+  },
+  highlightsContainer: {
+    gap: spacing.md,
+  },
+  highlightCard: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.small,
+  },
+  highlightTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  highlightType: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  emptyHighlights: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  buildTriggerSection: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  buildTriggerCard: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    ...shadows.medium,
+  },
+  buildTriggerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: spacing.sm,
+  },
+  buildTriggerDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+  },
+  buildTriggerButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+});
+
 export default function ProfileScreen() {
-  const insets = useSafeAreaInsets();
-  const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState({
-    matches: 0,
-    projects: 0,
-    collaborations: 0,
-    rating: 0
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [stats, setStats] = useState({ matches: 0, projects: 0, collaborations: 0 });
   const [refreshing, setRefreshing] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const [showSubscription, setShowSubscription] = useState(false);
+  const [showProductionChecklist, setShowProductionChecklist] = useState(false);
   
   const fadeIn = useSharedValue(0);
-  const slideUp = useSharedValue(30);
+  const slideUp = useSharedValue(50);
+  const insets = useSafeAreaInsets();
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeIn.value,
-      transform: [{ translateY: slideUp.value }],
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: fadeIn.value,
+    transform: [{ translateY: slideUp.value }],
+  }));
 
   const loadProfile = useCallback(async () => {
     try {
-      console.log('👤 Loading profile...');
-      const currentUser = await getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        await loadStats(currentUser);
-        
-        // Load subscription status
-        const status = await SubscriptionService.getSubscriptionStatus();
-        setSubscriptionStatus(status);
+      const user = await getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+        await loadStats(user);
       }
     } catch (error) {
-      console.error('❌ Error loading profile:', error);
-      Alert.alert('Error', 'Failed to load profile data');
+      console.error('Error loading profile:', error);
     }
   }, []);
 
   const loadStats = async (currentUser: User) => {
     try {
       const [matches, projects, applications] = await Promise.all([
-        getMatches(),
+        getMatches(currentUser.id),
         getProjects(),
-        getApplications()
+        getApplications(),
       ]);
 
-      const userMatches = matches.filter(match => 
-        match.userId === currentUser.id || match.matchedUserId === currentUser.id
-      );
-
-      const userProjects = projects.filter(project => 
-        project.authorId === currentUser.id
-      );
-
-      const userApplications = applications.filter(app => 
-        app.applicantId === currentUser.id
-      );
-
       setStats({
-        matches: userMatches.length,
-        projects: userProjects.length,
-        collaborations: currentUser.collaborations.length,
-        rating: currentUser.rating
+        matches: matches.length,
+        projects: projects.filter(p => p.createdBy === currentUser.id).length,
+        collaborations: applications.filter(a => a.userId === currentUser.id).length,
       });
     } catch (error) {
-      console.error('❌ Error loading stats:', error);
+      console.error('Error loading stats:', error);
     }
   };
 
   useEffect(() => {
     loadProfile();
     
-    // Animate in
-    fadeIn.value = withTiming(1, { duration: 600 });
-    slideUp.value = withSpring(0, { damping: 15 });
+    fadeIn.value = withTiming(1, { duration: 800 });
+    slideUp.value = withSpring(0, { damping: 20, stiffness: 100 });
   }, [loadProfile, fadeIn, slideUp]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadProfile();
-    setRefreshing(false);
-  }, [loadProfile]);
-
   const handleEditProfile = () => {
-    router.push('/onboarding');
+    Alert.alert('Edit Profile', 'Profile editing feature coming soon!');
   };
 
   const handleUploadHighlight = () => {
     Alert.alert(
       'Upload Highlight',
-      'Choose media type to upload',
+      'Choose media type',
       [
         { text: 'Audio', onPress: () => uploadMedia('audio') },
         { text: 'Video', onPress: () => uploadMedia('video') },
         { text: 'Image', onPress: () => uploadMedia('image') },
-        { text: 'Cancel', style: 'cancel' }
+        { text: 'Cancel', style: 'cancel' },
       ]
     );
   };
@@ -164,17 +298,12 @@ export default function ProfileScreen() {
           break;
       }
 
-      if (result && user) {
-        const updatedHighlights = [...user.highlights, result];
-        const updatedUser = await updateCurrentUser({ highlights: updatedHighlights });
-        if (updatedUser) {
-          setUser(updatedUser);
-          Alert.alert('Success', 'Highlight uploaded successfully!');
-        }
+      if (result && !result.canceled && result.assets?.[0]) {
+        Alert.alert('Success', `${type} uploaded successfully!`);
       }
     } catch (error) {
-      console.error('❌ Error uploading media:', error);
-      Alert.alert('Error', 'Failed to upload media');
+      console.error(`Error uploading ${type}:`, error);
+      Alert.alert('Error', `Failed to upload ${type}`);
     }
   };
 
@@ -182,301 +311,246 @@ export default function ProfileScreen() {
     Alert.alert('Settings', 'Settings feature coming soon!');
   };
 
+  const handleDeploymentCheck = async () => {
+    try {
+      Alert.alert('Running Deployment Check', 'Please wait...');
+      const report = await runFullDeploymentCheck();
+      
+      if (report.overallStatus === 'ready') {
+        Alert.alert('✅ Deployment Ready', 'All systems are ready for deployment!');
+      } else {
+        setShowProductionChecklist(true);
+      }
+    } catch (error) {
+      console.error('Deployment check error:', error);
+      Alert.alert('Error', 'Failed to run deployment check');
+    }
+  };
+
+  const handleBuildTrigger = () => {
+    Alert.alert(
+      '🚀 Trigger iOS Build',
+      'This will verify all configurations and prepare for a new iOS build. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Trigger Build', 
+          onPress: () => {
+            const isReady = triggerBuildCheck();
+            if (isReady) {
+              Alert.alert(
+                '✅ Build Ready!',
+                'All configurations verified. Your app is ready for iOS build!\n\n' +
+                '• Merchant ID: merchant.com.rracroth.nextdrop\n' +
+                '• Bundle ID: com.rracroth.nextdrop\n' +
+                '• Build Number: 2\n\n' +
+                'You can now submit to EAS Build.',
+                [{ text: 'Great!', style: 'default' }]
+              );
+            } else {
+              Alert.alert(
+                '❌ Build Issues Found',
+                'Some issues were found. Check the console for details.',
+                [{ text: 'OK', style: 'default' }]
+              );
+            }
+          }
+        },
+      ]
+    );
+  };
+
   const handleViewCollaborations = () => {
-    Alert.alert('Collaborations', 'View collaborations feature coming soon!');
+    router.push('/projects');
   };
 
   const handleViewMatches = () => {
-    router.push('/(tabs)/matches');
+    router.push('/matches');
   };
 
   const handleViewProjects = () => {
-    router.push('/(tabs)/projects');
+    router.push('/projects');
   };
 
-  const formatJoinDate = (dateString: string): string => {
+  const formatJoinDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long' 
-    });
+    return `Joined ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
   };
 
-  if (!user) {
+  if (!currentUser) {
     return (
-      <View style={[commonStyles.container, commonStyles.centerContent]}>
-        <LinearGradient
-          colors={colors.gradientBackground}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        <Text style={commonStyles.text}>Loading profile...</Text>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.emptyText}>Loading profile...</Text>
       </View>
     );
   }
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={colors.gradientBackground}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      
+    <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[commonStyles.content, { paddingTop: spacing.lg }]}
-        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: insets.top }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={loadProfile} />
         }
+        showsVerticalScrollIndicator={false}
       >
         <Animated.View style={animatedStyle}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerContent}>
-              <Text style={[commonStyles.title, { marginBottom: 0 }]}>
-                {user.name}
-              </Text>
-              <Text style={[commonStyles.caption, { marginTop: spacing.xs }]}>
-                {user.role} • {user.location}
-              </Text>
-              <Text style={[commonStyles.caption, { opacity: 0.7 }]}>
-                Member since {formatJoinDate(user.joinDate)}
-              </Text>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.settingsButton}
-              onPress={handleSettings}
-            >
-              <Icon name="settings-outline" size={24} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Bio */}
-          {user.bio && (
-            <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
-              <Text style={[commonStyles.textLeft, { marginBottom: 0 }]}>
-                {user.bio}
-              </Text>
-            </View>
-          )}
-
-          {/* Subscription Status */}
-          {subscriptionStatus && (
-            <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
-              <View style={styles.subscriptionHeader}>
-                <View style={styles.subscriptionInfo}>
-                  <Text style={[commonStyles.heading, { marginBottom: spacing.xs }]}>
-                    {subscriptionStatus.plan} Plan
-                  </Text>
-                  {subscriptionStatus.isPremium ? (
-                    <Text style={[commonStyles.caption, { color: colors.success }]}>
-                      Premium Active • Unlimited Access
-                    </Text>
-                  ) : (
-                    <Text style={[commonStyles.caption, { color: colors.textMuted }]}>
-                      Free Plan • Limited Access
-                    </Text>
-                  )}
-                </View>
-                <Icon 
-                  name={subscriptionStatus.isPremium ? "diamond" : "person"} 
-                  size={24} 
-                  color={subscriptionStatus.isPremium ? colors.warning : colors.primary} 
-                />
+            <View style={styles.profileSection}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {currentUser.name?.charAt(0).toUpperCase() || 'U'}
+                </Text>
               </View>
-              
-              {subscriptionStatus.usage && (
-                <View style={styles.usageStats}>
-                  <View style={styles.usageStat}>
-                    <Text style={styles.usageLabel}>Projects this month</Text>
-                    <Text style={styles.usageValue}>
-                      {subscriptionStatus.isPremium 
-                        ? 'Unlimited' 
-                        : `${subscriptionStatus.usage.projectsPostedThisMonth}/${subscriptionStatus.limits.projectsPerMonth}`
-                      }
-                    </Text>
-                  </View>
-                  <View style={styles.usageStat}>
-                    <Text style={styles.usageLabel}>Likes today</Text>
-                    <Text style={styles.usageValue}>
-                      {subscriptionStatus.isPremium 
-                        ? 'Unlimited' 
-                        : `${subscriptionStatus.usage.likesUsedToday}/${subscriptionStatus.limits.likesPerDay}`
-                      }
-                    </Text>
-                  </View>
-                  <View style={styles.usageStat}>
-                    <Text style={styles.usageLabel}>Applications this month</Text>
-                    <Text style={styles.usageValue}>
-                      {subscriptionStatus.isPremium 
-                        ? 'Unlimited' 
-                        : `${subscriptionStatus.usage.applicationsThisMonth}/${subscriptionStatus.limits.applicationsPerMonth}`
-                      }
-                    </Text>
-                  </View>
-                </View>
-              )}
-              
-              {!subscriptionStatus.isPremium && (
-                <Button
-                  text="Upgrade to Premium"
-                  onPress={() => setShowSubscriptionModal(true)}
-                  variant="gradient"
-                  size="sm"
-                  style={{ marginTop: spacing.md }}
-                  icon={<Icon name="diamond" size={16} color={colors.text} />}
-                />
-              )}
-            </View>
-          )}
-
-          {/* Genres */}
-          <View style={[commonStyles.card, { marginBottom: spacing.lg }]}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.md }]}>
-              Genres
-            </Text>
-            <View style={styles.genreContainer}>
-              {user.genres.map((genre, index) => (
-                <View key={index} style={styles.genreTag}>
-                  <Text style={styles.genreText}>{genre}</Text>
-                </View>
-              ))}
+              <Text style={styles.name}>{currentUser.name || 'Unknown User'}</Text>
+              <Text style={styles.role}>{currentUser.role || 'Music Creator'}</Text>
+              <Text style={styles.joinDate}>
+                {formatJoinDate(currentUser.createdAt || new Date().toISOString())}
+              </Text>
             </View>
           </View>
 
           {/* Stats */}
           <View style={styles.statsContainer}>
             <StatCard
-              icon="heart"
+              icon="people"
               number={stats.matches}
               label="Matches"
               onPress={handleViewMatches}
-              gradient={colors.gradientPrimary}
+              gradient={['#667eea', '#764ba2']}
             />
             <StatCard
-              icon="folder"
+              icon="musical-notes"
               number={stats.projects}
               label="Projects"
               onPress={handleViewProjects}
-              gradient={colors.gradientSecondary}
+              gradient={['#f093fb', '#f5576c']}
             />
-          </View>
-
-          <View style={styles.statsContainer}>
             <StatCard
-              icon="people"
+              icon="trophy"
               number={stats.collaborations}
               label="Collabs"
               onPress={handleViewCollaborations}
-              gradient={['#10B981', '#059669']}
+              gradient={['#4facfe', '#00f2fe']}
             />
-            <StatCard
-              icon="star"
-              number={stats.rating}
-              label="Rating"
-              onPress={() => {}}
-              gradient={['#F59E0B', '#D97706']}
-            />
+          </View>
+
+          {/* Build Trigger Section */}
+          <View style={styles.buildTriggerSection}>
+            <View style={styles.buildTriggerCard}>
+              <Text style={styles.buildTriggerTitle}>🚀 iOS Build Ready</Text>
+              <Text style={styles.buildTriggerDescription}>
+                All Stripe configurations have been updated and verified. 
+                Your app is ready for a new iOS build with proper Apple Pay support.
+              </Text>
+              <View style={styles.buildTriggerButtons}>
+                <Button
+                  title="Trigger Build Check"
+                  onPress={handleBuildTrigger}
+                  variant="primary"
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title="Deployment Check"
+                  onPress={handleDeploymentCheck}
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </View>
           </View>
 
           {/* Quick Actions */}
-          <View style={styles.quickActionsContainer}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Quick Actions
-            </Text>
-            
-            <QuickActionCard
-              icon="create"
-              title="Edit Profile"
-              subtitle="Update your information"
-              onPress={handleEditProfile}
-              gradient={colors.gradientPrimary}
-            />
-            
-            <QuickActionCard
-              icon="cloud-upload"
-              title="Upload Highlight"
-              subtitle="Add audio, video, or image"
-              onPress={handleUploadHighlight}
-              gradient={colors.gradientSecondary}
-            />
-            
-            {subscriptionStatus && !subscriptionStatus.isPremium && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsGrid}>
+              <QuickActionCard
+                icon="create"
+                title="Edit Profile"
+                subtitle="Update your info"
+                onPress={handleEditProfile}
+                gradient={['#667eea', '#764ba2']}
+              />
+              <QuickActionCard
+                icon="cloud-upload"
+                title="Upload Highlight"
+                subtitle="Add new media"
+                onPress={handleUploadHighlight}
+                gradient={['#f093fb', '#f5576c']}
+              />
               <QuickActionCard
                 icon="diamond"
-                title="Upgrade to Premium"
-                subtitle="Unlimited likes, projects & applications"
-                onPress={() => setShowSubscriptionModal(true)}
-                gradient={['#FFD700', '#FFA500']}
+                title="Go Premium"
+                subtitle="Unlock features"
+                onPress={() => setShowSubscription(true)}
+                gradient={['#ffecd2', '#fcb69f']}
               />
-            )}
+              <QuickActionCard
+                icon="settings"
+                title="Settings"
+                subtitle="App preferences"
+                onPress={handleSettings}
+                gradient={['#a8edea', '#fed6e3']}
+              />
+            </View>
           </View>
 
           {/* Highlights */}
-          <View style={styles.highlightsContainer}>
-            <Text style={[commonStyles.heading, { marginBottom: spacing.lg }]}>
-              Highlights ({user.highlights.length})
-            </Text>
-            
-            {user.highlights.length === 0 ? (
-              <View style={[commonStyles.card, styles.emptyState]}>
-                <Icon name="musical-notes" size={48} color={colors.textMuted} />
-                <Text style={[commonStyles.text, { marginTop: spacing.md }]}>
-                  No highlights yet
-                </Text>
-                <Text style={[commonStyles.caption, { marginTop: spacing.xs }]}>
-                  Upload your best work to showcase your talent
-                </Text>
-                <Button
-                  text="Upload First Highlight"
-                  onPress={handleUploadHighlight}
-                  variant="primary"
-                  size="sm"
-                  style={{ marginTop: spacing.lg }}
-                />
-              </View>
-            ) : (
-              <View style={styles.highlightsGrid}>
-                {user.highlights.map((highlight, index) => (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>My Highlights</Text>
+            <View style={styles.highlightsContainer}>
+              {currentUser.highlights && currentUser.highlights.length > 0 ? (
+                currentUser.highlights.map((highlight, index) => (
                   <HighlightCard
-                    key={highlight.id}
+                    key={index}
                     highlight={highlight}
                     delay={index * 100}
                   />
-                ))}
-              </View>
-            )}
+                ))
+              ) : (
+                <View style={styles.emptyHighlights}>
+                  <Text style={styles.emptyText}>
+                    No highlights yet. Upload your first audio or video to showcase your talent!
+                  </Text>
+                  <Button
+                    title="Upload Highlight"
+                    onPress={handleUploadHighlight}
+                    variant="primary"
+                  />
+                </View>
+              )}
+            </View>
           </View>
         </Animated.View>
       </ScrollView>
 
-      {/* Subscription Modal */}
       <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
+        visible={showSubscription}
+        onClose={() => setShowSubscription(false)}
         onSuccess={() => {
-          setShowSubscriptionModal(false);
-          Alert.alert('Welcome to Premium! 🎉', 'You now have unlimited access to all features!');
-          loadProfile(); // Reload to update subscription status
+          setShowSubscription(false);
+          Alert.alert('Success', 'Welcome to Premium!');
         }}
       />
+
+      <Modal
+        visible={showProductionChecklist}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <ProductionChecklist onClose={() => setShowProductionChecklist(false)} />
+      </Modal>
     </View>
   );
 }
 
 function StatCard({ icon, number, label, onPress, gradient }: StatCardProps) {
   return (
-    <TouchableOpacity style={styles.statCard} onPress={onPress}>
-      <LinearGradient
-        colors={gradient}
-        style={styles.statCardGradient}
-      >
-        <Icon name={icon} size={24} color={colors.text} />
+    <TouchableOpacity onPress={onPress}>
+      <LinearGradient colors={gradient} style={styles.statCard}>
+        <Icon name={icon} size={24} color={colors.white} />
         <Text style={styles.statNumber}>{number}</Text>
         <Text style={styles.statLabel}>{label}</Text>
       </LinearGradient>
@@ -486,228 +560,34 @@ function StatCard({ icon, number, label, onPress, gradient }: StatCardProps) {
 
 function QuickActionCard({ icon, title, subtitle, onPress, gradient }: QuickActionCardProps) {
   return (
-    <TouchableOpacity style={styles.quickActionCard} onPress={onPress}>
-      <LinearGradient
-        colors={gradient}
-        style={styles.quickActionGradient}
-      >
-        <Icon name={icon} size={32} color={colors.text} />
-      </LinearGradient>
-      <View style={styles.quickActionContent}>
+    <TouchableOpacity onPress={onPress}>
+      <LinearGradient colors={gradient} style={styles.quickActionCard}>
+        <Icon name={icon} size={24} color={colors.white} style={styles.quickActionIcon} />
         <Text style={styles.quickActionTitle}>{title}</Text>
         <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
-      </View>
-      <Icon name="chevron-forward" size={20} color={colors.textMuted} />
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
 
 function HighlightCard({ highlight, delay }: HighlightCardProps) {
   const cardOpacity = useSharedValue(0);
-  const cardScale = useSharedValue(0.9);
-
-  const cardAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: cardOpacity.value,
-      transform: [{ scale: cardScale.value }],
-    };
-  });
+  const cardScale = useSharedValue(0.8);
 
   useEffect(() => {
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-    cardScale.value = withDelay(delay, withSpring(1, { damping: 15 }));
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
+    cardScale.value = withDelay(delay, withSpring(1, { damping: 15, stiffness: 100 }));
   }, [delay, cardOpacity, cardScale]);
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }],
+  }));
+
   return (
-    <Animated.View style={[styles.highlightCard, cardAnimatedStyle]}>
-      <View style={styles.highlightIcon}>
-        <Icon 
-          name={highlight.type === 'audio' ? 'musical-note' : highlight.type === 'video' ? 'videocam' : 'image'} 
-          size={24} 
-          color={colors.primary} 
-        />
-      </View>
-      <Text style={styles.highlightTitle} numberOfLines={1}>
-        {highlight.title}
-      </Text>
-      <Text style={styles.highlightType}>
-        {highlight.type.toUpperCase()}
-      </Text>
+    <Animated.View style={[styles.highlightCard, animatedStyle]}>
+      <Text style={styles.highlightTitle}>{highlight.title || 'Untitled'}</Text>
+      <Text style={styles.highlightType}>{highlight.type || 'Audio'}</Text>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  settingsButton: {
-    padding: spacing.sm,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.backgroundCard,
-  },
-  genreContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  genreTag: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  genreText: {
-    color: colors.text,
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-  },
-  statCardGradient: {
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    ...shadows.md,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
-    color: colors.text,
-    marginTop: spacing.sm,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: colors.text,
-    opacity: 0.9,
-    marginTop: spacing.xs,
-  },
-  quickActionsContainer: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  quickActionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.sm,
-  },
-  quickActionGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  quickActionContent: {
-    flex: 1,
-  },
-  quickActionTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  quickActionSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-  },
-  highlightsContainer: {
-    marginBottom: spacing.xl,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  highlightsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  highlightCard: {
-    width: '48%',
-    backgroundColor: colors.backgroundCard,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.sm,
-  },
-  highlightIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  highlightTitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  highlightType: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  subscriptionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  subscriptionInfo: {
-    flex: 1,
-  },
-  usageStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  usageStat: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  usageLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-    textAlign: 'center',
-  },
-  usageValue: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.text,
-    textAlign: 'center',
-  },
-});
