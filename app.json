@@ -1,6 +1,12 @@
 {
   "expo": {
     "name": "nextdrop",
-    "slug": "nextdrop"
+    "slug": "nextdrop",
+    "owner": "rracroth",
+    "extra": {
+      "eas": {
+        "projectId": "fe175e19-9391-4f35-a5a9-4241e7e38964"
+      }
+    }
   }
 }
